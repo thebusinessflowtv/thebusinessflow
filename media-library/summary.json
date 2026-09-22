@@ -1,0 +1,12 @@
+{
+  "asset_count": 221,
+  "images": 117,
+  "videos": 104,
+  "total_bytes": 503848565,
+  "duplicate_groups": 0,
+  "needs_license_review": 221,
+  "media_provider": "github_lfs",
+  "repository": "thebusinessflowtv/thebusinessflow",
+  "assets_root": "media-library/assets",
+  "published_asset_files": 221
+}
