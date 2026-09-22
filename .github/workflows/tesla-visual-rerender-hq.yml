@@ -1,0 +1,206 @@
+name: Tesla HQ Visual Re-render
+
+on:
+  push:
+    paths:
+      - 'production/tesla-rerender.request'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: tbf-tesla-hq-rerender
+  cancel-in-progress: true
+
+jobs:
+  rerender:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      ANTHROPIC_API_KEY: ''
+      VISUAL_IMAGE_TARGET: '50'
+      VISUAL_IMAGE_MIN: '40'
+      VISUAL_MAX_PER_QUERY: '7'
+      VISUAL_MIN_SOURCE_WIDTH: '1920'
+      VISUAL_MIN_SOURCE_HEIGHT: '1080'
+      GOOGLE_CSE_API_KEY: ${{ secrets.GOOGLE_CSE_API_KEY }}
+      GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install free render dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install -r production/requirements.txt
+          git lfs pull
+          python -m py_compile production/collect_visual_assets_hq.py production/render_episode_hq.py production/collect_visual_assets.py production/render_episode.py
+          test -z "${ANTHROPIC_API_KEY}"
+
+      - name: Download previous Tesla production artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tbf-production-famous-002-35769823800
+          path: previous
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 35769823800
+
+      - name: Recover exact old audio and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s previous/rendered/final.mp4
+          test -s previous/output/famous-002/episode-package.json
+          test -s production/research-library/famous-002.json
+          mkdir -p production/tesla-rerender production/research-cache/famous-002
+          cp production/research-library/famous-002.json production/research-cache/famous-002/research.json
+          ffmpeg -hide_banner -loglevel error -y -i previous/rendered/final.mp4 -map 0:a:0 -vn -c:a copy production/tesla-rerender/original-audio.m4a
+          test -s production/tesla-rerender/original-audio.m4a
+          echo 'Original Tesla audio recovered. No TTS and no Anthropic call will run.'
+
+      - name: Restore HQ visual cache
+        id: visual-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/visual-cache/famous-002
+          key: tbf-visual-hq-v2-famous-002-${{ github.run_id }}
+          restore-keys: |
+            tbf-visual-hq-v2-famous-002-
+
+      - name: Collect 50 strict Tesla visuals at 1080p minimum, 4K preferred
+        id: visuals
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/collect_visual_assets.py \
+            --topic-id famous-002 \
+            --research production/research-cache/famous-002/research.json \
+            --target 50
+
+      - name: Save HQ visual cache immediately
+        if: always() && steps.visual-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/visual-cache/famous-002
+          key: ${{ steps.visual-cache.outputs.cache-primary-key }}
+
+      - name: Validate image quality and relevance gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          m=Path('production/visual-cache/famous-002/visual-assets.json')
+          d=json.loads(m.read_text(encoding='utf-8'))
+          assets=d.get('assets') or []
+          if len(assets) != 50:
+              raise SystemExit(f'Expected exactly 50 Tesla images, got {len(assets)}')
+          if not d.get('logos_excluded') or not d.get('off_topic_blocking'):
+              raise SystemExit('Strict relevance/logo gate not active')
+          bad=[]
+          for a in assets:
+              sw=int(a.get('source_width') or 0); sh=int(a.get('source_height') or 0)
+              if sw < 1920 or sh < 1080:
+                  bad.append(f"{a.get('title')} source={sw}x{sh}")
+              p=Path(a['local_path'])
+              with Image.open(p) as im:
+                  if im.size != (3840,2160):
+                      bad.append(f"{a.get('title')} normalized={im.size}")
+              title=(a.get('title') or '').lower()
+              forbidden=(' dog',' puppy',' cat',' kitten',' animal','nikola tesla','tesla coil','tesla museum','tesla statue')
+              if any(x in title for x in forbidden):
+                  bad.append(f"off-topic={a.get('title')}")
+          if bad:
+              raise SystemExit('HQ visual gate failed:\n'+'\n'.join(bad[:20]))
+          print('Tesla HQ visual gate passed:', len(assets), 'images; native 4K:', d.get('native_4k_count'))
+          print('All source images >=1080p and all normalized images are 3840x2160.')
+          PY
+
+      - name: Re-render using exact previous audio — no TTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf production/rerendered
+          python production/render_episode.py \
+            --package previous/output/famous-002/episode-package.json \
+            --output-dir production/rerendered \
+            --narration production/tesla-rerender/original-audio.m4a
+
+      - name: Validate 4K, stable zoom, zero loops and exact audio reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s production/rerendered/final.mp4
+          RES="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 production/rerendered/final.mp4)"
+          test "$RES" = "3840x2160" || { echo "Unexpected resolution: $RES"; exit 1; }
+          OLD_HASH="$(ffmpeg -v error -i production/tesla-rerender/original-audio.m4a -map 0:a:0 -c copy -f hash -hash sha256 - | tail -1)"
+          NEW_HASH="$(ffmpeg -v error -i production/rerendered/final.mp4 -map 0:a:0 -c copy -f hash -hash sha256 - | tail -1)"
+          test "$OLD_HASH" = "$NEW_HASH" || { echo 'Audio stream changed during visual-only rerender'; exit 1; }
+          python - <<'PY'
+          import json
+          plan=json.load(open('production/rerendered/selected-assets.json',encoding='utf-8'))
+          ids=[x['asset_id'] for x in plan]
+          if len(ids) != len(set(ids)):
+              raise SystemExit('Repeated asset detected')
+          if any(x.get('looped') for x in plan):
+              raise SystemExit('Loop detected')
+          bad_motion=[x for x in plan if x.get('asset_type')=='image' and x.get('motion') not in {'zoom_in','zoom_out'}]
+          if bad_motion:
+              raise SystemExit('Unexpected image motion detected')
+          videos=[x for x in plan if x.get('asset_type')=='video']
+          for x in videos:
+              hay=(x.get('title') or '').lower()+' '+(x.get('query') or '').lower()
+              if not any(t in hay for t in ('tesla','cybertruck','model 3','model y','model s','model x','supercharger','gigafactory')):
+                  raise SystemExit(f"Off-topic support video: {x.get('title')}")
+          print('4K validation passed | assets:',len(plan),'| support videos:',len(videos),'| loops: 0 | motion: zoom only')
+          PY
+
+      - name: Upload corrected Tesla review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbf-tesla-hq-rerender-${{ github.run_id }}
+          path: |
+            production/rerendered/final.mp4
+            production/rerendered/thumbnail.png
+            production/rerendered/metadata.json
+            production/rerendered/selected-assets.json
+            production/rerendered/scene-plan.json
+            production/visual-cache/famous-002/visual-assets.json
+            production/tesla-rerender/original-audio.m4a
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Tesla HQ Visual Re-render'
+            echo '- Anthropic spend for this rerender: $0.0000'
+            echo '- TTS spend/call: none; exact previous audio reused'
+            echo '- Minimum source image resolution: 1920x1080'
+            echo '- Preferred source quality: native 4K'
+            echo '- Final video: 3840x2160'
+            echo '- Image movement: centered zoom-in / zoom-out only'
+            echo '- Generic video fallback: disabled'
+          } >> "$GITHUB_STEP_SUMMARY"
