@@ -1,3 +1,6 @@
-run=first-real-video-theranos-2026-09-22T04:12Z
-topic=tbf-004
+run=amazon-real-video-2026-09-22T04:27Z
+topic=famous-001
+company=Amazon
+strategy=famous-company-first
+anthropic_mode=single-call-credit-efficient
 publish_target=2026-09-22 America/New_York
