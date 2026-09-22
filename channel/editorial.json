@@ -22,14 +22,42 @@
     "curious",
     "fact-based"
   ],
+  "packaging_strategy": {
+    "goal": "Maximize qualified click-through rate without misleading the viewer.",
+    "title_style": [
+      "familiar brand plus unexpected conflict",
+      "verified large number plus consequence",
+      "why X failed / cannot survive / lost its lead when factually supported",
+      "how X really makes money",
+      "hidden economics / secret business model",
+      "rise-and-fall with a strong reversal"
+    ],
+    "thumbnail": {
+      "text_words_max": 4,
+      "principles": [
+        "one dominant subject",
+        "very high visual contrast",
+        "one clear emotional or financial tension",
+        "thumbnail text should complement rather than repeat the title",
+        "prefer a verified number, consequence or contradiction when available"
+      ]
+    },
+    "title_candidates_per_episode": 10,
+    "thumbnail_variants_per_episode": 3
+  },
   "rules": [
-    "Prioritize evergreen topics.",
-    "Never fabricate quotes, numbers, events, sources or motives.",
+    "Prioritize evergreen topics with strong familiarity in the United States.",
+    "Never fabricate quotes, numbers, events, sources, crimes or motives.",
     "Separate verified facts from interpretation.",
-    "Use strong curiosity-driven hooks without making false promises.",
+    "Use aggressive curiosity gaps and factual clickbait, never false promises.",
+    "Any number used in a title or thumbnail must be supported by a reliable source in the episode research pack.",
+    "Any accusation of fraud, crime or illegality must be based on a court record, regulator, official filing or equivalently strong source.",
     "Prefer primary sources, filings, official reports and established journalism for factual claims.",
     "Write naturally for American English narration.",
-    "Do not copy documentary scripts or article wording.",
-    "Every episode must add original structure, explanation and storytelling."
+    "Do not copy competitor titles verbatim, documentary scripts or article wording.",
+    "Every episode must add original structure, explanation and storytelling.",
+    "The first 30 seconds must create a clear open loop and explain why the viewer should care.",
+    "Refresh tension or introduce a new question every 45-90 seconds.",
+    "End by resolving the core promise made by the title and opening hook."
   ]
 }
