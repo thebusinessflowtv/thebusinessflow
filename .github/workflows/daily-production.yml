@@ -85,7 +85,6 @@ jobs:
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os
           from pathlib import Path
-
           d=json.load(open('production/topics.json', encoding='utf-8'))
           wanted=(os.environ.get('INPUT_TOPIC') or '').strip()
           if not wanted and os.environ.get('GITHUB_EVENT_NAME') == 'push':
@@ -113,6 +112,18 @@ jobs:
         with:
           path: production/package-cache/${{ steps.setup.outputs.topic_id }}
           key: tbf-sonnet-package-v2-${{ steps.setup.outputs.topic_id }}
+
+      - name: Hydrate durable research checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIBRARY="production/research-library/${{ steps.setup.outputs.topic_id }}.json"
+          CACHE="production/research-cache/${{ steps.setup.outputs.topic_id }}/research.json"
+          if [ -s "$LIBRARY" ]; then
+            mkdir -p "$(dirname "$CACHE")"
+            cp "$LIBRARY" "$CACHE"
+            echo 'Durable research checkpoint restored. No Haiku call will be needed.'
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -174,6 +185,17 @@ jobs:
         with:
           path: production/research-cache/${{ steps.setup.outputs.topic_id }}
           key: ${{ steps.research-cache.outputs.cache-primary-key }}
+
+      - name: Promote valid research to durable checkpoint
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="production/research-cache/${{ steps.setup.outputs.topic_id }}/research.json"
+          DST="production/research-library/${{ steps.setup.outputs.topic_id }}.json"
+          test -s "$SRC"
+          mkdir -p production/research-library
+          cp "$SRC" "$DST"
 
       - name: Sonnet 5 writing — no web, thinking disabled, cache first
         shell: bash
@@ -252,6 +274,7 @@ jobs:
         with:
           name: tbf-production-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
           path: |
+            production/research-library/${{ steps.setup.outputs.topic_id }}.json
             production/output/${{ steps.setup.outputs.topic_id }}/
             production/rendered/final.mp4
             production/rendered/thumbnail.png
@@ -261,7 +284,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Commit queue checkpoint safely
+      - name: Commit durable checkpoints safely
         if: success()
         shell: bash
         run: |
@@ -269,9 +292,9 @@ jobs:
           git config user.name 'The Business Flow Factory'
           git config user.email 'thebusinessflowtv@gmail.com'
           git restore --worktree media-library/catalog.json || true
-          git add production/topics.json
+          git add production/topics.json "production/research-library/${{ steps.setup.outputs.topic_id }}.json"
           if git diff --cached --quiet; then
-            echo 'No queue checkpoint change to commit.'
+            echo 'No checkpoint change to commit.'
             exit 0
           fi
           git commit -m "Checkpoint produced topic ${{ steps.setup.outputs.topic_id }}"
@@ -284,6 +307,7 @@ jobs:
         with:
           name: tbf-recovery-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
           path: |
+            production/research-library/${{ steps.setup.outputs.topic_id }}.json
             production/research-cache/${{ steps.setup.outputs.topic_id }}/
             production/package-cache/${{ steps.setup.outputs.topic_id }}/
             production/output/${{ steps.setup.outputs.topic_id }}/
@@ -314,6 +338,6 @@ jobs:
               print(f"- Anthropic total: ${float(c.get('total_usd') or 0):.4f}")
           else:
               print('- Episode package not completed; inspect cached/recovery state before any retry.')
-          print('- Haiku and Sonnet paid outputs are cached before rendering.')
+          print('- Paid research/script outputs are cached before rendering and valid research is also persisted in Git.')
           print('- Automatic YouTube upload: ${{ steps.setup.outputs.should_upload }}')
           PY
