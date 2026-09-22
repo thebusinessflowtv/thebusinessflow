@@ -57,21 +57,31 @@ $env:SUPABASE_URL = "https://rhddgfvtrkmusbvphnlg.supabase.co"
 $env:THEBUSINESSFLOW_MEDIA_BUCKET = "mediaforge-assets"
 $env:THEBUSINESSFLOW_MEDIA_PREFIX = "thebusinessflow/media-library"
 
-Write-Host ""
-Write-Host "Paste the Supabase Secret Key. Input will stay hidden." -ForegroundColor Cyan
-$SecureKey = Read-Host "SUPABASE_SECRET_KEY" -AsSecureString
-$BSTR = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureKey)
-try {
-    $PlainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($BSTR)
-} finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+$ExistingKey = $env:SUPABASE_SECRET_KEY
+if ([string]::IsNullOrWhiteSpace($ExistingKey)) {
+    $ExistingKey = $env:SUPABASE_SERVICE_ROLE_KEY
 }
 
-if ([string]::IsNullOrWhiteSpace($PlainKey)) {
-    throw "Supabase secret key was empty"
+$PromptedForKey = $false
+if ([string]::IsNullOrWhiteSpace($ExistingKey)) {
+    Write-Host ""
+    Write-Host "Paste the Supabase Secret Key. Input will stay hidden." -ForegroundColor Cyan
+    $SecureKey = Read-Host "SUPABASE_SECRET_KEY" -AsSecureString
+    $BSTR = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureKey)
+    try {
+        $PlainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($BSTR)
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+    }
+    if ([string]::IsNullOrWhiteSpace($PlainKey)) {
+        throw "Supabase secret key was empty"
+    }
+    $env:SUPABASE_SECRET_KEY = $PlainKey
+    $PromptedForKey = $true
+} else {
+    $env:SUPABASE_SECRET_KEY = $ExistingKey
+    Write-Host "Using Supabase key already configured on this computer." -ForegroundColor DarkGray
 }
-
-$env:SUPABASE_SECRET_KEY = $PlainKey
 
 try {
     Write-Host "Uploading organized media to Supabase Storage..." -ForegroundColor Yellow
@@ -85,6 +95,8 @@ try {
     Write-Host "Storage: mediaforge-assets/thebusinessflow/media-library/"
 }
 finally {
-    Remove-Item Env:SUPABASE_SECRET_KEY -ErrorAction SilentlyContinue
-    $PlainKey = $null
+    if ($PromptedForKey) {
+        Remove-Item Env:SUPABASE_SECRET_KEY -ErrorAction SilentlyContinue
+        $PlainKey = $null
+    }
 }
