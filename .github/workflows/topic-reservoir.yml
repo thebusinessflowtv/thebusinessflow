@@ -1,0 +1,105 @@
+name: The Business Flow Topic Reservoir
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 10 * * *'
+  push:
+    paths:
+      - 'production/reservoir-run.request'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: the-business-flow-topic-reservoir
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
+          test -n "$YOUTUBE_CLIENT_ID" || { echo 'Missing YOUTUBE_CLIENT_ID'; exit 1; }
+          test -n "$YOUTUBE_CLIENT_SECRET" || { echo 'Missing YOUTUBE_CLIENT_SECRET'; exit 1; }
+          test -n "$YOUTUBE_REFRESH_TOKEN" || { echo 'Missing YOUTUBE_REFRESH_TOKEN'; exit 1; }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r production/requirements.txt
+
+      - name: Re-rank and replenish 50-topic reservoir
+        run: python production/topic_reservoir.py
+
+      - name: Validate reservoir
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('production/topics.json', encoding='utf-8'))
+          ready=[t for t in d.get('topics',[]) if t.get('status')=='ready']
+          assert len(ready)==50, len(ready)
+          scores=[int(t.get('click_score') or 0) for t in ready]
+          assert scores == sorted(scores, reverse=True), scores
+          print('Top 10:')
+          for i,t in enumerate(ready[:10],1):
+              print(i, t.get('click_score'), t.get('topic'))
+          PY
+
+      - name: Commit ranked queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Topic Engine'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json
+          if git diff --cached --quiet; then
+            echo 'No topic queue changes.'
+            exit 0
+          fi
+          git commit -m 'Refresh ranked 50-topic reservoir'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Upload reservoir analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-topic-reservoir-${{ github.run_id }}
+          path: production/reservoir-output/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Summary
+        run: |
+          echo '### The Business Flow Topic Reservoir ✅' >> "$GITHUB_STEP_SUMMARY"
+          echo '- YouTube reference channels sampled' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Views/day and channel-relative outliers calculated' >> "$GITHUB_STEP_SUMMARY"
+          echo '- All ready topics rescored by Anthropic' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Exactly 50 ready topics preserved' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Stronger new ideas may replace weaker ready ideas' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Queue sorted by click_score descending' >> "$GITHUB_STEP_SUMMARY"
