@@ -31,6 +31,9 @@ $OutputDir = Join-Path $RepoRoot "media-library\generated"
 $BuildScript = Join-Path $RepoRoot "tools\build_media_catalog.py"
 $UploadScript = Join-Path $RepoRoot "tools\upload_media_library.py"
 
+Write-Host "Installing/checking Python dependencies..." -ForegroundColor Yellow
+Invoke-Python -m pip install --upgrade "requests==2.34.2" "pillow==12.3.0" "supabase==2.31.0"
+
 if (-not $UploadOnly) {
     if (-not (Test-Path -LiteralPath $ZipPath)) {
         throw "ZIP not found: $ZipPath"
@@ -46,9 +49,6 @@ if (-not $UploadOnly) {
     Invoke-Python --version
     Write-Host "FFmpeg:" -ForegroundColor DarkGray
     ffmpeg -version | Select-Object -First 1
-
-    Write-Host "Installing/checking Python dependencies..." -ForegroundColor Yellow
-    Invoke-Python -m pip install --upgrade requests pillow
 
     Write-Host "Building catalog and organizing media..." -ForegroundColor Yellow
     Invoke-Python $BuildScript $ZipPath --output-dir $OutputDir
@@ -66,32 +66,29 @@ $env:SUPABASE_URL = "https://rhddgfvtrkmusbvphnlg.supabase.co"
 $env:THEBUSINESSFLOW_MEDIA_BUCKET = "mediaforge-assets"
 $env:THEBUSINESSFLOW_MEDIA_PREFIX = "thebusinessflow/media-library"
 
-$ExistingServiceRole = $env:SUPABASE_SERVICE_ROLE_KEY
-$PromptedForKey = $false
+# Avoid accidentally reusing a stale/wrong legacy key from an earlier attempt.
+Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY -ErrorAction SilentlyContinue
 
-if ([string]::IsNullOrWhiteSpace($ExistingServiceRole)) {
-    Write-Host ""
-    Write-Host "For this direct Storage upload, use the LEGACY service_role JWT." -ForegroundColor Cyan
-    Write-Host "Supabase > Settings > API Keys > Legacy API Keys > service_role" -ForegroundColor Cyan
-    Write-Host "Do NOT paste an sb_secret_* key here." -ForegroundColor Yellow
-    $SecureKey = Read-Host "SUPABASE_SERVICE_ROLE_KEY" -AsSecureString
-    $BSTR = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureKey)
-    try {
-        $PlainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($BSTR)
-    } finally {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-    }
-    if ([string]::IsNullOrWhiteSpace($PlainKey)) {
-        throw "Supabase service_role key was empty"
-    }
-    if ($PlainKey.StartsWith("sb_secret_")) {
-        throw "You pasted an sb_secret_* key. This upload path requires the Legacy service_role JWT."
-    }
-    $env:SUPABASE_SERVICE_ROLE_KEY = $PlainKey
-    $PromptedForKey = $true
-} else {
-    Write-Host "Using SUPABASE_SERVICE_ROLE_KEY already configured on this computer." -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "Use the modern Secret key from THIS exact Supabase project:" -ForegroundColor Cyan
+Write-Host "Portal Leonidanos - project ref rhddgfvtrkmusbvphnlg" -ForegroundColor Cyan
+Write-Host "Supabase > Settings > API Keys > Secret keys" -ForegroundColor Cyan
+Write-Host "The key should start with sb_secret_." -ForegroundColor Yellow
+$SecureKey = Read-Host "SUPABASE_SECRET_KEY" -AsSecureString
+$BSTR = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureKey)
+try {
+    $PlainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($BSTR)
+} finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
 }
+
+if ([string]::IsNullOrWhiteSpace($PlainKey)) {
+    throw "Supabase secret key was empty"
+}
+if (-not $PlainKey.StartsWith("sb_secret_")) {
+    throw "Expected a modern sb_secret_* key from project rhddgfvtrkmusbvphnlg."
+}
+$env:SUPABASE_SECRET_KEY = $PlainKey
 
 try {
     Write-Host "Uploading organized media to Supabase Storage..." -ForegroundColor Yellow
@@ -105,8 +102,6 @@ try {
     Write-Host "Storage: mediaforge-assets/thebusinessflow/media-library/"
 }
 finally {
-    if ($PromptedForKey) {
-        Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY -ErrorAction SilentlyContinue
-        $PlainKey = $null
-    }
+    Remove-Item Env:SUPABASE_SECRET_KEY -ErrorAction SilentlyContinue
+    $PlainKey = $null
 }
