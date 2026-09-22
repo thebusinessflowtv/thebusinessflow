@@ -1,0 +1,99 @@
+{
+  "topic_id": "famous-001",
+  "topic": "Amazon",
+  "thesis": "Amazon's scale comes from retail, but its economics are increasingly powered by high-value services layered on top of that ecosystem, especially AWS, third-party seller services, advertising, and subscriptions.",
+  "facts": [
+    {
+      "claim": "Amazon reported $716.924 billion in consolidated net sales for 2025, up 12% year over year.",
+      "source_title": "Amazon 2025 Annual Report",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf",
+      "source_type": "SEC filing",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "AWS generated $128.725 billion of 2025 net sales and $45.606 billion of operating income, while Amazon's consolidated operating income was $79.975 billion.",
+      "source_title": "Amazon 2025 Annual Report",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf",
+      "source_type": "SEC filing",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "In 2025 Amazon reported $269.287 billion from online stores, $172.162 billion from third-party seller services, $68.635 billion from advertising services, and $49.619 billion from subscription services.",
+      "source_title": "Amazon 2025 Annual Report",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf",
+      "source_type": "SEC filing",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Amazon defines service sales as including third-party seller commissions and fulfillment or shipping fees, AWS, advertising services, Prime membership fees, and certain digital subscriptions.",
+      "source_title": "Amazon 2025 Annual Report",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf",
+      "source_type": "SEC filing",
+      "safe_for_packaging": false
+    },
+    {
+      "claim": "More than 60% of sales in Amazon's store come from independent sellers, most of which are small and medium-sized businesses.",
+      "source_title": "Amazon 2025 Small Business Empowerment Report",
+      "source_url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report",
+      "source_type": "Amazon corporate report",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "In Q2 2026 Amazon reported AWS net sales of $42.2 billion, up 37% year over year, and described that as a $169 billion annualized revenue run rate.",
+      "source_title": "Amazon Q2 2026 Results",
+      "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light",
+      "source_type": "Amazon investor relations",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Amazon's advertising business includes sponsored ads, display advertising, and video advertising offered to sellers, vendors, publishers, authors, and others.",
+      "source_title": "Amazon 2025 Annual Report",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf",
+      "source_type": "SEC filing",
+      "safe_for_packaging": false
+    },
+    {
+      "claim": "Amazon Retail Ad Service extends Amazon's advertising technology to participating retailers outside Amazon's own store and is built on AWS.",
+      "source_title": "Amazon Retail Ad Service announcement",
+      "source_url": "https://advertising.amazon.com/library/news/retail-ad-service-announcement",
+      "source_type": "Amazon product announcement",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {"value": "$716.924B", "context": "Amazon 2025 consolidated net sales", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
+    {"value": "$128.725B", "context": "AWS 2025 net sales", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
+    {"value": "$45.606B", "context": "AWS 2025 operating income", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
+    {"value": "$68.635B", "context": "Amazon 2025 advertising services sales", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
+    {"value": ">60%", "context": "Share of Amazon store sales from independent sellers", "source_url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report"},
+    {"value": "$42.2B", "context": "AWS Q2 2026 net sales", "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light"}
+  ],
+  "timeline": [
+    {"date": "2000", "event": "Amazon opened its store to independent sellers.", "source_url": "https://sellingpartners.aboutamazon.com/25-years-of-amazons-partnership-with-independent-sellers"},
+    {"date": "2025", "event": "Amazon reached $716.924 billion in annual net sales; AWS reached $128.725 billion.", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
+    {"date": "2025", "event": "Independent sellers accounted for more than 60% of sales in Amazon's store.", "source_url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report"},
+    {"date": "2026-Q2", "event": "AWS quarterly net sales reached $42.2 billion, up 37% year over year.", "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light"}
+  ],
+  "sources": [
+    {"title": "Amazon 2025 Annual Report", "url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf", "source_type": "SEC filing"},
+    {"title": "Amazon Q2 2026 Results", "url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light", "source_type": "Amazon investor relations"},
+    {"title": "Amazon 2025 Small Business Empowerment Report", "url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report", "source_type": "Amazon corporate report"},
+    {"title": "Amazon Retail Ad Service announcement", "url": "https://advertising.amazon.com/library/news/retail-ad-service-announcement", "source_type": "Amazon product announcement"}
+  ],
+  "risk_flags": [
+    "Do not claim retail is unprofitable; Amazon reports profitable North America and International segments in 2025.",
+    "Do not describe AWS operating income as Amazon's net profit; it is segment operating income.",
+    "Any percentage comparing AWS revenue with consolidated sales or AWS operating income with consolidated operating income should be described as an approximate derived share.",
+    "Do not imply seller fees, advertising, or Prime revenue are pure profit; source figures are revenue, not margins."
+  ],
+  "research_model": "claude-haiku-4-5-20251001 + source recovery",
+  "anthropic_usage": {
+    "input_tokens": 13343,
+    "output_tokens": 1298,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.029833,
+  "recovered_without_second_paid_call": true
+}
