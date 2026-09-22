@@ -1,11 +1,11 @@
 param(
     [string]$ZipPath = "$env:USERPROFILE\Downloads\Company Vault.zip",
-    [switch]$UploadOnly
+    [switch]$PublishOnly
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== The Business Flow Media Import (Windows) ===" -ForegroundColor Cyan
+Write-Host "=== The Business Flow Media Import -> GitHub LFS ===" -ForegroundColor Cyan
 
 function Resolve-PythonCommand {
     if (Get-Command python -ErrorAction SilentlyContinue) {
@@ -25,25 +25,30 @@ function Invoke-Python {
     }
 }
 
+function Assert-Command {
+    param([string]$Name)
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "$Name was not found in PATH."
+    }
+}
+
 $Python = Resolve-PythonCommand
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $OutputDir = Join-Path $RepoRoot "media-library\generated"
 $BuildScript = Join-Path $RepoRoot "tools\build_media_catalog.py"
-$UploadScript = Join-Path $RepoRoot "tools\upload_media_library.py"
+$PublishScript = Join-Path $RepoRoot "tools\publish_media_to_github.py"
+
+Assert-Command "git"
 
 Write-Host "Installing/checking Python dependencies..." -ForegroundColor Yellow
-Invoke-Python -m pip install --upgrade "requests==2.34.2" "pillow==12.3.0" "supabase==2.31.0"
+Invoke-Python -m pip install --upgrade "pillow==12.3.0"
 
-if (-not $UploadOnly) {
+if (-not $PublishOnly) {
     if (-not (Test-Path -LiteralPath $ZipPath)) {
         throw "ZIP not found: $ZipPath"
     }
-    if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
-        throw "ffmpeg was not found in PATH."
-    }
-    if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
-        throw "ffprobe was not found in PATH."
-    }
+    Assert-Command "ffmpeg"
+    Assert-Command "ffprobe"
 
     Write-Host "Python:" -ForegroundColor DarkGray
     Invoke-Python --version
@@ -54,54 +59,55 @@ if (-not $UploadOnly) {
     Invoke-Python $BuildScript $ZipPath --output-dir $OutputDir
 } else {
     if (-not (Test-Path -LiteralPath (Join-Path $OutputDir "catalog.json"))) {
-        throw "UploadOnly requested, but generated catalog was not found at $OutputDir"
+        throw "PublishOnly requested, but generated catalog was not found at $OutputDir"
     }
     if (-not (Test-Path -LiteralPath (Join-Path $OutputDir "organized"))) {
-        throw "UploadOnly requested, but organized media folder was not found at $OutputDir"
+        throw "PublishOnly requested, but organized media folder was not found at $OutputDir"
     }
-    Write-Host "UploadOnly mode: reusing the already-generated catalog and organized media." -ForegroundColor DarkGray
+    Write-Host "PublishOnly mode: reusing the already-generated catalog and 221 organized assets." -ForegroundColor DarkGray
 }
 
-$env:SUPABASE_URL = "https://rhddgfvtrkmusbvphnlg.supabase.co"
-$env:THEBUSINESSFLOW_MEDIA_BUCKET = "mediaforge-assets"
-$env:THEBUSINESSFLOW_MEDIA_PREFIX = "thebusinessflow/media-library"
+Write-Host "Preparing GitHub-only media library..." -ForegroundColor Yellow
+Invoke-Python $PublishScript $OutputDir --repo-root $RepoRoot
 
-# Avoid accidentally reusing a stale/wrong legacy key from an earlier attempt.
-Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY -ErrorAction SilentlyContinue
+Write-Host "Checking Git LFS..." -ForegroundColor Yellow
+& git lfs version
+if ($LASTEXITCODE -ne 0) {
+    throw "Git LFS is not installed. Install Git LFS on the Dell, then rerun this command."
+}
 
-Write-Host ""
-Write-Host "Use the modern Secret key from THIS exact Supabase project:" -ForegroundColor Cyan
-Write-Host "Portal Leonidanos - project ref rhddgfvtrkmusbvphnlg" -ForegroundColor Cyan
-Write-Host "Supabase > Settings > API Keys > Secret keys" -ForegroundColor Cyan
-Write-Host "The key should start with sb_secret_." -ForegroundColor Yellow
-$SecureKey = Read-Host "SUPABASE_SECRET_KEY" -AsSecureString
-$BSTR = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureKey)
+Push-Location $RepoRoot
 try {
-    $PlainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($BSTR)
-} finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-}
+    git lfs install --local
+    if ($LASTEXITCODE -ne 0) { throw "git lfs install failed" }
 
-if ([string]::IsNullOrWhiteSpace($PlainKey)) {
-    throw "Supabase secret key was empty"
-}
-if (-not $PlainKey.StartsWith("sb_secret_")) {
-    throw "Expected a modern sb_secret_* key from project rhddgfvtrkmusbvphnlg."
-}
-$env:SUPABASE_SECRET_KEY = $PlainKey
+    # Make sure the local checkout has the newest text configuration before pushing binaries.
+    git pull --rebase origin main
+    if ($LASTEXITCODE -ne 0) { throw "git pull --rebase failed" }
 
-try {
-    Write-Host "Uploading organized media to Supabase Storage..." -ForegroundColor Yellow
-    Invoke-Python $UploadScript $OutputDir
+    Write-Host "Staging catalog + Git LFS assets..." -ForegroundColor Yellow
+    git add .gitattributes media-library/catalog.json media-library/summary.json media-library/assets
+    if ($LASTEXITCODE -ne 0) { throw "git add failed" }
+
+    $Pending = git status --porcelain
+    if ([string]::IsNullOrWhiteSpace(($Pending -join ""))) {
+        Write-Host "Nothing new to commit. The GitHub media library is already up to date." -ForegroundColor Green
+    } else {
+        git commit -m "Add The Business Flow reusable media library"
+        if ($LASTEXITCODE -ne 0) { throw "git commit failed" }
+
+        Write-Host "Uploading media directly to thebusinessflowtv/thebusinessflow via Git LFS..." -ForegroundColor Yellow
+        git push origin main
+        if ($LASTEXITCODE -ne 0) { throw "git push failed" }
+    }
 
     Write-Host ""
     Write-Host "=== DONE ===" -ForegroundColor Green
-    Write-Host "The Business Flow media library is organized, cataloged and uploaded." -ForegroundColor Green
-    Write-Host "Catalog: $OutputDir\catalog.json"
-    Write-Host "Summary: $OutputDir\summary.json"
-    Write-Host "Storage: mediaforge-assets/thebusinessflow/media-library/"
+    Write-Host "The Business Flow media library is now stored only in GitHub." -ForegroundColor Green
+    Write-Host "Repository: thebusinessflowtv/thebusinessflow"
+    Write-Host "Assets: media-library/assets/ (Git LFS)"
+    Write-Host "Catalog: media-library/catalog.json"
 }
 finally {
-    Remove-Item Env:SUPABASE_SECRET_KEY -ErrorAction SilentlyContinue
-    $PlainKey = $null
+    Pop-Location
 }
