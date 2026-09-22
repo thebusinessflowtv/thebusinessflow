@@ -5,6 +5,7 @@ import json
 import os
 import random
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,23 @@ def verify_channel(youtube: Any, expected_channel_id: str) -> dict[str, Any]:
     return channel
 
 
+def normalize_publish_at(value: Any) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid publish_at ISO 8601 value: {raw}") from exc
+    if dt.tzinfo is None:
+        raise RuntimeError("publish_at must include a timezone offset or Z")
+    dt_utc = dt.astimezone(timezone.utc)
+    if dt_utc <= datetime.now(timezone.utc):
+        raise RuntimeError(f"publish_at must be in the future: {raw}")
+    return dt_utc.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
 def load_metadata(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     title = str(data.get("title") or "").strip()
@@ -73,6 +91,7 @@ def load_metadata(path: Path) -> dict[str, Any]:
         raise RuntimeError(f"YouTube description exceeds 5000 characters: {len(description)}")
     data["title"] = title
     data["description"] = description
+    data["publish_at"] = normalize_publish_at(data.get("publish_at"))
     return data
 
 
@@ -89,6 +108,15 @@ def upload_video(youtube: Any, video_path: Path, metadata: dict[str, Any]) -> st
         "corporate scandals",
         "The Business Flow",
     ]
+    video_status: dict[str, Any] = {
+        "privacyStatus": "private",
+        "embeddable": True,
+        "license": "youtube",
+        "selfDeclaredMadeForKids": False,
+    }
+    if metadata.get("publish_at"):
+        video_status["publishAt"] = metadata["publish_at"]
+
     body = {
         "snippet": {
             "title": metadata["title"],
@@ -98,12 +126,7 @@ def upload_video(youtube: Any, video_path: Path, metadata: dict[str, Any]) -> st
             "defaultLanguage": "en",
             "defaultAudioLanguage": "en",
         },
-        "status": {
-            "privacyStatus": "private",
-            "embeddable": True,
-            "license": "youtube",
-            "selfDeclaredMadeForKids": False,
-        },
+        "status": video_status,
     }
     media = MediaFileUpload(
         str(video_path), mimetype="video/mp4", chunksize=8 * 1024 * 1024, resumable=True
@@ -130,6 +153,35 @@ def upload_video(youtube: Any, video_path: Path, metadata: dict[str, Any]) -> st
     return video_id
 
 
+def fetch_video(youtube: Any, video_id: str) -> dict[str, Any]:
+    response = youtube.videos().list(part="id,snippet,status", id=video_id).execute()
+    items = response.get("items") or []
+    if not items:
+        raise RuntimeError(f"Uploaded video not found after upload: {video_id}")
+    return items[0]
+
+
+def validate_uploaded_video(
+    youtube: Any,
+    video_id: str,
+    expected_channel_id: str,
+    expected_publish_at: str | None,
+) -> dict[str, Any]:
+    item = fetch_video(youtube, video_id)
+    snippet = item.get("snippet") or {}
+    status = item.get("status") or {}
+    if str(snippet.get("channelId") or "") != expected_channel_id:
+        raise RuntimeError("Uploaded video belongs to a different channel")
+    if str(status.get("privacyStatus") or "") != "private":
+        raise RuntimeError(f"Uploaded video is not private: {status}")
+    actual_publish_at = str(status.get("publishAt") or "").strip() or None
+    if expected_publish_at and actual_publish_at != expected_publish_at:
+        raise RuntimeError(
+            f"YouTube scheduling mismatch: expected {expected_publish_at}, got {actual_publish_at}"
+        )
+    return item
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--video", required=True, type=Path)
@@ -153,14 +205,16 @@ def main() -> None:
         previous = json.loads(args.checkpoint.read_text(encoding="utf-8"))
         previous_id = str(previous.get("youtube_video_id") or "")
         if previous_id:
-            existing = youtube.videos().list(part="id,snippet,status", id=previous_id).execute()
-            items = existing.get("items") or []
-            if items:
-                item = items[0]
-                if str((item.get("snippet") or {}).get("channelId") or "") != expected_channel_id:
-                    raise RuntimeError("Checkpointed video belongs to a different channel")
-                if str((item.get("status") or {}).get("privacyStatus") or "") != "private":
-                    raise RuntimeError("Checkpointed video is not private")
+            try:
+                item = validate_uploaded_video(
+                    youtube,
+                    previous_id,
+                    expected_channel_id,
+                    metadata.get("publish_at"),
+                )
+            except RuntimeError:
+                item = None
+            if item:
                 print(f"Reusing existing private YouTube checkpoint: {previous_id}")
                 return
 
@@ -170,10 +224,19 @@ def main() -> None:
         media_body=MediaFileUpload(str(args.thumbnail), mimetype="image/png", resumable=False),
     ).execute()
 
+    item = validate_uploaded_video(
+        youtube,
+        video_id,
+        expected_channel_id,
+        metadata.get("publish_at"),
+    )
+    status = item.get("status") or {}
     checkpoint = {
         "youtube_video_id": video_id,
         "youtube_permalink": f"https://www.youtube.com/watch?v={video_id}",
-        "privacy_status": "private",
+        "privacy_status": str(status.get("privacyStatus") or ""),
+        "publish_at": str(status.get("publishAt") or "") or None,
+        "scheduled": bool(status.get("publishAt")),
         "channel_id": expected_channel_id,
     }
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
