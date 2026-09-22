@@ -138,6 +138,15 @@ def validate_brief(brief: dict[str, Any], topic: dict[str, Any]) -> None:
     brief["topic"] = topic["topic"]
 
 
+def enforce_research_budget(cost: float, max_cost: float) -> None:
+    if cost > max_cost:
+        raise RuntimeError(
+            f"Research cost guard: cached research cost ${cost:.4f} exceeds ${max_cost:.4f}. "
+            "The paid result is preserved, but Sonnet must not run automatically. "
+            "Do not retry the paid research automatically."
+        )
+
+
 def parse_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     for block in snapshot.get("content") or []:
         if block.get("type") == "tool_use" and block.get("name") == RESEARCH_TOOL_NAME:
@@ -160,8 +169,8 @@ TOPIC SEED
 {json.dumps(topic, ensure_ascii=False)}
 
 COST RULES — FOLLOW EXACTLY
-- Perform EXACTLY ONE web search total. Never perform a second search.
-- Make that one query broad and information-dense enough to surface primary/company filings or official material plus reputable financial journalism.
+- Perform AT MOST ONE web search total. Never perform a second search.
+- If you search, make that single query broad and information-dense enough to surface primary/company filings or official material plus reputable financial journalism.
 - Do not browse for trivia. We need only the facts necessary to support a 12-15 minute documentary.
 - Keep your final research brief compact. Do not quote long passages.
 
@@ -171,9 +180,9 @@ RESEARCH RULES
 - Capture 6-10 high-value factual claims, at least 4 distinct sources, useful dates, and only the most important verified numbers.
 - Mark a fact safe_for_packaging=true only when the cited source directly supports using it in a title/thumbnail/hook.
 - Do not infer crimes, fraud, motives, or causation beyond the evidence.
-- If a dramatic claim cannot be supported by the one search, omit it rather than spending another search.
+- If a dramatic claim cannot be supported within the single-search budget, omit it rather than spending another search.
 
-After the single search, call {RESEARCH_TOOL_NAME} exactly once. Keep the tool payload concise.
+After research, call {RESEARCH_TOOL_NAME} exactly once. Keep the tool payload concise.
 """.strip()
 
 
@@ -194,6 +203,7 @@ def main() -> None:
     cache_dir = CACHE_ROOT / str(topic["id"])
     research_path = cache_dir / "research.json"
     snapshot_path = cache_dir / "haiku-response.json"
+    max_cost = float(os.getenv("ANTHROPIC_RESEARCH_MAX_USD", "0.030"))
 
     if args.force_new_research:
         research_path.unlink(missing_ok=True)
@@ -202,11 +212,13 @@ def main() -> None:
     if research_path.exists():
         brief = load_json(research_path)
         validate_brief(brief, topic)
+        cost = float(brief.get("estimated_cost_usd") or 0)
+        enforce_research_budget(cost, max_cost)
         print(json.dumps({
             "topic_id": topic["id"],
             "research_path": str(research_path),
             "cache_hit": True,
-            "estimated_cost_usd": float(brief.get("estimated_cost_usd") or 0),
+            "estimated_cost_usd": cost,
         }, indent=2))
         return
 
@@ -218,20 +230,24 @@ def main() -> None:
             validate_brief(brief, topic)
             usage = snapshot.get("usage") or {}
             model = str(snapshot.get("model") or os.getenv("ANTHROPIC_RESEARCH_MODEL") or "claude-haiku-4-5-20251001")
+            cost = estimate_cost_usd(model, usage)
             brief["research_model"] = model
             brief["anthropic_usage"] = usage
-            brief["estimated_cost_usd"] = estimate_cost_usd(model, usage)
+            brief["estimated_cost_usd"] = cost
             brief["recovered_from_paid_response"] = True
             brief["researched_at"] = datetime.now(timezone.utc).isoformat()
             write_research(brief, cache_dir)
+            enforce_research_budget(cost, max_cost)
             print(json.dumps({
                 "topic_id": topic["id"],
                 "research_path": str(research_path),
                 "cache_hit": True,
                 "recovered_response": True,
-                "estimated_cost_usd": brief["estimated_cost_usd"],
+                "estimated_cost_usd": cost,
             }, indent=2))
             return
+        except RuntimeError:
+            raise
         except Exception as exc:
             raise RuntimeError(
                 "A previous paid Haiku response exists but could not be recovered. "
@@ -239,11 +255,10 @@ def main() -> None:
             ) from exc
 
     model = os.getenv("ANTHROPIC_RESEARCH_MODEL", "claude-haiku-4-5-20251001").strip() or "claude-haiku-4-5-20251001"
-    max_cost = float(os.getenv("ANTHROPIC_RESEARCH_MAX_USD", "0.030"))
     client = Anthropic(api_key=required_env("ANTHROPIC_API_KEY"), max_retries=0)
     response = client.messages.create(
         model=model,
-        max_tokens=1300,
+        max_tokens=1200,
         tools=[
             {
                 "type": "web_search_20260318",
@@ -278,11 +293,7 @@ def main() -> None:
 
     if usage.get("web_search_requests", 0) > 1:
         raise RuntimeError(f"Research exceeded one web search: {usage['web_search_requests']}")
-    if cost > max_cost:
-        raise RuntimeError(
-            f"Research cost guard tripped: ${cost:.4f} > ${max_cost:.4f}. "
-            "The research is cached; Sonnet will not be called automatically."
-        )
+    enforce_research_budget(cost, max_cost)
 
     print(json.dumps({
         "topic_id": topic["id"],
