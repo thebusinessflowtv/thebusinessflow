@@ -3,18 +3,28 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from pathlib import Path
 from typing import Any
 
-from production.generate_episode import (
-    PACKAGE_CACHE_ROOT,
-    RESEARCH_ROOT,
-    finalize_package,
-    load_json,
-    parse_snapshot,
-    select_topic,
-    write_outputs,
-)
+try:
+    from production.generate_episode import (
+        PACKAGE_CACHE_ROOT,
+        RESEARCH_ROOT,
+        finalize_package,
+        load_json,
+        parse_snapshot,
+        select_topic,
+        write_outputs,
+    )
+except ModuleNotFoundError:
+    from generate_episode import (
+        PACKAGE_CACHE_ROOT,
+        RESEARCH_ROOT,
+        finalize_package,
+        load_json,
+        parse_snapshot,
+        select_topic,
+        write_outputs,
+    )
 
 
 def deterministic_tags(topic: dict[str, Any], research: dict[str, Any]) -> list[str]:
