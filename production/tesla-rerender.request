@@ -1,0 +1,13 @@
+{
+  "topic_id": "famous-002",
+  "mode": "visual_only_rerender",
+  "reuse_audio_from_run": 35769823800,
+  "reuse_anthropic": true,
+  "anthropic_spend_allowed_usd": 0.0,
+  "image_target": 50,
+  "minimum_source_resolution": "1920x1080",
+  "preferred_source_resolution": "3840x2160+",
+  "output_resolution": "3840x2160",
+  "motion": ["zoom_in", "zoom_out"],
+  "generic_video_fallback": false
+}
