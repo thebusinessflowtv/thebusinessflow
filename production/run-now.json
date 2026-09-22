@@ -2,7 +2,7 @@
   "topic_id": "famous-001",
   "topic": "Amazon",
   "mode": "render_only_until_youtube_audit",
-  "reason": "Retry from durable research checkpoint; zero repeat Haiku spend; Sonnet budget guarded",
+  "reason": "Resume from durable Haiku research and cached Sonnet response; no repeated paid API calls",
   "requested_date": "2026-09-22",
-  "attempt": 2
+  "attempt": 3
 }
