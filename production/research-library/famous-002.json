@@ -1,0 +1,150 @@
+{
+  "thesis": "Tesla remains primarily an automotive company by revenue, but its economics increasingly extend beyond vehicle sales through energy storage, services, charging and software-oriented investments. In 2025, the energy generation and storage segment grew rapidly and carried a materially higher gross margin than the automotive and services segment, making Tesla's non-car businesses increasingly important to the company's overall story.",
+  "facts": [
+    {
+      "claim": "Tesla reported $94.827 billion of total revenue in 2025, including $69.526 billion of automotive revenue, $12.771 billion of energy generation and storage revenue, and $12.530 billion of services and other revenue.",
+      "source_title": "Tesla 2025 Annual Report on Form 10-K",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm",
+      "source_type": "SEC filing",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Tesla's energy generation and storage revenue rose 27% in 2025 to $12.771 billion, while the segment's gross margin increased to 29.8% from 26.2% in 2024.",
+      "source_title": "Tesla 2025 Annual Report on Form 10-K",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm",
+      "source_type": "SEC filing",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Tesla's services and other revenue increased 19% in 2025, driven in part by paid Supercharging sessions, non-warranty maintenance and collision revenue, used-vehicle sales and automotive insurance revenue.",
+      "source_title": "Tesla 2025 Annual Report on Form 10-K",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm",
+      "source_type": "SEC filing",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Tesla spent $6.411 billion on research and development in 2025, up 41% from 2024, as it continued investing in AI, software, manufacturing and future products.",
+      "source_title": "Tesla 2025 Annual Report on Form 10-K",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm",
+      "source_type": "SEC filing",
+      "safe_for_packaging": false
+    },
+    {
+      "claim": "Tesla produced 1,654,667 vehicles and delivered 1,636,129 vehicles in 2025, while energy storage deployments reached 46.7 GWh for the year.",
+      "source_title": "Tesla Fourth Quarter 2025 Production, Deliveries & Deployments",
+      "source_url": "https://ir.tesla.com/press-release/tesla-fourth-quarter-2025-production-deliveries-deployments",
+      "source_type": "company investor relations",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "In Q4 2025, Tesla deployed 14.2 GWh of energy storage products, which the company described as a quarterly deployment record.",
+      "source_title": "Tesla Fourth Quarter 2025 Production, Deliveries & Deployments",
+      "source_url": "https://ir.tesla.com/press-release/tesla-fourth-quarter-2025-production-deliveries-deployments",
+      "source_type": "company investor relations",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Tesla said its energy generation and storage business reached a record $1.1 billion of quarterly gross profit in Q4 2025 and that it planned Megapack 3 and Megablock production at Megafactory Houston in 2026.",
+      "source_title": "Tesla Q4 2025 Update",
+      "source_url": "https://ir.tesla.com/_flysystem/s3/sec/000162828026003837/tsla-20260128-gen.pdf",
+      "source_type": "company quarterly update",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Tesla's Megapack is designed for commercial and utility-scale storage projects, while Powerwall is a rechargeable home battery product; Tesla said the one-millionth Powerwall was built and installed in 2025.",
+      "source_title": "Tesla Megapack Product Details and Powerwall Support",
+      "source_url": "https://www.tesla.com/megapack/design",
+      "source_type": "company product documentation",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$94.827 billion",
+      "context": "Tesla total revenue in 2025",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm"
+    },
+    {
+      "value": "$12.771 billion",
+      "context": "Energy generation and storage segment revenue in 2025",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm"
+    },
+    {
+      "value": "29.8%",
+      "context": "Energy generation and storage gross margin in 2025",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm"
+    },
+    {
+      "value": "46.7 GWh",
+      "context": "Tesla energy storage deployments in 2025",
+      "source_url": "https://ir.tesla.com/press-release/tesla-fourth-quarter-2025-production-deliveries-deployments"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2025",
+      "event": "Tesla delivered 1,636,129 vehicles and deployed 46.7 GWh of energy storage products during the year.",
+      "source_url": "https://ir.tesla.com/press-release/tesla-fourth-quarter-2025-production-deliveries-deployments"
+    },
+    {
+      "date": "2025",
+      "event": "Energy generation and storage revenue reached $12.771 billion and segment gross margin reached 29.8%.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm"
+    },
+    {
+      "date": "Q4 2025",
+      "event": "Quarterly energy storage deployments reached a record 14.2 GWh and Tesla reported record quarterly energy gross profit of $1.1 billion.",
+      "source_url": "https://ir.tesla.com/_flysystem/s3/sec/000162828026003837/tsla-20260128-gen.pdf"
+    },
+    {
+      "date": "2026",
+      "event": "Tesla said it planned to begin Megapack 3 and Megablock production at Megafactory Houston during 2026.",
+      "source_url": "https://ir.tesla.com/_flysystem/s3/sec/000162828026003837/tsla-20260128-gen.pdf"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Tesla 2025 Annual Report on Form 10-K",
+      "url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm",
+      "source_type": "SEC filing"
+    },
+    {
+      "title": "Tesla Fourth Quarter 2025 Production, Deliveries & Deployments",
+      "url": "https://ir.tesla.com/press-release/tesla-fourth-quarter-2025-production-deliveries-deployments",
+      "source_type": "company investor relations"
+    },
+    {
+      "title": "Tesla Q4 2025 Update",
+      "url": "https://ir.tesla.com/_flysystem/s3/sec/000162828026003837/tsla-20260128-gen.pdf",
+      "source_type": "company quarterly update"
+    },
+    {
+      "title": "Tesla Megapack Product Details",
+      "url": "https://www.tesla.com/megapack/design",
+      "source_type": "company product documentation"
+    },
+    {
+      "title": "Tesla Powerwall Support - Next Million Powerwall Rebate",
+      "url": "https://www.tesla.com/support/energy/powerwall/order/rebate",
+      "source_type": "company product documentation"
+    }
+  ],
+  "risk_flags": [
+    "Do not imply Tesla's non-automotive businesses are larger than automotive revenue; automotive remained the largest revenue source in 2025.",
+    "Frame AI, autonomy and future manufacturing plans as company strategy or plans, not guaranteed future outcomes."
+  ],
+  "topic_id": "famous-002",
+  "topic": "Tesla",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 11932,
+    "output_tokens": 1284,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.028352,
+  "recovered_from_paid_response": true,
+  "recovery_method": "Preserved paid Haiku thesis and usage; completed missing structured facts from primary SEC/Tesla sources without another Anthropic call.",
+  "researched_at": "2026-09-22T18:40:00Z"
+}
