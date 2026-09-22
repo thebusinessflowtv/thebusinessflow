@@ -1,0 +1,213 @@
+name: The Business Flow Narration Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/tbf-narration-smoke-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  narration-render-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository + Git LFS media
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Prepare Python TTS + FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install edge-tts
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+          python3 -m edge_tts --help >/dev/null
+
+      - name: Select 4 real media assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull
+          python3 - <<'PY'
+          import json
+          import shutil
+          from pathlib import Path
+
+          catalog = json.loads(Path('media-library/catalog.json').read_text(encoding='utf-8'))
+          assets = catalog['assets']
+          images = [a for a in assets if a.get('type') == 'image' and a.get('repo_path')]
+          videos = [a for a in assets if a.get('type') == 'video' and a.get('repo_path')]
+          assert len(images) >= 2, len(images)
+          assert len(videos) >= 2, len(videos)
+
+          runtime = Path('.runtime/narration-smoke')
+          runtime.mkdir(parents=True, exist_ok=True)
+          chosen = [images[0], videos[0], images[1], videos[1]]
+
+          for index, asset in enumerate(chosen, start=1):
+              source = Path(asset['repo_path'])
+              assert source.is_file(), source
+              assert source.stat().st_size > 1000, f'LFS pointer not materialized: {source}'
+              target = runtime / f'source_{index}{source.suffix.lower()}'
+              shutil.copy2(source, target)
+
+          (runtime / 'selection.json').write_text(json.dumps({
+              'assets': [{
+                  'asset_id': a.get('asset_id'),
+                  'type': a.get('type'),
+                  'category': a.get('category'),
+                  'repo_path': a.get('repo_path')
+              } for a in chosen]
+          }, indent=2), encoding='utf-8')
+          PY
+
+      - name: Generate American English neural narration
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME=".runtime/narration-smoke"
+          cat > "$RUNTIME/script.txt" <<'TXT'
+          The biggest businesses in America rarely win because of one product. They win because they build systems that are difficult to copy. Distribution, pricing, customer habits, data, and scale can turn an ordinary company into an economic machine. On The Business Flow, we break down how those machines are built, how they make money, and what happens when the strategy stops working. This short test is validating our automated production pipeline before the first full business documentary.
+          TXT
+
+          python3 -m edge_tts \
+            --voice en-US-AndrewNeural \
+            --rate=-4% \
+            --text "$(cat "$RUNTIME/script.txt")" \
+            --write-media "$RUNTIME/narration.mp3"
+
+          test -s "$RUNTIME/narration.mp3"
+          ffprobe -v error -show_entries format=duration -of csv=p=0 "$RUNTIME/narration.mp3" | tee "$RUNTIME/narration_duration.txt"
+          VOLUME="$(ffmpeg -hide_banner -i "$RUNTIME/narration.mp3" -af volumedetect -f null - 2>&1 | awk '/mean_volume/ {print $5; exit}')"
+          echo "mean_volume=$VOLUME"
+          test -n "$VOLUME"
+          test "$VOLUME" != "-inf"
+
+      - name: Render narrated video from real library media
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME=".runtime/narration-smoke"
+          DURATION="$(cat "$RUNTIME/narration_duration.txt")"
+          SEG="$(python3 - "$DURATION" <<'PY'
+          import sys
+          print(max(float(sys.argv[1]) / 4.0, 1.0))
+          PY
+          )"
+
+          IMAGE1="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_1.*' | head -n1)"
+          VIDEO1="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_2.*' | head -n1)"
+          IMAGE2="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_3.*' | head -n1)"
+          VIDEO2="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_4.*' | head -n1)"
+
+          render_image() {
+            local INPUT="$1"
+            local OUTPUT="$2"
+            ffmpeg -hide_banner -loglevel warning -y \
+              -loop 1 -framerate 30 -i "$INPUT" -t "$SEG" \
+              -vf "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=yuv420p" \
+              -an -c:v libx264 -preset veryfast -crf 22 -r 30 "$OUTPUT"
+          }
+
+          render_video() {
+            local INPUT="$1"
+            local OUTPUT="$2"
+            ffmpeg -hide_banner -loglevel warning -y \
+              -stream_loop -1 -i "$INPUT" -t "$SEG" \
+              -vf "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=yuv420p" \
+              -an -c:v libx264 -preset veryfast -crf 22 -r 30 "$OUTPUT"
+          }
+
+          render_image "$IMAGE1" "$RUNTIME/segment_1.mp4"
+          render_video "$VIDEO1" "$RUNTIME/segment_2.mp4"
+          render_image "$IMAGE2" "$RUNTIME/segment_3.mp4"
+          render_video "$VIDEO2" "$RUNTIME/segment_4.mp4"
+
+          printf "file 'segment_1.mp4'\nfile 'segment_2.mp4'\nfile 'segment_3.mp4'\nfile 'segment_4.mp4'\n" > "$RUNTIME/concat.txt"
+          (
+            cd "$RUNTIME"
+            ffmpeg -hide_banner -loglevel warning -y \
+              -f concat -safe 0 -i concat.txt \
+              -c copy picture_track.mp4
+
+            ffmpeg -hide_banner -loglevel warning -y \
+              -i picture_track.mp4 -i narration.mp3 \
+              -map 0:v:0 -map 1:a:0 \
+              -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
+              -shortest -movflags +faststart \
+              the-business-flow-narration-smoke-test.mp4
+          )
+
+      - name: Validate video + narration
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=".runtime/narration-smoke/the-business-flow-narration-smoke-test.mp4"
+          test -s "$FILE"
+
+          ffmpeg -v error -i "$FILE" -f null -
+          ffmpeg -v error -i "$FILE" -map 0:a:0 -f null -
+
+          WIDTH="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$FILE")"
+          HEIGHT="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$FILE")"
+          AUDIO_CODEC="$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "$FILE")"
+          AUDIO_CHANNELS="$(ffprobe -v error -select_streams a:0 -show_entries stream=channels -of csv=p=0 "$FILE")"
+          DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$FILE")"
+          SIZE="$(stat -c%s "$FILE")"
+          VOLUME="$(ffmpeg -hide_banner -i "$FILE" -map 0:a:0 -af volumedetect -f null - 2>&1 | awk '/mean_volume/ {print $5; exit}')"
+
+          echo "width=$WIDTH"
+          echo "height=$HEIGHT"
+          echo "audio_codec=$AUDIO_CODEC"
+          echo "audio_channels=$AUDIO_CHANNELS"
+          echo "duration=$DURATION"
+          echo "size_bytes=$SIZE"
+          echo "mean_volume=$VOLUME"
+
+          test "$WIDTH" = "1280"
+          test "$HEIGHT" = "720"
+          test "$AUDIO_CODEC" = "aac"
+          test "$AUDIO_CHANNELS" = "2"
+          test -n "$VOLUME"
+          test "$VOLUME" != "-inf"
+          python3 - "$DURATION" "$SIZE" <<'PY'
+          import sys
+          duration = float(sys.argv[1])
+          size = int(sys.argv[2])
+          assert duration >= 20, duration
+          assert size > 250_000, size
+          PY
+
+      - name: Upload narrated test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-narration-smoke-test
+          path: |
+            .runtime/narration-smoke/the-business-flow-narration-smoke-test.mp4
+            .runtime/narration-smoke/narration.mp3
+            .runtime/narration-smoke/script.txt
+            .runtime/narration-smoke/selection.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Test summary
+        shell: bash
+        run: |
+          echo "### The Business Flow Narration Smoke Test ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Voice: en-US-AndrewNeural" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Real Git LFS media: 2 images + 2 videos" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Narration: generated and confirmed non-silent" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Final audio: AAC / stereo / 48 kHz" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Final video: 1280x720 / H.264" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Full audio + video decode validation: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- YouTube upload: intentionally excluded from this stage" >> "$GITHUB_STEP_SUMMARY"
