@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 try:
@@ -26,6 +27,9 @@ except ModuleNotFoundError:
         write_outputs,
     )
 
+ROOT = Path(__file__).resolve().parents[1]
+OVERRIDE_ROOT = ROOT / "production" / "recovery-overrides"
+
 
 def deterministic_tags(topic: dict[str, Any], research: dict[str, Any]) -> list[str]:
     brand = str(topic.get("topic") or "Business").strip()
@@ -43,6 +47,26 @@ def deterministic_tags(topic: dict[str, Any], research: dict[str, Any]) -> list[
         if keyword.lower() in thesis and keyword not in tags:
             tags.append(keyword)
     return tags[:15]
+
+
+def apply_curated_script_insert(script: str, topic_id: str) -> tuple[str, bool]:
+    path = OVERRIDE_ROOT / f"{topic_id}-script-insert.txt"
+    if not path.exists():
+        return script, False
+    insert = path.read_text(encoding="utf-8").strip()
+    if not insert:
+        return script, False
+
+    markers = [
+        "So why does this matter?",
+        "Put it all together,",
+        "None of this means",
+    ]
+    for marker in markers:
+        idx = script.find(marker)
+        if idx >= 0:
+            return script[:idx].rstrip() + "\n\n" + insert + "\n\n" + script[idx:].lstrip(), True
+    return script.rstrip() + "\n\n" + insert, True
 
 
 def repair_package(package: dict[str, Any], topic: dict[str, Any], research: dict[str, Any]) -> dict[str, Any]:
@@ -75,10 +99,16 @@ def repair_package(package: dict[str, Any], topic: dict[str, Any], research: dic
     if not repaired.get("tags"):
         repaired["tags"] = deterministic_tags(topic, research)
 
-    # Mechanical fallbacks only. Never invent factual claims here.
     if not repaired.get("description"):
         title = str(repaired.get("selected_title") or topic.get("topic") or "The Business Flow")
         repaired["description"] = f"{title}. A data-driven business documentary from The Business Flow."
+
+    script = str(repaired.get("script") or "").strip()
+    if len(script.split()) < 1750:
+        script, inserted = apply_curated_script_insert(script, str(topic["id"]))
+        if inserted:
+            repaired["script"] = script
+            repaired["local_recovery_note"] = "Paid Sonnet draft was short; a curated source-backed local insert was applied without another API call."
 
     return repaired
 
@@ -118,6 +148,7 @@ def main() -> None:
         "tags": package["tags"],
         "anthropic_usage": package["anthropic_usage"],
         "anthropic_cost": package["anthropic_cost"],
+        "local_recovery_note": package.get("local_recovery_note"),
         "output_dir": str(output_dir),
     }, ensure_ascii=False, indent=2))
 
