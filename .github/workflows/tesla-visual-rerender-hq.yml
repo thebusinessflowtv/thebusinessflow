@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 concurrency:
@@ -28,13 +28,17 @@ jobs:
       VISUAL_MIN_SOURCE_HEIGHT: '1080'
       GOOGLE_CSE_API_KEY: ${{ secrets.GOOGLE_CSE_API_KEY }}
       GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -50,8 +54,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r production/requirements.txt
           git lfs pull
-          python -m py_compile production/collect_visual_assets_hq.py production/render_episode_hq.py production/collect_visual_assets.py production/render_episode.py
+          python -m py_compile production/collect_visual_assets_hq.py production/render_episode_hq.py production/collect_visual_assets.py production/render_episode.py youtube-worker/youtube_private_uploader.py
           test -z "${ANTHROPIC_API_KEY}"
+          test -n "$YOUTUBE_CLIENT_ID"
+          test -n "$YOUTUBE_CLIENT_SECRET"
+          test -n "$YOUTUBE_REFRESH_TOKEN"
+          test -n "$YOUTUBE_CHANNEL_ID"
 
       - name: Download previous Tesla production artifact
         uses: actions/download-artifact@v4
@@ -146,6 +154,21 @@ jobs:
             --output-dir production/rerendered \
             --narration production/tesla-rerender/original-audio.m4a
 
+      - name: Remux exact original audio without truncation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s production/rerendered/picture-track-4k.mp4
+          test -s production/tesla-rerender/original-audio.m4a
+          ffmpeg -hide_banner -loglevel error -y \
+            -i production/rerendered/picture-track-4k.mp4 \
+            -i production/tesla-rerender/original-audio.m4a \
+            -map 0:v:0 -map 1:a:0 \
+            -c:v copy -c:a copy -movflags +faststart \
+            production/rerendered/final-exact-audio.mp4
+          mv production/rerendered/final-exact-audio.mp4 production/rerendered/final.mp4
+          echo 'Final MP4 remuxed with the original AAC stream, with no -shortest truncation.'
+
       - name: Validate 4K, stable zoom, zero loops and exact audio reuse
         shell: bash
         run: |
@@ -155,7 +178,7 @@ jobs:
           test "$RES" = "3840x2160" || { echo "Unexpected resolution: $RES"; exit 1; }
           OLD_HASH="$(ffmpeg -v error -i production/tesla-rerender/original-audio.m4a -map 0:a:0 -c copy -f hash -hash sha256 - | tail -1)"
           NEW_HASH="$(ffmpeg -v error -i production/rerendered/final.mp4 -map 0:a:0 -c copy -f hash -hash sha256 - | tail -1)"
-          test "$OLD_HASH" = "$NEW_HASH" || { echo 'Audio stream changed during visual-only rerender'; exit 1; }
+          test "$OLD_HASH" = "$NEW_HASH" || { echo 'Audio stream still changed after exact remux'; exit 1; }
           python - <<'PY'
           import json
           plan=json.load(open('production/rerendered/selected-assets.json',encoding='utf-8'))
@@ -172,7 +195,7 @@ jobs:
               hay=(x.get('title') or '').lower()+' '+(x.get('query') or '').lower()
               if not any(t in hay for t in ('tesla','cybertruck','model 3','model y','model s','model x','supercharger','gigafactory')):
                   raise SystemExit(f"Off-topic support video: {x.get('title')}")
-          print('4K validation passed | assets:',len(plan),'| support videos:',len(videos),'| loops: 0 | motion: zoom only')
+          print('4K validation passed | assets:',len(plan),'| support videos:',len(videos),'| loops: 0 | motion: zoom only | exact audio: yes')
           PY
 
       - name: Upload corrected Tesla review artifact
@@ -190,6 +213,105 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      - name: Prepare private YouTube metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          src='production/rerendered/metadata.json'
+          dst='production/rerendered/private-metadata.json'
+          d=json.load(open(src, encoding='utf-8'))
+          d.pop('publish_at', None)
+          json.dump(d, open(dst, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+          print('Private metadata prepared; publish_at removed.')
+          PY
+
+      - name: Restore corrected Tesla YouTube checkpoint if present
+        shell: bash
+        run: |
+          set -euo pipefail
+          DURABLE='production/youtube-checkpoints/famous-002-hq.json'
+          RUNTIME='production/rerendered/youtube-upload-private.json'
+          if [ -s "$DURABLE" ]; then
+            cp "$DURABLE" "$RUNTIME"
+            echo 'Existing corrected Tesla checkpoint restored; duplicate upload protection active.'
+          else
+            rm -f "$RUNTIME"
+            echo 'No corrected Tesla checkpoint yet; a new private upload will be created.'
+          fi
+
+      - name: Upload corrected Tesla to YouTube as PRIVATE
+        shell: bash
+        run: |
+          set -euo pipefail
+          python youtube-worker/youtube_private_uploader.py \
+            --video production/rerendered/final.mp4 \
+            --thumbnail production/rerendered/thumbnail.png \
+            --metadata production/rerendered/private-metadata.json \
+            --checkpoint production/rerendered/youtube-upload-private.json
+
+      - name: Verify corrected private YouTube upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='production/rerendered/youtube-upload-private.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d.get('youtube_video_id'), d
+          assert d.get('privacy_status') == 'private', d
+          assert not d.get('scheduled'), d
+          assert not d.get('publish_at'), d
+          print('Corrected Tesla PRIVATE upload verified:', d['youtube_video_id'])
+          print('Permalink:', d['youtube_permalink'])
+          PY
+
+      - name: Persist corrected Tesla YouTube checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p production/youtube-checkpoints
+          cp production/rerendered/youtube-upload-private.json production/youtube-checkpoints/famous-002-hq.json
+          cp production/rerendered/youtube-upload-private.json production/youtube-checkpoints/famous-002.json
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          checkpoint=json.load(open('production/youtube-checkpoints/famous-002-hq.json', encoding='utf-8'))
+          p='production/topics.json'
+          d=json.load(open(p, encoding='utf-8'))
+          for t in d.get('topics', []):
+              if str(t.get('id')) == 'famous-002':
+                  t['status']='uploaded_private'
+                  t['youtube_video_id']=checkpoint['youtube_video_id']
+                  t['youtube_privacy_status']='private'
+                  t['youtube_uploaded_at']=datetime.now(timezone.utc).isoformat()
+                  t['visual_quality']='hq_4k_corrected'
+                  break
+          else:
+              raise SystemExit('famous-002 not found in production/topics.json')
+          json.dump(d, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+          PY
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json production/youtube-checkpoints/famous-002.json production/youtube-checkpoints/famous-002-hq.json
+          if git diff --cached --quiet; then
+            echo 'Corrected checkpoint already persisted.'
+          else
+            git commit -m 'Checkpoint corrected Tesla 4K private upload'
+            git pull --rebase --autostash origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Preserve corrected YouTube checkpoint artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbf-tesla-hq-youtube-${{ github.run_id }}
+          path: production/rerendered/youtube-upload-private.json
+          retention-days: 14
+          if-no-files-found: warn
+
       - name: Summary
         if: always()
         shell: bash
@@ -203,4 +325,13 @@ jobs:
             echo '- Final video: 3840x2160'
             echo '- Image movement: centered zoom-in / zoom-out only'
             echo '- Generic video fallback: disabled'
+            if [ -s production/rerendered/youtube-upload-private.json ]; then
+              python - <<'PY'
+          import json
+          d=json.load(open('production/rerendered/youtube-upload-private.json', encoding='utf-8'))
+          print(f"- YouTube corrected video ID: {d.get('youtube_video_id')}")
+          print(f"- YouTube privacy: {d.get('privacy_status')}")
+          print(f"- YouTube permalink: {d.get('youtube_permalink')}")
+          PY
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
