@@ -23,7 +23,11 @@ def require_env() -> tuple[str, str]:
 
 
 def headers(key: str, content_type: str | None = None, upsert: bool = True) -> dict[str, str]:
-    out = {'apikey': key, 'Authorization': f'Bearer {key}'}
+    out = {'apikey': key}
+    # Modern Supabase secret keys (sb_secret_...) are sent via apikey only.
+    # Legacy service_role JWTs also work as a Bearer token.
+    if not key.startswith('sb_secret_'):
+        out['Authorization'] = f'Bearer {key}'
     if content_type:
         out['Content-Type'] = content_type
     if upsert:
