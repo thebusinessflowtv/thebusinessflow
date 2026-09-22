@@ -1,0 +1,244 @@
+name: The Business Flow Daily Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic_id:
+        description: 'Optional topic id, e.g. tbf-001. Blank = next ready topic.'
+        required: false
+        type: string
+      upload_and_schedule:
+        description: 'Upload and schedule on YouTube. Keep false for a render-only validation.'
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: '0 13 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: the-business-flow-daily-production
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    if: github.event_name == 'workflow_dispatch' || vars.PRODUCTION_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+      TTS_VOICE: ${{ vars.TTS_VOICE || 'en-US-AndrewNeural' }}
+      TTS_RATE: ${{ vars.TTS_RATE || '-4%' }}
+      PUBLISH_HOUR_ET: ${{ vars.PUBLISH_HOUR_ET || '18' }}
+
+    steps:
+      - name: Checkout repository + Git LFS media
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Resolve production mode and safety gates
+        id: mode
+        shell: bash
+        env:
+          INPUT_UPLOAD: ${{ inputs.upload_and_schedule }}
+          LICENSE_GATE: ${{ vars.MEDIA_LICENSES_APPROVED }}
+          AUDIT_GATE: ${{ vars.YOUTUBE_API_AUDIT_APPROVED }}
+        run: |
+          set -euo pipefail
+          test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
+          if [ "${LICENSE_GATE:-}" != "true" ]; then
+            echo 'MEDIA_LICENSES_APPROVED must equal true before production rendering.'
+            exit 1
+          fi
+
+          SHOULD_UPLOAD=false
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${INPUT_UPLOAD:-false}" = "true" ]; then
+            SHOULD_UPLOAD=true
+            test -n "$YOUTUBE_CLIENT_ID" || { echo 'Missing YOUTUBE_CLIENT_ID'; exit 1; }
+            test -n "$YOUTUBE_CLIENT_SECRET" || { echo 'Missing YOUTUBE_CLIENT_SECRET'; exit 1; }
+            test -n "$YOUTUBE_REFRESH_TOKEN" || { echo 'Missing YOUTUBE_REFRESH_TOKEN'; exit 1; }
+            test -n "$YOUTUBE_CHANNEL_ID" || { echo 'Missing YOUTUBE_CHANNEL_ID'; exit 1; }
+            if [ "${AUDIT_GATE:-}" != "true" ]; then
+              echo 'YOUTUBE_API_AUDIT_APPROVED must equal true before automatic public scheduling.'
+              exit 1
+            fi
+          fi
+          echo "should_upload=$SHOULD_UPLOAD" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg, fonts and Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install -r production/requirements.txt
+          pip install -r youtube-worker/requirements.txt
+
+      - name: Pull LFS assets and verify catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull
+          test -s media-library/catalog.json
+          python - <<'PY'
+          import json
+          d=json.load(open('media-library/catalog.json', encoding='utf-8'))
+          approved=[a for a in d.get('assets',[]) if a.get('commercial_use_status')=='approved']
+          print('Approved media assets:', len(approved))
+          if len(approved) < 40:
+              raise SystemExit('Need at least 40 approved assets for long-form production')
+          PY
+
+      - name: Generate researched episode package with Anthropic
+        shell: bash
+        env:
+          TOPIC_ID: ${{ inputs.topic_id }}
+        run: |
+          set -euo pipefail
+          rm -rf production/output
+          if [ -n "${TOPIC_ID:-}" ]; then
+            python production/generate_episode.py --topic-id "$TOPIC_ID"
+          else
+            python production/generate_episode.py
+          fi
+
+      - name: Locate generated package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE="$(find production/output -name episode-package.json -print -quit)"
+          test -n "$PACKAGE"
+          TOPIC_ID="$(python -c "import json; print(json.load(open('$PACKAGE'))['topic_id'])")"
+          echo "package=$PACKAGE" >> "$GITHUB_OUTPUT"
+          echo "topic_id=$TOPIC_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Render long-form documentary
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf production/rendered
+          python production/render_episode.py \
+            --package "${{ steps.package.outputs.package }}" \
+            --output-dir production/rendered
+          test -s production/rendered/final.mp4
+          test -s production/rendered/thumbnail.png
+          test -s production/rendered/metadata.json
+
+      - name: Validate final video duration and streams
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffmpeg -v error -i production/rendered/final.mp4 -f null -
+          ffmpeg -v error -i production/rendered/final.mp4 -map 0:a:0 -f null -
+          DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 production/rendered/final.mp4)"
+          python - "$DURATION" <<'PY'
+          import sys
+          d=float(sys.argv[1])
+          if not 600 <= d <= 1800:
+              raise SystemExit(f'Final duration outside safety range: {d:.2f}s')
+          print(f'Validated duration: {d:.2f}s')
+          PY
+
+      - name: Upload and schedule on The Business Flow
+        if: steps.mode.outputs.should_upload == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python youtube-worker/youtube_private_uploader.py \
+            --video production/rendered/final.mp4 \
+            --thumbnail production/rendered/thumbnail.png \
+            --metadata production/rendered/metadata.json \
+            --checkpoint production/rendered/youtube-upload.json
+
+      - name: Validate scheduled YouTube checkpoint
+        if: steps.mode.outputs.should_upload == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          d=json.loads(Path('production/rendered/youtube-upload.json').read_text())
+          assert d['channel_id'] == os.environ['YOUTUBE_CHANNEL_ID'], d
+          assert d['privacy_status'] == 'private', d
+          assert d['scheduled'] is True, d
+          assert d['publish_at'], d
+          assert d['youtube_video_id'], d
+          print(json.dumps(d, indent=2))
+          PY
+
+      - name: Mark topic used only after successful schedule
+        if: steps.mode.outputs.should_upload == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/mark_topic_used.py \
+            --package "${{ steps.package.outputs.package }}" \
+            --checkpoint production/rendered/youtube-upload.json
+
+      - name: Commit queue checkpoint
+        if: steps.mode.outputs.should_upload == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Consume topic ${{ steps.package.outputs.topic_id }} after YouTube schedule"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Upload production checkpoint artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-production-${{ steps.package.outputs.topic_id }}-${{ github.run_id }}
+          path: |
+            ${{ steps.package.outputs.package }}
+            production/rendered/metadata.json
+            production/rendered/selected-assets.json
+            production/rendered/thumbnail.png
+            production/rendered/youtube-upload.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload render-only preview
+        if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.should_upload != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-render-preview-${{ steps.package.outputs.topic_id }}-${{ github.run_id }}
+          path: production/rendered/final.mp4
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Production summary
+        shell: bash
+        run: |
+          echo '### The Business Flow Daily Production ✅' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Topic: ${{ steps.package.outputs.topic_id }}' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Anthropic research + script: passed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- B-roll selection: passed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- TTS + render + AV validation: passed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Thumbnail: generated' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Upload enabled: ${{ steps.mode.outputs.should_upload }}' >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.mode.outputs.should_upload }}" = "true" ]; then
+            echo '- YouTube PRIVATE upload + scheduled publishAt: passed' >> "$GITHUB_STEP_SUMMARY"
+            echo '- Topic queue checkpoint: committed' >> "$GITHUB_STEP_SUMMARY"
+          fi
