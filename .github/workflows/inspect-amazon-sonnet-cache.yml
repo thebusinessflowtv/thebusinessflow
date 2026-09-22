@@ -1,0 +1,32 @@
+name: Inspect Amazon Sonnet Cache Free
+
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-amazon-sonnet-cache.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore paid Amazon Sonnet cache only
+        uses: actions/cache/restore@v4
+        with:
+          path: production/package-cache/famous-001
+          key: tbf-sonnet-package-v2-famous-001
+          fail-on-cache-miss: true
+      - name: Print safe cached Sonnet response
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s production/package-cache/famous-001/sonnet-response.json
+          python - <<'PY'
+          import json
+          p='production/package-cache/famous-001/sonnet-response.json'
+          d=json.load(open(p, encoding='utf-8'))
+          print(json.dumps(d, ensure_ascii=False, indent=2))
+          PY
