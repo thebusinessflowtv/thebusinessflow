@@ -32,11 +32,14 @@
       "working_angle": "How Tesla Built a Business Bigger Than Cars",
       "title_seed": "How Tesla Built a Business Bigger Than Cars",
       "thumbnail_text_seed": "TESLA MACHINE",
-      "status": "rendered_pending_manual_upload",
+      "status": "uploaded_private",
       "click_score": 99,
       "click_reason": "Deterministic famous-company reserve; brand recognition prioritized.",
       "scored_at": "2026-09-22T10:10:51.199389+00:00",
-      "rendered_at": "2026-09-22T19:04:01.321480+00:00"
+      "rendered_at": "2026-09-22T19:04:01.321480+00:00",
+      "youtube_video_id": "qHw-IjjnphE",
+      "youtube_privacy_status": "private",
+      "youtube_uploaded_at": "2026-09-22T19:04:43.523120+00:00"
     },
     {
       "id": "famous-003",
