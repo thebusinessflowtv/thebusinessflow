@@ -1,0 +1,220 @@
+name: The Business Flow Private YouTube Upload
+
+on:
+  workflow_run:
+    workflows: ["The Business Flow Daily Production"]
+    types: [completed]
+  push:
+    paths:
+      - 'production/private-upload-now.json'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: the-business-flow-private-youtube-upload
+  cancel-in-progress: false
+
+jobs:
+  upload-private:
+    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+
+    steps:
+      - name: Checkout latest production state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve source production run
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            RUN_ID='${{ github.event.workflow_run.id }}'
+          else
+            RUN_ID="$(python - <<'PY'
+          import json
+          d=json.load(open('production/private-upload-now.json', encoding='utf-8'))
+          print(int(d['source_run_id']))
+          PY
+          )"
+          fi
+          test -n "$RUN_ID"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "Using production run: $RUN_ID"
+
+      - name: Download completed production artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tbf-production-*
+          path: restored
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.source.outputs.run_id }}
+
+      - name: Resolve topic and validate artifact
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIDEO='restored/rendered/final.mp4'
+          THUMB='restored/rendered/thumbnail.png'
+          META='restored/rendered/metadata.json'
+          test -s "$VIDEO"
+          test -s "$THUMB"
+          test -s "$META"
+          PACKAGE="$(find restored/output -type f -name episode-package.json | head -n 1)"
+          test -s "$PACKAGE"
+          TOPIC_ID="$(python - "$PACKAGE" <<'PY'
+          import json, sys
+          d=json.load(open(sys.argv[1], encoding='utf-8'))
+          print(d['topic_id'])
+          PY
+          )"
+          TOPIC_NAME="$(python - "$PACKAGE" <<'PY'
+          import json, sys
+          d=json.load(open(sys.argv[1], encoding='utf-8'))
+          print(d.get('topic') or d['topic_id'])
+          PY
+          )"
+          echo "topic_id=$TOPIC_ID" >> "$GITHUB_OUTPUT"
+          echo "topic_name=$TOPIC_NAME" >> "$GITHUB_OUTPUT"
+          echo "package=$PACKAGE" >> "$GITHUB_OUTPUT"
+          echo "Private upload topic: $TOPIC_ID / $TOPIC_NAME"
+
+      - name: Install YouTube uploader only
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install YouTube dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip install -r youtube-worker/requirements.txt
+          test -n "$YOUTUBE_CLIENT_ID"
+          test -n "$YOUTUBE_CLIENT_SECRET"
+          test -n "$YOUTUBE_REFRESH_TOKEN"
+          test -n "$YOUTUBE_CHANNEL_ID"
+
+      - name: Force private-only metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          src='restored/rendered/metadata.json'
+          dst='restored/rendered/private-metadata.json'
+          d=json.load(open(src, encoding='utf-8'))
+          d.pop('publish_at', None)
+          json.dump(d, open(dst, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+          print('Private metadata prepared; publish_at removed.')
+          PY
+
+      - name: Restore durable YouTube checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOPIC='${{ steps.package.outputs.topic_id }}'
+          DURABLE="production/youtube-checkpoints/${TOPIC}.json"
+          RUNTIME='restored/rendered/youtube-upload-private.json'
+          if [ -s "$DURABLE" ]; then
+            cp "$DURABLE" "$RUNTIME"
+            echo 'Existing YouTube checkpoint restored; uploader will verify/reuse it instead of duplicating.'
+          fi
+
+      - name: Upload to validated channel as PRIVATE
+        shell: bash
+        run: |
+          set -euo pipefail
+          python youtube-worker/youtube_private_uploader.py \
+            --video restored/rendered/final.mp4 \
+            --thumbnail restored/rendered/thumbnail.png \
+            --metadata restored/rendered/private-metadata.json \
+            --checkpoint restored/rendered/youtube-upload-private.json
+
+      - name: Verify private checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='restored/rendered/youtube-upload-private.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d.get('youtube_video_id'), d
+          assert d.get('privacy_status') == 'private', d
+          assert not d.get('scheduled'), d
+          assert not d.get('publish_at'), d
+          print('PRIVATE upload verified:', d['youtube_video_id'])
+          print('Permalink:', d['youtube_permalink'])
+          PY
+
+      - name: Persist YouTube checkpoint and queue state
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOPIC='${{ steps.package.outputs.topic_id }}'
+          mkdir -p production/youtube-checkpoints
+          cp restored/rendered/youtube-upload-private.json "production/youtube-checkpoints/${TOPIC}.json"
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          topic_id='${{ steps.package.outputs.topic_id }}'
+          checkpoint=json.load(open(f'production/youtube-checkpoints/{topic_id}.json', encoding='utf-8'))
+          p='production/topics.json'
+          d=json.load(open(p, encoding='utf-8'))
+          for t in d.get('topics', []):
+              if str(t.get('id')) == topic_id:
+                  t['status']='uploaded_private'
+                  t['youtube_video_id']=checkpoint['youtube_video_id']
+                  t['youtube_privacy_status']='private'
+                  t['youtube_uploaded_at']=datetime.now(timezone.utc).isoformat()
+                  break
+          else:
+              raise SystemExit('Topic not found in queue')
+          json.dump(d, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+          PY
+
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json "production/youtube-checkpoints/${TOPIC}.json"
+          if git diff --cached --quiet; then
+            echo 'Checkpoint already persisted.'
+            exit 0
+          fi
+          git commit -m "Checkpoint private YouTube upload ${TOPIC}"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
+
+      - name: Preserve private upload checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbf-private-youtube-${{ steps.package.outputs.topic_id }}-${{ github.run_id }}
+          path: restored/rendered/youtube-upload-private.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Summary
+        if: success()
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d=json.load(open('restored/rendered/youtube-upload-private.json', encoding='utf-8'))
+          print('### Private YouTube upload ✅')
+          print('- Topic: ${{ steps.package.outputs.topic_name }}')
+          print(f"- Video ID: {d['youtube_video_id']}")
+          print(f"- Privacy: {d['privacy_status']}")
+          print('- Scheduled/public: no')
+          print('- Anthropic calls in this workflow: 0')
+          PY
