@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       topic_id:
-        description: 'Optional topic id, e.g. tbf-001. Blank = next ready topic.'
+        description: 'Optional topic id. Blank = next ready topic.'
         required: false
         type: string
       upload_and_schedule:
-        description: 'Upload and schedule on YouTube. Keep false for a render-only validation.'
+        description: 'Upload and schedule on YouTube. Keep false for render-only validation.'
         required: true
         default: false
         type: boolean
@@ -18,8 +18,8 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: the-business-flow-daily-production
+aoncurrency:
+  group: the-business-flow-anthropic-production
   cancel-in-progress: false
 
 jobs:
@@ -30,7 +30,10 @@ jobs:
     env:
       PYTHONPATH: ${{ github.workspace }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+      ANTHROPIC_RESEARCH_MODEL: ${{ vars.ANTHROPIC_RESEARCH_MODEL || 'claude-haiku-4-5-20251001' }}
+      ANTHROPIC_SCRIPT_MODEL: ${{ vars.ANTHROPIC_SCRIPT_MODEL || 'claude-sonnet-5' }}
+      ANTHROPIC_RESEARCH_MAX_USD: ${{ vars.ANTHROPIC_RESEARCH_MAX_USD || '0.030' }}
+      ANTHROPIC_TOTAL_BUDGET_USD: ${{ vars.ANTHROPIC_TOTAL_BUDGET_USD || '0.080' }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -44,7 +47,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           lfs: true
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Resolve production mode and safety gates
         id: mode
@@ -74,6 +77,43 @@ jobs:
             fi
           fi
           echo "should_upload=$SHOULD_UPLOAD" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve topic before any paid API call
+        id: topic
+        shell: bash
+        env:
+          INPUT_TOPIC: ${{ inputs.topic_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          d=json.load(open('production/topics.json', encoding='utf-8'))
+          wanted=(os.environ.get('INPUT_TOPIC') or '').strip()
+          topics=d.get('topics') or []
+          if wanted:
+              match=next((t for t in topics if str(t.get('id')) == wanted), None)
+              if not match:
+                  raise SystemExit(f'Topic not found: {wanted}')
+          else:
+              match=next((t for t in topics if t.get('status') == 'ready'), None)
+              if not match:
+                  raise SystemExit('No ready topic remains')
+          print(f"topic_id={match['id']}")
+          PY
+
+      - name: Restore paid Haiku research cache
+        id: research-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/research-cache/${{ steps.topic.outputs.topic_id }}
+          key: tbf-haiku-research-v2-${{ steps.topic.outputs.topic_id }}
+
+      - name: Restore paid Sonnet package cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/package-cache/${{ steps.topic.outputs.topic_id }}
+          key: tbf-sonnet-package-v2-${{ steps.topic.outputs.topic_id }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -105,29 +145,50 @@ jobs:
               raise SystemExit('Need at least 40 approved assets for long-form production')
           PY
 
-      - name: Generate researched episode package with Anthropic
+      - name: Validate production Python without spending Anthropic credits
         shell: bash
-        env:
-          TOPIC_ID: ${{ inputs.topic_id }}
+        run: |
+          set -euo pipefail
+          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/render_episode.py
+
+      - name: Research once with Haiku 4.5, cache first
+        id: research
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/research_episode.py --topic-id "${{ steps.topic.outputs.topic_id }}"
+
+      - name: Save Haiku research immediately for retries
+        if: always() && steps.research-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/research-cache/${{ steps.topic.outputs.topic_id }}
+          key: ${{ steps.research-cache.outputs.cache-primary-key }}
+
+      - name: Write with Sonnet 5 from cached research only
+        id: script
+        shell: bash
         run: |
           set -euo pipefail
           rm -rf production/output
-          if [ -n "${TOPIC_ID:-}" ]; then
-            python production/generate_episode.py --topic-id "$TOPIC_ID"
-          else
-            python production/generate_episode.py
-          fi
+          python production/generate_episode.py --topic-id "${{ steps.topic.outputs.topic_id }}"
+
+      - name: Save Sonnet output immediately for retries
+        if: always() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/package-cache/${{ steps.topic.outputs.topic_id }}
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
 
       - name: Locate generated package
         id: package
         shell: bash
         run: |
           set -euo pipefail
-          PACKAGE="$(find production/output -name episode-package.json -print -quit)"
-          test -n "$PACKAGE"
-          TOPIC_ID="$(python -c "import json; print(json.load(open('$PACKAGE'))['topic_id'])")"
+          PACKAGE="production/output/${{ steps.topic.outputs.topic_id }}/episode-package.json"
+          test -s "$PACKAGE"
           echo "package=$PACKAGE" >> "$GITHUB_OUTPUT"
-          echo "topic_id=$TOPIC_ID" >> "$GITHUB_OUTPUT"
+          echo "topic_id=${{ steps.topic.outputs.topic_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Render long-form documentary
         shell: bash
@@ -193,7 +254,7 @@ jobs:
             --package "${{ steps.package.outputs.package }}" \
             --checkpoint production/rendered/youtube-upload.json
 
-      - name: Commit queue checkpoint
+      - name: Commit queue checkpoint safely
         if: steps.mode.outputs.should_upload == 'true'
         shell: bash
         run: |
@@ -203,10 +264,28 @@ jobs:
           git add production/topics.json
           git diff --cached --quiet && exit 0
           git commit -m "Consume topic ${{ steps.package.outputs.topic_id }} after YouTube schedule"
-          git pull --rebase origin main
+          git pull --rebase --autostash origin main
           git push origin HEAD:main
 
+      - name: Preserve everything useful when any downstream step fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-recovery-${{ steps.topic.outputs.topic_id }}-${{ github.run_id }}
+          path: |
+            production/research-cache/${{ steps.topic.outputs.topic_id }}/
+            production/package-cache/${{ steps.topic.outputs.topic_id }}/
+            production/output/${{ steps.topic.outputs.topic_id }}/
+            production/rendered/final.mp4
+            production/rendered/metadata.json
+            production/rendered/thumbnail.png
+            production/rendered/selected-assets.json
+            production/rendered/youtube-upload.json
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Upload production checkpoint artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: the-business-flow-production-${{ steps.package.outputs.topic_id }}-${{ github.run_id }}
@@ -220,7 +299,7 @@ jobs:
           retention-days: 14
 
       - name: Upload render-only preview
-        if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.should_upload != 'true'
+        if: success() && github.event_name == 'workflow_dispatch' && steps.mode.outputs.should_upload != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: the-business-flow-render-preview-${{ steps.package.outputs.topic_id }}-${{ github.run_id }}
@@ -229,16 +308,20 @@ jobs:
           retention-days: 3
 
       - name: Production summary
+        if: success()
         shell: bash
         run: |
-          echo '### The Business Flow Daily Production ✅' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Topic: ${{ steps.package.outputs.topic_id }}' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Anthropic research + script: passed' >> "$GITHUB_STEP_SUMMARY"
-          echo '- B-roll selection: passed' >> "$GITHUB_STEP_SUMMARY"
-          echo '- TTS + render + AV validation: passed' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Thumbnail: generated' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Upload enabled: ${{ steps.mode.outputs.should_upload }}' >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.mode.outputs.should_upload }}" = "true" ]; then
-            echo '- YouTube PRIVATE upload + scheduled publishAt: passed' >> "$GITHUB_STEP_SUMMARY"
-            echo '- Topic queue checkpoint: committed' >> "$GITHUB_STEP_SUMMARY"
-          fi
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          p=json.load(open('${{ steps.package.outputs.package }}', encoding='utf-8'))
+          c=p.get('anthropic_cost') or {}
+          print('### The Business Flow Daily Production ✅')
+          print(f"- Topic: {p.get('topic_id')}")
+          print(f"- Haiku research: ${float(c.get('research_usd') or 0):.4f}")
+          print(f"- Sonnet script: ${float(c.get('script_usd') or 0):.4f}")
+          print(f"- Anthropic total: ${float(c.get('total_usd') or 0):.4f}")
+          print('- Research cache: protected against retry spend')
+          print('- Script cache: protected against retry spend')
+          print('- Render + AV validation: passed')
+          print('- Upload enabled: ${{ steps.mode.outputs.should_upload }}')
+          PY
