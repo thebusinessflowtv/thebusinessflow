@@ -1,0 +1,40 @@
+name: Inspect Tesla Haiku Paid Cache
+
+on:
+  push:
+    paths:
+      - 'production/inspect-tesla-haiku.request'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    env:
+      ANTHROPIC_API_KEY: ''
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore paid Haiku cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/research-cache/famous-002
+          key: tbf-haiku-research-v2-famous-002
+          fail-on-cache-miss: true
+      - name: Inspect saved response without any API call
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s production/research-cache/famous-002/haiku-response.json
+          python - <<'PY'
+          import json
+          p='production/research-cache/famous-002/haiku-response.json'
+          d=json.load(open(p,encoding='utf-8'))
+          print(json.dumps({
+            'model': d.get('model'),
+            'usage': d.get('usage'),
+            'content': d.get('content'),
+          }, ensure_ascii=False, indent=2))
+          PY
+      - name: Summary
+        run: echo 'Anthropic calls in this diagnostic workflow = 0' >> "$GITHUB_STEP_SUMMARY"
