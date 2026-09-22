@@ -16,10 +16,11 @@
       "working_angle": "How Amazon Really Makes Money",
       "title_seed": "How Amazon Really Makes Money",
       "thumbnail_text_seed": "AMAZON MACHINE",
-      "status": "ready",
+      "status": "rendered_pending_manual_upload",
       "click_score": 100,
       "click_reason": "Deterministic famous-company reserve; brand recognition prioritized.",
-      "scored_at": "2026-09-22T10:10:51.199389+00:00"
+      "scored_at": "2026-09-22T10:10:51.199389+00:00",
+      "rendered_at": "2026-09-22T13:12:23.939149+00:00"
     },
     {
       "id": "famous-002",
