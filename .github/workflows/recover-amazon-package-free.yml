@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'production/recover_paid_episode.py'
+      - '.github/workflows/recover-amazon-package-free.yml'
 
 permissions:
   contents: read
