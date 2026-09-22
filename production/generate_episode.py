@@ -14,6 +14,84 @@ TOPICS_PATH = ROOT / "production" / "topics.json"
 EDITORIAL_PATH = ROOT / "channel" / "editorial.json"
 OUTPUT_ROOT = ROOT / "production" / "output"
 
+STOPWORDS = {
+    "about", "after", "again", "against", "because", "before", "being", "between", "could", "every",
+    "first", "from", "have", "into", "just", "more", "most", "other", "over", "same", "some", "than",
+    "that", "their", "them", "then", "there", "these", "they", "this", "those", "through", "under", "very",
+    "what", "when", "where", "which", "while", "with", "would", "your", "company", "business",
+}
+
+EPISODE_TOOL = {
+    "name": "submit_episode_package",
+    "description": "Submit the fully researched, publication-ready editorial package for one The Business Flow documentary.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "research_summary": {"type": "string"},
+            "selected_title": {"type": "string"},
+            "title_candidates": {
+                "type": "array",
+                "minItems": 6,
+                "maxItems": 6,
+                "items": {"type": "string"},
+            },
+            "packaging_reasoning": {"type": "string"},
+            "thumbnail_variants": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "concept": {"type": "string"},
+                        "asset_query": {"type": "string"},
+                        "visual_tension": {"type": "string"},
+                    },
+                    "required": ["text", "concept", "asset_query", "visual_tension"],
+                    "additionalProperties": False,
+                },
+            },
+            "description": {"type": "string"},
+            "tags": {"type": "array", "items": {"type": "string"}},
+            "hook": {"type": "string"},
+            "script": {"type": "string"},
+            "chapters": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "summary": {"type": "string"},
+                    },
+                    "required": ["title", "summary"],
+                    "additionalProperties": False,
+                },
+            },
+            "sources": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "url": {"type": "string"},
+                        "source_type": {"type": "string"},
+                        "claims_supported": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["title", "url", "source_type", "claims_supported"],
+                    "additionalProperties": False,
+                },
+            },
+            "risk_flags": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": [
+            "research_summary", "selected_title", "title_candidates", "packaging_reasoning",
+            "thumbnail_variants", "description", "tags", "hook", "script", "chapters", "sources", "risk_flags"
+        ],
+        "additionalProperties": False,
+    },
+}
+
 
 def required_env(name: str) -> str:
     value = os.getenv(name, "").strip()
@@ -52,18 +130,94 @@ def extract_json(text: str) -> dict[str, Any]:
     return json.loads(text[start : end + 1])
 
 
+def scene_keywords(text: str, topic: str) -> str:
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'’-]+", text)
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for word in words:
+        clean = word.strip("'’-")
+        low = clean.lower()
+        if len(clean) < 4 or low in STOPWORDS or low in seen:
+            continue
+        seen.add(low)
+        candidates.append(clean)
+    candidates.sort(key=lambda w: (-len(w), w.lower()))
+    extra = " ".join(candidates[:5])
+    return f"{topic} {extra}".strip()
+
+
+def preferred_categories(topic: dict[str, Any]) -> list[str]:
+    raw = str(topic.get("category") or "").lower()
+    mapping = {
+        "retail": "retail", "cloud": "technology", "ads": "corporate", "advertising": "corporate",
+        "automotive": "automotive", "energy": "manufacturing", "software": "technology", "technology": "technology",
+        "space": "manufacturing", "launch": "manufacturing", "beverage": "retail", "distribution": "corporate",
+        "social": "technology", "media": "technology", "chips": "technology", "ai": "technology",
+        "logistics": "corporate", "restaurant": "retail", "real estate": "real-estate", "finance": "finance",
+        "bank": "finance", "luxury": "luxury", "manufacturing": "manufacturing",
+    }
+    result: list[str] = []
+    for token, category in mapping.items():
+        if token in raw and category not in result:
+            result.append(category)
+    return result[:3]
+
+
+def build_storyboard(script: str, topic: dict[str, Any]) -> list[dict[str, Any]]:
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", script.strip()) if s.strip()]
+    chunks: list[str] = []
+    current: list[str] = []
+    current_words = 0
+    for sentence in sentences:
+        n = len(sentence.split())
+        if current and current_words + n > 32:
+            chunks.append(" ".join(current))
+            current = []
+            current_words = 0
+        current.append(sentence)
+        current_words += n
+        if current_words >= 20:
+            chunks.append(" ".join(current))
+            current = []
+            current_words = 0
+    if current:
+        chunks.append(" ".join(current))
+
+    # Keep scene count inside the renderer's practical long-form range.
+    while len(chunks) < 50:
+        idx = next((i for i, c in enumerate(chunks) if len(c.split()) > 22), None)
+        if idx is None:
+            break
+        words = chunks.pop(idx).split()
+        mid = len(words) // 2
+        chunks[idx:idx] = [" ".join(words[:mid]), " ".join(words[mid:])]
+    if len(chunks) > 120:
+        merged: list[str] = []
+        for i in range(0, len(chunks), 2):
+            merged.append(" ".join(chunks[i:i + 2]))
+        chunks = merged[:120]
+
+    company = str(topic.get("topic") or "business")
+    categories = preferred_categories(topic)
+    storyboard = []
+    for i, chunk in enumerate(chunks, 1):
+        words = len(chunk.split())
+        seconds = max(5, min(12, round(words / 2.45)))
+        storyboard.append({
+            "scene": i,
+            "narration_excerpt": chunk[:420],
+            "visual_query": scene_keywords(chunk, company),
+            "company": company,
+            "preferred_categories": categories,
+            "duration_sec": seconds,
+        })
+    return storyboard
+
+
 def validate_package(data: dict[str, Any], topic: dict[str, Any]) -> None:
     required = [
-        "selected_title",
-        "title_candidates",
-        "thumbnail_variants",
-        "description",
-        "tags",
-        "hook",
-        "script",
-        "chapters",
-        "storyboard",
-        "sources",
+        "selected_title", "title_candidates", "thumbnail_variants", "description", "tags",
+        "hook", "script", "chapters", "sources",
     ]
     missing = [key for key in required if not data.get(key)]
     if missing:
@@ -72,95 +226,78 @@ def validate_package(data: dict[str, Any], topic: dict[str, Any]) -> None:
     title = str(data["selected_title"]).strip()
     if len(title) > 100:
         raise RuntimeError(f"YouTube title exceeds 100 chars: {len(title)}")
+    brand = str(topic.get("topic") or "").strip()
+    if brand and brand.lower() not in title.lower():
+        raise RuntimeError(f"Selected title must name the famous company '{brand}'")
 
     description = str(data["description"]).strip()
     if len(description) > 5000:
         raise RuntimeError(f"YouTube description exceeds 5000 chars: {len(description)}")
 
     titles = data.get("title_candidates") or []
-    if len(titles) < 5:
-        raise RuntimeError("Need at least 5 title candidates")
+    if len(titles) != 6:
+        raise RuntimeError(f"Need exactly 6 title candidates, got {len(titles)}")
 
     thumbs = data.get("thumbnail_variants") or []
-    if len(thumbs) < 3:
-        raise RuntimeError("Need 3 thumbnail variants")
+    if len(thumbs) != 3:
+        raise RuntimeError(f"Need exactly 3 thumbnail variants, got {len(thumbs)}")
     for thumb in thumbs:
         words = str(thumb.get("text") or "").split()
         if len(words) > 4:
             raise RuntimeError(f"Thumbnail text exceeds 4 words: {thumb.get('text')}")
 
     script_words = len(str(data["script"]).split())
-    if script_words < 1700:
+    if script_words < 1800:
         raise RuntimeError(f"Script too short for long-form production: {script_words} words")
-    if script_words > 4000:
-        raise RuntimeError(f"Script too long for configured format: {script_words} words")
+    if script_words > 3000:
+        raise RuntimeError(f"Script too long for efficient long-form production: {script_words} words")
 
     sources = data.get("sources") or []
     if len(sources) < 5:
         raise RuntimeError("Research pack requires at least 5 sources")
 
+    storyboard = build_storyboard(str(data["script"]), topic)
+    if len(storyboard) < 40:
+        raise RuntimeError(f"Locally generated storyboard too short: {len(storyboard)} scenes")
+
     data["topic_id"] = topic["id"]
     data["topic"] = topic["topic"]
     data["script_word_count"] = script_words
+    data["storyboard"] = storyboard
 
 
 def build_prompt(topic: dict[str, Any], editorial: dict[str, Any]) -> str:
     return f"""
-You are the research lead, documentary writer and YouTube packaging strategist for The Business Flow.
+You are the senior research lead, documentary writer and YouTube packaging strategist for The Business Flow.
 The channel publishes cinematic, faceless, English-language business documentaries for a United States audience.
 
-TODAY'S TOPIC SEED
-{json.dumps(topic, ensure_ascii=False, indent=2)}
+TODAY'S TOPIC
+{json.dumps(topic, ensure_ascii=False)}
 
-EDITORIAL CONFIG
-{json.dumps(editorial, ensure_ascii=False, indent=2)}
+EDITORIAL RULES
+{json.dumps(editorial, ensure_ascii=False)}
 
-MANDATORY WORKFLOW
-1. Treat the topic seed and title seed as hypotheses, not facts.
-2. Search the current web extensively before writing. Prefer primary sources, SEC/company filings, court/regulator records, official statements, reputable financial press and established journalism.
-3. Verify every important number, date and causal claim. If a dramatic seed is unsupported, replace it with a supported angle.
-4. Build a 12-25 minute documentary with a strong narrative arc, not a listicle.
-5. Packaging should be aggressively curiosity-driven and click-oriented, but never deceptive.
-6. Do not copy competitor titles verbatim. Create original packaging.
-7. A title or thumbnail may use a large number only if a source in the research pack supports it.
-8. Crime/fraud/illegal language requires a court, regulator or equivalent primary source.
-9. The first 30 seconds must establish tension, stakes and an open loop.
-10. Refresh tension or introduce a new question every 45-90 seconds.
-11. The ending must resolve the promise of the title and opening hook.
-12. Narration must sound natural in American English and must not include source citations spoken aloud.
+COST-EFFICIENT RESEARCH RULE
+Use web search selectively, not exhaustively. Search only what is needed to verify the central thesis, important numbers, current facts and potentially disputed claims. Prefer high-information primary sources and reputable financial journalism. Do not waste searches on basic evergreen facts that are already well established.
 
-CLICK PACKAGING
-- Produce exactly 10 title candidates. Favor familiar brand + unexpected conflict, verified number + consequence, hidden economics, business-model contradiction, or rise-and-fall reversal.
-- Select the strongest truthful title as selected_title.
-- Produce exactly 3 thumbnail variants. Each thumbnail text must be 0-4 words, extremely readable, and must complement rather than repeat the title.
-- Thumbnail concept should specify dominant subject, background, visual tension, and what asset the renderer should seek.
+MANDATORY EDITORIAL RULES
+1. The company/brand name MUST appear in every title candidate and in selected_title.
+2. Treat title seeds as hypotheses, not facts. Replace unsupported drama with a supported angle.
+3. Packaging should be aggressively curiosity-driven and click-oriented, but factual.
+4. Verify every important number, date and causal claim used in the title, thumbnail concept, hook or central thesis.
+5. Crime/fraud/illegal language requires a court, regulator or equivalent authoritative source.
+6. Write a complete 1,900-2,800 word documentary narration with a strong narrative arc, not a listicle.
+7. The first 30 seconds must establish tension, stakes and an open loop.
+8. Refresh tension or introduce a new question every 45-90 seconds.
+9. End by resolving the promise of the title and opening hook.
+10. Narration must sound natural in American English and must not speak citations aloud.
+11. Produce exactly 6 strong original title candidates and select the strongest truthful one.
+12. Produce exactly 3 thumbnail variants. Thumbnail text is 0-4 words and must complement the title, not repeat it. The concept should use an instantly recognizable brand element (logo, product, storefront, founder/CEO, app icon, vehicle, packaging, etc.).
+13. Supply at least 5 sources, prioritizing primary/company filings/regulators and established journalism.
+14. Keep description, tags, chapter summaries and packaging reasoning concise. Spend the output budget on the script, not administrative prose.
+15. DO NOT create a scene-by-scene storyboard. The renderer creates it locally at zero API cost.
 
-OUTPUT
-Return one valid JSON object only. No markdown fences, no prose before or after it.
-Use this schema:
-{{
-  "research_summary": "concise factual thesis",
-  "selected_title": "...",
-  "title_candidates": ["..."],
-  "packaging_reasoning": "why the selected title + thumbnail pairing creates curiosity without overclaiming",
-  "thumbnail_variants": [
-    {{"text":"0-4 words","concept":"...","asset_query":"...","visual_tension":"..."}}
-  ],
-  "description": "YouTube description in English",
-  "tags": ["..."],
-  "hook": "first 20-30 seconds of narration",
-  "script": "complete 1700-4000 word narration",
-  "chapters": [{{"title":"...","summary":"..."}}],
-  "storyboard": [
-    {{"scene":1,"narration_excerpt":"...","visual_query":"...","company":"... or null","preferred_categories":["..."],"duration_sec":8}}
-  ],
-  "sources": [
-    {{"title":"...","url":"https://...","source_type":"primary|filing|regulator|journalism|other","claims_supported":["..."]}}
-  ],
-  "risk_flags": ["unsupported or disputed points that must not appear as settled fact"]
-}}
-
-The storyboard should be detailed enough for automated B-roll selection, typically 70-140 scenes for a long-form episode, with scene durations usually 5-12 seconds.
+After research, call submit_episode_package exactly once with the complete package.
 """.strip()
 
 
@@ -169,28 +306,44 @@ def generate(topic: dict[str, Any], editorial: dict[str, Any]) -> tuple[dict[str
     model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5").strip() or "claude-sonnet-5"
     response = client.messages.create(
         model=model,
-        max_tokens=16000,
-        temperature=0.7,
+        max_tokens=9000,
         tools=[
             {
                 "type": "web_search_20260318",
                 "name": "web_search",
-                "max_uses": 12,
+                "max_uses": 6,
                 "user_location": {
                     "type": "approximate",
                     "country": "US",
                     "timezone": "America/New_York",
                 },
-            }
+            },
+            EPISODE_TOOL,
         ],
         messages=[{"role": "user", "content": build_prompt(topic, editorial)}],
     )
-    text = "\n".join(
-        block.text for block in response.content if getattr(block, "type", None) == "text"
-    )
-    package = extract_json(text)
+
+    calls = [
+        block for block in response.content
+        if getattr(block, "type", None) == "tool_use"
+        and getattr(block, "name", None) == "submit_episode_package"
+    ]
+    if calls:
+        package = calls[-1].input
+    else:
+        # Compatibility fallback if the model returns a JSON text block rather than the structured tool.
+        text = "\n".join(
+            block.text for block in response.content if getattr(block, "type", None) == "text"
+        )
+        package = extract_json(text)
+
     validate_package(package, topic)
     package["anthropic_model"] = model
+    usage = getattr(response, "usage", None)
+    package["anthropic_usage"] = {
+        "input_tokens": int(getattr(usage, "input_tokens", 0) or 0),
+        "output_tokens": int(getattr(usage, "output_tokens", 0) or 0),
+    }
     return package, response
 
 
@@ -249,6 +402,7 @@ def main() -> None:
         "script_word_count": package["script_word_count"],
         "source_count": len(package["sources"]),
         "storyboard_scene_count": len(package["storyboard"]),
+        "anthropic_usage": package["anthropic_usage"],
         "output_dir": str(output_dir),
     }, indent=2))
 
