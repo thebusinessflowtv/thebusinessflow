@@ -6,6 +6,8 @@ on:
       - 'production/anthropic_budget.py'
       - 'production/research_episode.py'
       - 'production/generate_episode.py'
+      - 'production/recover_paid_episode.py'
+      - 'production/render_episode.py'
       - 'production/topic_reservoir_v4.py'
       - 'production/research-library/**'
       - '.github/workflows/daily-production.yml'
@@ -37,6 +39,8 @@ jobs:
             production/anthropic_budget.py \
             production/research_episode.py \
             production/generate_episode.py \
+            production/recover_paid_episode.py \
+            production/render_episode.py \
             production/topic_reservoir_v4.py
 
       - name: Parse workflow YAML
@@ -63,6 +67,7 @@ jobs:
           from pathlib import Path
           research = Path('production/research_episode.py').read_text(encoding='utf-8')
           writer = Path('production/generate_episode.py').read_text(encoding='utf-8')
+          renderer = Path('production/render_episode.py').read_text(encoding='utf-8')
           reservoir = Path('production/topic_reservoir_v4.py').read_text(encoding='utf-8')
           reservoir_wf = Path('.github/workflows/topic-reservoir-v3.yml').read_text(encoding='utf-8')
           daily = Path('.github/workflows/daily-production.yml').read_text(encoding='utf-8')
@@ -75,6 +80,7 @@ jobs:
               'Sonnet disables thinking': 'thinking={"type": "disabled"}' in writer,
               'Sonnet disables SDK retries': 'max_retries=0' in writer,
               'hard total budget': 'ANTHROPIC_TOTAL_BUDGET_USD' in writer,
+              'renderer thumbnail fallback': 'load_thumbnail_base' in renderer and 'Image.new("RGB", (1280, 720)' in renderer,
               'weekly optimizer uses Haiku': 'claude-haiku-4-5-20251001' in reservoir and 'claude-haiku-4-5-20251001' in reservoir_wf,
               'weekly optimizer disables retries': 'max_retries=0' in reservoir,
               'weekly optimizer output cap': 'max_tokens=4500' in reservoir,
