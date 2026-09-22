@@ -7,5 +7,12 @@
   "default_privacy_status": "private",
   "youtube_category_id": "27",
   "editorial_mode": "evergreen_documentary",
-  "mediaforge_backend": "github-hosted"
+  "mediaforge_backend": "github-hosted",
+  "media_library": {
+    "catalog_path": "media-library/generated/catalog.json",
+    "storage_namespace": "thebusinessflow/media-library",
+    "commercial_use_default": "review_required",
+    "deduplicate_by_sha256": true,
+    "prefer_unique_assets_per_video": true
+  }
 }
