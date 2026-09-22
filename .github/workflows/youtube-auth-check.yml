@@ -1,0 +1,69 @@
+name: The Business Flow YouTube Auth Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r youtube-worker/requirements.txt
+
+      - name: Verify required YouTube secrets
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$YOUTUBE_CLIENT_ID" || { echo 'Missing YOUTUBE_CLIENT_ID'; exit 1; }
+          test -n "$YOUTUBE_CLIENT_SECRET" || { echo 'Missing YOUTUBE_CLIENT_SECRET'; exit 1; }
+          test -n "$YOUTUBE_REFRESH_TOKEN" || { echo 'Missing YOUTUBE_REFRESH_TOKEN'; exit 1; }
+          test -n "$YOUTUBE_CHANNEL_ID" || { echo 'Missing YOUTUBE_CHANNEL_ID'; exit 1; }
+          python - <<'PY'
+          import os
+          from google.auth.transport.requests import Request as GoogleAuthRequest
+          from google.oauth2.credentials import Credentials
+          from googleapiclient.discovery import build
+
+          scopes = [
+              'https://www.googleapis.com/auth/youtube.upload',
+              'https://www.googleapis.com/auth/youtube.readonly',
+          ]
+          creds = Credentials(
+              token=None,
+              refresh_token=os.environ['YOUTUBE_REFRESH_TOKEN'],
+              token_uri='https://oauth2.googleapis.com/token',
+              client_id=os.environ['YOUTUBE_CLIENT_ID'],
+              client_secret=os.environ['YOUTUBE_CLIENT_SECRET'],
+              scopes=scopes,
+          )
+          creds.refresh(GoogleAuthRequest())
+          yt = build('youtube', 'v3', credentials=creds, cache_discovery=False)
+          data = yt.channels().list(part='id,snippet', mine=True, maxResults=1).execute()
+          items = data.get('items') or []
+          if not items:
+              raise SystemExit('No YouTube channel found for authenticated account')
+          channel = items[0]
+          actual = channel.get('id')
+          expected = os.environ['YOUTUBE_CHANNEL_ID']
+          if actual != expected:
+              raise SystemExit(f'Channel mismatch: authenticated {actual}, expected {expected}')
+          print(f"OK: {channel['snippet']['title']} ({actual})")
+          PY
