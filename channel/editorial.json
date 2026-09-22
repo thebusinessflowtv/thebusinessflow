@@ -1,0 +1,35 @@
+{
+  "language": "English (United States)",
+  "audience": "United States and global English-speaking viewers",
+  "format": "long-form business documentary",
+  "target_duration_minutes": [12, 25],
+  "core_topics": [
+    "corporate history",
+    "rise and fall of companies",
+    "business models",
+    "billion-dollar decisions",
+    "corporate scandals",
+    "founders and business empires",
+    "industry disruption",
+    "American business history",
+    "brand strategy",
+    "business failures"
+  ],
+  "tone": [
+    "documentary",
+    "cinematic",
+    "authoritative",
+    "curious",
+    "fact-based"
+  ],
+  "rules": [
+    "Prioritize evergreen topics.",
+    "Never fabricate quotes, numbers, events, sources or motives.",
+    "Separate verified facts from interpretation.",
+    "Use strong curiosity-driven hooks without making false promises.",
+    "Prefer primary sources, filings, official reports and established journalism for factual claims.",
+    "Write naturally for American English narration.",
+    "Do not copy documentary scripts or article wording.",
+    "Every episode must add original structure, explanation and storytelling."
+  ]
+}
