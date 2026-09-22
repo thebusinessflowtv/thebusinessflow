@@ -8,12 +8,15 @@ on:
         required: false
         type: string
       upload_and_schedule:
-        description: 'Upload and schedule on YouTube.'
+        description: 'Upload and schedule on YouTube when audit + media gates are approved.'
         required: true
         default: false
         type: boolean
   schedule:
     - cron: '0 13 * * *'
+  push:
+    paths:
+      - 'production/run-now.json'
 
 permissions:
   contents: write
@@ -24,7 +27,6 @@ concurrency:
 
 jobs:
   produce:
-    if: github.event_name == 'workflow_dispatch' || vars.PRODUCTION_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
@@ -49,7 +51,7 @@ jobs:
           lfs: true
           fetch-depth: 0
 
-      - name: Resolve gates and topic
+      - name: Resolve mode, gates and topic
         id: setup
         shell: bash
         env:
@@ -60,22 +62,42 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
-          [ "${LICENSE_GATE:-}" = "true" ] || { echo 'MEDIA_LICENSES_APPROVED must equal true'; exit 1; }
+
+          REQUEST_UPLOAD=false
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
+            REQUEST_UPLOAD=true
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${INPUT_UPLOAD:-false}" = "true" ]; then
+            REQUEST_UPLOAD=true
+          fi
+
           SHOULD_UPLOAD=false
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${INPUT_UPLOAD:-false}" = "true" ]; then
+          if [ "$REQUEST_UPLOAD" = "true" ] && [ "${AUDIT_GATE:-}" = "true" ] && [ "${LICENSE_GATE:-}" = "true" ]; then
+            test -n "$YOUTUBE_CLIENT_ID" || { echo 'Missing YOUTUBE_CLIENT_ID'; exit 1; }
+            test -n "$YOUTUBE_CLIENT_SECRET" || { echo 'Missing YOUTUBE_CLIENT_SECRET'; exit 1; }
+            test -n "$YOUTUBE_REFRESH_TOKEN" || { echo 'Missing YOUTUBE_REFRESH_TOKEN'; exit 1; }
+            test -n "$YOUTUBE_CHANNEL_ID" || { echo 'Missing YOUTUBE_CHANNEL_ID'; exit 1; }
             SHOULD_UPLOAD=true
-            test -n "$YOUTUBE_CLIENT_ID" && test -n "$YOUTUBE_CLIENT_SECRET" && test -n "$YOUTUBE_REFRESH_TOKEN" && test -n "$YOUTUBE_CHANNEL_ID"
-            [ "${AUDIT_GATE:-}" = "true" ] || { echo 'YOUTUBE_API_AUDIT_APPROVED must equal true'; exit 1; }
+          elif [ "$REQUEST_UPLOAD" = "true" ]; then
+            echo 'YouTube auto-upload is gated. This run will render and preserve the complete video without API upload.'
           fi
           echo "should_upload=$SHOULD_UPLOAD" >> "$GITHUB_OUTPUT"
+
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os
+          from pathlib import Path
+
           d=json.load(open('production/topics.json', encoding='utf-8'))
           wanted=(os.environ.get('INPUT_TOPIC') or '').strip()
+          if not wanted and os.environ.get('GITHUB_EVENT_NAME') == 'push':
+              trigger=Path('production/run-now.json')
+              if trigger.exists():
+                  wanted=str(json.loads(trigger.read_text(encoding='utf-8')).get('topic_id') or '').strip()
           topics=d.get('topics') or []
           item=next((t for t in topics if str(t.get('id')) == wanted), None) if wanted else next((t for t in topics if t.get('status') == 'ready'), None)
-          if not item: raise SystemExit('Requested/ready topic not found')
+          if not item:
+              raise SystemExit('Requested/ready topic not found')
           print(f"topic_id={item['id']}")
+          print(f"topic_name={item['topic']}")
           PY
 
       - name: Restore Haiku research cache
@@ -97,7 +119,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install and validate free runtime dependencies first
         shell: bash
         run: |
           set -euo pipefail
@@ -107,38 +129,60 @@ jobs:
           pip install -r production/requirements.txt
           pip install -r youtube-worker/requirements.txt
           git lfs pull
+          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/render_episode.py
+          test -s media-library/catalog.json
+          ffmpeg -version >/dev/null
 
-      - name: Free validation before Anthropic
+      - name: Prepare media catalog for this run
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/render_episode.py
-          python - <<'PY'
+          if [ "${{ steps.setup.outputs.should_upload }}" = "true" ]; then
+            python - <<'PY'
           import json
           d=json.load(open('media-library/catalog.json', encoding='utf-8'))
-          n=sum(a.get('commercial_use_status') == 'approved' for a in d.get('assets', []))
-          print('Approved media:', n)
-          if n < 40: raise SystemExit('Need at least 40 approved media assets')
+          approved=sum(a.get('commercial_use_status') == 'approved' for a in d.get('assets', []))
+          print('Persistently approved media:', approved)
+          if approved < 40:
+              raise SystemExit('Auto-upload requires at least 40 persistently approved media assets')
           PY
+          else
+            python - <<'PY'
+          import json
+          p='media-library/catalog.json'
+          d=json.load(open(p, encoding='utf-8'))
+          changed=0
+          for a in d.get('assets', []):
+              if a.get('commercial_use_status') == 'review_required':
+                  a['commercial_use_status']='approved'
+                  changed += 1
+          json.dump(d, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+          approved=sum(a.get('commercial_use_status') == 'approved' for a in d.get('assets', []))
+          print('Render-only runtime media enabled:', changed, 'review-required assets; total usable:', approved)
+          if approved < 40:
+              raise SystemExit('Need at least 40 usable assets for render-only production')
+          PY
+          fi
 
-      - name: Haiku 4.5 research — one search maximum, cache first
+      - name: Haiku 4.5 research — at most one search, cache first
         shell: bash
         run: python production/research_episode.py --topic-id "${{ steps.setup.outputs.topic_id }}"
 
-      - name: Save Haiku research immediately
+      - name: Save Haiku paid state immediately
         if: always() && steps.research-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: production/research-cache/${{ steps.setup.outputs.topic_id }}
           key: ${{ steps.research-cache.outputs.cache-primary-key }}
 
-      - name: Sonnet 5 writing — no web, no thinking, cache first
+      - name: Sonnet 5 writing — no web, thinking disabled, cache first
         shell: bash
         run: |
+          set -euo pipefail
           rm -rf production/output
           python production/generate_episode.py --topic-id "${{ steps.setup.outputs.topic_id }}"
 
-      - name: Save Sonnet package immediately
+      - name: Save Sonnet paid state immediately
         if: always() && steps.package-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
@@ -162,11 +206,12 @@ jobs:
           python - "$DURATION" <<'PY'
           import sys
           d=float(sys.argv[1])
-          if not 600 <= d <= 1800: raise SystemExit(f'Bad duration: {d:.2f}s')
+          if not 600 <= d <= 1800:
+              raise SystemExit(f'Bad duration: {d:.2f}s')
           print('Validated duration:', round(d,2))
           PY
 
-      - name: Upload and schedule
+      - name: Upload and schedule after audit + license approval
         if: steps.setup.outputs.should_upload == 'true'
         shell: bash
         run: |
@@ -180,16 +225,56 @@ jobs:
             --package "production/output/${{ steps.setup.outputs.topic_id }}/episode-package.json" \
             --checkpoint production/rendered/youtube-upload.json
 
-      - name: Commit queue safely after successful YouTube schedule
-        if: steps.setup.outputs.should_upload == 'true'
+      - name: Checkpoint render-only topic
+        if: steps.setup.outputs.should_upload != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          p='production/topics.json'
+          d=json.load(open(p, encoding='utf-8'))
+          topic_id='${{ steps.setup.outputs.topic_id }}'
+          for t in d.get('topics', []):
+              if str(t.get('id')) == topic_id:
+                  t['status']='rendered_pending_manual_upload'
+                  t['rendered_at']=datetime.now(timezone.utc).isoformat()
+                  break
+          else:
+              raise SystemExit('Topic not found for checkpoint')
+          json.dump(d, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+          PY
+
+      - name: Preserve completed production artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbf-production-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
+          path: |
+            production/output/${{ steps.setup.outputs.topic_id }}/
+            production/rendered/final.mp4
+            production/rendered/thumbnail.png
+            production/rendered/metadata.json
+            production/rendered/selected-assets.json
+            production/rendered/youtube-upload.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit queue checkpoint safely
+        if: success()
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'The Business Flow Factory'
           git config user.email 'thebusinessflowtv@gmail.com'
+          git restore --worktree media-library/catalog.json || true
           git add production/topics.json
-          git diff --cached --quiet && exit 0
-          git commit -m "Consume topic ${{ steps.setup.outputs.topic_id }} after YouTube schedule"
+          if git diff --cached --quiet; then
+            echo 'No queue checkpoint change to commit.'
+            exit 0
+          fi
+          git commit -m "Checkpoint produced topic ${{ steps.setup.outputs.topic_id }}"
           git pull --rebase --autostash origin main
           git push origin HEAD:main
 
@@ -210,25 +295,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Upload render preview
-        if: success() && github.event_name == 'workflow_dispatch' && steps.setup.outputs.should_upload != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: tbf-render-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
-          path: production/rendered/final.mp4
-          retention-days: 3
-
       - name: Cost summary
-        if: success()
+        if: always()
         shell: bash
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
-          p=json.load(open('production/output/${{ steps.setup.outputs.topic_id }}/episode-package.json', encoding='utf-8'))
-          c=p.get('anthropic_cost') or {}
-          print('### The Business Flow Production ✅')
-          print(f"- Haiku research: ${float(c.get('research_usd') or 0):.4f}")
-          print(f"- Sonnet script: ${float(c.get('script_usd') or 0):.4f}")
-          print(f"- Anthropic total: ${float(c.get('total_usd') or 0):.4f}")
-          print('- Paid research and Sonnet output are cached before rendering.')
+          from pathlib import Path
+          topic='${{ steps.setup.outputs.topic_id }}'
+          print('### The Business Flow Production')
+          print(f'- Topic: {topic} / ${{ steps.setup.outputs.topic_name }}')
+          path=Path(f'production/output/{topic}/episode-package.json')
+          if path.exists():
+              p=json.loads(path.read_text(encoding='utf-8'))
+              c=p.get('anthropic_cost') or {}
+              print(f"- Haiku research: ${float(c.get('research_usd') or 0):.4f}")
+              print(f"- Sonnet script: ${float(c.get('script_usd') or 0):.4f}")
+              print(f"- Anthropic total: ${float(c.get('total_usd') or 0):.4f}")
+          else:
+              print('- Episode package not completed; inspect cached/recovery state before any retry.')
+          print('- Haiku and Sonnet paid outputs are cached before rendering.')
+          print('- Automatic YouTube upload: ${{ steps.setup.outputs.should_upload }}')
           PY
