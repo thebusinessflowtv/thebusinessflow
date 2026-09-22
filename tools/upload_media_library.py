@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from pathlib import Path
 from urllib.parse import quote
 
@@ -16,18 +15,37 @@ DEFAULT_PREFIX = os.getenv('THEBUSINESSFLOW_MEDIA_PREFIX', 'thebusinessflow/medi
 
 def require_env() -> tuple[str, str]:
     url = os.getenv('SUPABASE_URL', '').rstrip('/')
-    key = os.getenv('SUPABASE_SECRET_KEY', '') or os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
-    if not url or not key:
-        raise SystemExit('SUPABASE_URL and SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) are required')
-    return url, key
+    service_role = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '').strip()
+    secret_key = os.getenv('SUPABASE_SECRET_KEY', '').strip()
+
+    if not url:
+        raise SystemExit('SUPABASE_URL is required')
+
+    # This uploader calls the raw Storage REST endpoint directly. In this flow the
+    # Storage service requires a Bearer JWT in Authorization. Use the legacy
+    # service_role JWT for that header. Modern sb_secret_* keys are opaque API keys,
+    # not JWTs, and cannot be used as Bearer tokens here.
+    if service_role:
+        return url, service_role
+
+    if secret_key.startswith('sb_secret_'):
+        raise SystemExit(
+            'This raw Storage uploader requires the Legacy service_role JWT, not an sb_secret_* key. '
+            'Set SUPABASE_SERVICE_ROLE_KEY from Supabase Settings > API Keys > Legacy API Keys > service_role.'
+        )
+
+    # Backward compatibility: an older JWT may have been stored under the secret env var.
+    if secret_key:
+        return url, secret_key
+
+    raise SystemExit('SUPABASE_SERVICE_ROLE_KEY is required for direct Storage upload')
 
 
 def headers(key: str, content_type: str | None = None, upsert: bool = True) -> dict[str, str]:
-    out = {'apikey': key}
-    # Modern Supabase secret keys (sb_secret_...) are sent via apikey only.
-    # Legacy service_role JWTs also work as a Bearer token.
-    if not key.startswith('sb_secret_'):
-        out['Authorization'] = f'Bearer {key}'
+    out = {
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+    }
     if content_type:
         out['Content-Type'] = content_type
     if upsert:
