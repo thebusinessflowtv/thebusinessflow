@@ -52,7 +52,7 @@ Score EVERY current ready topic from 0-100 using these weights:
 
 A lesser-known company or generic industry should NOT outrank Amazon, Coca-Cola, Meta, Tesla, SpaceX, Apple, Google, Microsoft, McDonald's, Walmart, Disney, Nike, Netflix, Costco, Nvidia, etc. merely because its story is dramatic.
 
-Propose EXACTLY 20 new candidates. At least 16 must be about household-name companies or brands from the PRIORITY BRAND UNIVERSE that are not already stored. Elon Musk companies are explicitly encouraged: Tesla, SpaceX, X and xAI can each have their own documentary angles.
+Propose at least 20 new candidates. At least 16 must be about household-name companies or brands from the PRIORITY BRAND UNIVERSE that are not already stored. Elon Musk companies are explicitly encouraged: Tesla, SpaceX, X and xAI can each have their own documentary angles.
 
 PACKAGING RULES
 - Every title_seed MUST explicitly contain the company or brand name.
@@ -61,7 +61,7 @@ PACKAGING RULES
 - Prefer angles like hidden economics, strange profit engines, impossible scale, business-model contradictions, expensive mistakes, strategic reversals, monopoly-like moats, distribution machines and founder bets.
 - Aggressive factual clickbait is good. Do not invent crimes, numbers, motives, accusations or outcomes.
 
-Call submit_topic_reservoir exactly once with all {len(ready)} scores and exactly 20 candidates. Keep explanations concise.
+Call submit_topic_reservoir exactly once with all {len(ready)} scores and at least 20 candidates. Keep explanations concise.
 """.strip()
 
     response = client.messages.create(
@@ -81,8 +81,10 @@ Call submit_topic_reservoir exactly once with all {len(ready)} scores and exactl
     result = calls[0].input
     if len(result.get("scores") or []) != len(ready):
         raise RuntimeError(f"Expected {len(ready)} scored topics, got {len(result.get('scores') or [])}")
-    if len(result.get("candidates") or []) != 20:
-        raise RuntimeError(f"Expected 20 candidates, got {len(result.get('candidates') or [])}")
+    candidates = result.get("candidates") or []
+    if len(candidates) < 20:
+        raise RuntimeError(f"Expected at least 20 candidates, got {len(candidates)}")
+    result["candidates"] = sorted(candidates, key=lambda c: int(c.get("click_score") or 0), reverse=True)[:20]
     return result
 
 
