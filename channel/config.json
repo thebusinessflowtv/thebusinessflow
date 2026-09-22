@@ -1,0 +1,11 @@
+{
+  "channel_name": "The Business Flow",
+  "channel_key": "the_business_flow_en",
+  "locale": "en-US",
+  "primary_market": "United States",
+  "niche": "Business / Corporate Documentaries",
+  "default_privacy_status": "private",
+  "youtube_category_id": "27",
+  "editorial_mode": "evergreen_documentary",
+  "mediaforge_backend": "github-hosted"
+}
