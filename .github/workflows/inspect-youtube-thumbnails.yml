@@ -1,0 +1,73 @@
+name: Inspect The Business Flow YouTube Thumbnails
+
+on:
+  push:
+    paths:
+      - 'production/channel-inspect.request'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r youtube-worker/requirements.txt
+      - name: Fetch recent videos and thumbnails
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p channel-inspection/thumbs
+          python - <<'PY'
+          import json, os, urllib.request
+          from pathlib import Path
+          from google.auth.transport.requests import Request
+          from google.oauth2.credentials import Credentials
+          from googleapiclient.discovery import build
+
+          scopes=['https://www.googleapis.com/auth/youtube.upload','https://www.googleapis.com/auth/youtube.readonly']
+          creds=Credentials(token=None,refresh_token=os.environ['YOUTUBE_REFRESH_TOKEN'],token_uri='https://oauth2.googleapis.com/token',client_id=os.environ['YOUTUBE_CLIENT_ID'],client_secret=os.environ['YOUTUBE_CLIENT_SECRET'],scopes=scopes)
+          creds.refresh(Request())
+          yt=build('youtube','v3',credentials=creds,cache_discovery=False)
+          ch=(yt.channels().list(part='id,snippet,contentDetails',mine=True,maxResults=1).execute().get('items') or [])[0]
+          assert ch['id']==os.environ['YOUTUBE_CHANNEL_ID'], (ch['id'],os.environ['YOUTUBE_CHANNEL_ID'])
+          uploads=ch['contentDetails']['relatedPlaylists']['uploads']
+          items=yt.playlistItems().list(part='snippet,contentDetails',playlistId=uploads,maxResults=12).execute().get('items') or []
+          vids=[i['contentDetails']['videoId'] for i in items]
+          details={v['id']:v for v in (yt.videos().list(part='snippet,status',id=','.join(vids)).execute().get('items') or [])}
+          out=[]
+          for idx,item in enumerate(items,1):
+              vid=item['contentDetails']['videoId']
+              v=details.get(vid,{})
+              sn=v.get('snippet') or item.get('snippet') or {}
+              st=v.get('status') or {}
+              thumbs=sn.get('thumbnails') or {}
+              choice=None
+              for key in ('maxres','standard','high','medium','default'):
+                  if key in thumbs:
+                      choice=thumbs[key]; break
+              rec={'index':idx,'video_id':vid,'title':sn.get('title'),'published_at':sn.get('publishedAt'),'privacy_status':st.get('privacyStatus'),'thumbnail_url':(choice or {}).get('url')}
+              out.append(rec)
+              if rec['thumbnail_url']:
+                  try:
+                      urllib.request.urlretrieve(rec['thumbnail_url'], f"channel-inspection/thumbs/{idx:02d}_{vid}.jpg")
+                  except Exception as e:
+                      rec['thumbnail_download_error']=str(e)
+          Path('channel-inspection/channel.json').write_text(json.dumps({'channel_id':ch['id'],'channel_title':ch['snippet']['title'],'videos':out},indent=2,ensure_ascii=False),encoding='utf-8')
+          print(json.dumps(out,indent=2,ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tbf-channel-thumbnail-inspection-${{ github.run_id }}
+          path: channel-inspection/
+          retention-days: 2
