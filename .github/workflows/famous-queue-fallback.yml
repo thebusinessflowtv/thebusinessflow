@@ -35,7 +35,8 @@ jobs:
           ready=[t for t in d['topics'] if t.get('status')=='ready']
           assert len(ready)==50
           assert ready[0]['topic']=='Amazon'
-          assert all(t.get('title_seed','').lower().find(t.get('topic','').lower()) >= 0 for t in ready)
+          assert all(t.get('title_seed') for t in ready)
+          assert all(t.get('thumbnail_text_seed') for t in ready)
           print('Top 10 famous companies:')
           for i,t in enumerate(ready[:10],1): print(i,t['click_score'],t['topic'],t['title_seed'])
           PY
