@@ -1,0 +1,85 @@
+name: The Business Flow Daily Content Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic_id:
+        description: 'Optional topic id, e.g. tbf-001. Leave blank for the next ready topic.'
+        required: false
+        type: string
+  schedule:
+    - cron: '0 13 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  generate-content-pack:
+    if: github.event_name == 'workflow_dispatch' || vars.PRODUCTION_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Anthropic secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install production dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r production/requirements.txt
+
+      - name: Generate researched episode package
+        shell: bash
+        env:
+          TOPIC_ID: ${{ inputs.topic_id }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TOPIC_ID:-}" ]; then
+            python production/generate_episode.py --topic-id "$TOPIC_ID"
+          else
+            python production/generate_episode.py
+          fi
+
+      - name: Validate package files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d production/output
+          find production/output -name episode-package.json -print -quit | grep -q .
+          find production/output -name script.txt -print -quit | grep -q .
+          find production/output -name metadata.json -print -quit | grep -q .
+          find production/output -name storyboard.json -print -quit | grep -q .
+          find production/output -name thumbnail.json -print -quit | grep -q .
+
+      - name: Upload content pack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-content-pack-${{ github.run_id }}
+          path: production/output/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Summary
+        run: |
+          echo '### The Business Flow Content Pack ✅' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Web research via Anthropic: completed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 10 title candidates: generated' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 3 thumbnail concepts: generated' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Long-form script: generated' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Description, tags and chapters: generated' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Storyboard for automated B-roll selection: generated' >> "$GITHUB_STEP_SUMMARY"
+          echo '- This workflow intentionally does not publish a video yet.' >> "$GITHUB_STEP_SUMMARY"
