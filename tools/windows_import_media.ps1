@@ -10,17 +10,25 @@ if (-not (Test-Path -LiteralPath $ZipPath)) {
     throw "ZIP not found: $ZipPath"
 }
 
-function Resolve-Python {
+function Resolve-PythonCommand {
     if (Get-Command python -ErrorAction SilentlyContinue) {
-        return @("python")
+        return @{ Exe = "python"; Prefix = @() }
     }
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        return @("py", "-3")
+        return @{ Exe = "py"; Prefix = @("-3") }
     }
     throw "Python 3 was not found in PATH."
 }
 
-$Python = Resolve-Python
+function Invoke-Python {
+    param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Args)
+    & $script:Python.Exe @($script:Python.Prefix) @Args
+    if ($LASTEXITCODE -ne 0) {
+        throw "Python command failed with exit code $LASTEXITCODE"
+    }
+}
+
+$Python = Resolve-PythonCommand
 
 if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
     throw "ffmpeg was not found in PATH."
@@ -29,9 +37,13 @@ if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
     throw "ffprobe was not found in PATH."
 }
 
+Write-Host "Python:" -ForegroundColor DarkGray
+Invoke-Python --version
+Write-Host "FFmpeg:" -ForegroundColor DarkGray
+ffmpeg -version | Select-Object -First 1
+
 Write-Host "Installing/checking Python dependencies..." -ForegroundColor Yellow
-& $Python[0] @($Python[1..($Python.Count-1)]) -m pip install --upgrade requests pillow
-if ($LASTEXITCODE -ne 0) { throw "pip dependency install failed" }
+Invoke-Python -m pip install --upgrade requests pillow
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $OutputDir = Join-Path $RepoRoot "media-library\generated"
@@ -39,8 +51,7 @@ $BuildScript = Join-Path $RepoRoot "tools\build_media_catalog.py"
 $UploadScript = Join-Path $RepoRoot "tools\upload_media_library.py"
 
 Write-Host "Building catalog and organizing media..." -ForegroundColor Yellow
-& $Python[0] @($Python[1..($Python.Count-1)]) $BuildScript $ZipPath --output-dir $OutputDir
-if ($LASTEXITCODE -ne 0) { throw "Media catalog build failed" }
+Invoke-Python $BuildScript $ZipPath --output-dir $OutputDir
 
 $env:SUPABASE_URL = "https://rhddgfvtrkmusbvphnlg.supabase.co"
 $env:THEBUSINESSFLOW_MEDIA_BUCKET = "mediaforge-assets"
@@ -64,8 +75,7 @@ $env:SUPABASE_SECRET_KEY = $PlainKey
 
 try {
     Write-Host "Uploading organized media to Supabase Storage..." -ForegroundColor Yellow
-    & $Python[0] @($Python[1..($Python.Count-1)]) $UploadScript $OutputDir
-    if ($LASTEXITCODE -ne 0) { throw "Media upload failed" }
+    Invoke-Python $UploadScript $OutputDir
 
     Write-Host ""
     Write-Host "=== DONE ===" -ForegroundColor Green
