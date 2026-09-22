@@ -5,7 +5,6 @@ import argparse
 import hashlib
 import json
 import mimetypes
-import os
 import shutil
 import subprocess
 import zipfile
@@ -16,8 +15,8 @@ from typing import Any
 VIDEO_EXTS = {'.mp4', '.mov', '.m4v', '.avi', '.mkv', '.webm'}
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tif', '.tiff'}
 MEDIA_EXTS = VIDEO_EXTS | IMAGE_EXTS
-DEFAULT_BUCKET = os.getenv('THEBUSINESSFLOW_MEDIA_BUCKET', 'mediaforge-assets')
-DEFAULT_PREFIX = os.getenv('THEBUSINESSFLOW_MEDIA_PREFIX', 'thebusinessflow/media-library').strip('/')
+REPOSITORY = 'thebusinessflowtv/thebusinessflow'
+ASSETS_ROOT = 'media-library/assets'
 
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
     'companies': [
@@ -32,7 +31,7 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     'retail': ['store', 'retail', 'supermarket', 'mall', 'shopping', 'warehouse', 'checkout', 'consumer'],
     'technology': ['server', 'data center', 'computer', 'software', 'semiconductor', 'chip', 'robot', 'ai', 'technology', 'tech'],
     'manufacturing': ['factory', 'assembly', 'industrial', 'manufacturing', 'port', 'cargo', 'logistics', 'truck', 'shipping'],
-    'automotive': ['car', 'vehicle', 'dealership', 'highway', 'automotive', 'electric vehicle', ' ev '],
+    'automotive': ['car', 'vehicle', 'dealership', 'highway', 'automotive', 'electric vehicle'],
     'real-estate': ['house', 'home', 'apartment', 'real estate', 'construction', 'building', 'office tower'],
     'luxury': ['private jet', 'yacht', 'mansion', 'luxury', 'watch', 'hotel'],
     'american-life': ['new york', 'los angeles', 'chicago', 'texas', 'suburb', 'airport', 'gas station', 'restaurant', 'city'],
@@ -149,19 +148,22 @@ def build_catalog(source: Path, output_dir: Path, organize: bool) -> dict[str, A
             width, height = image_dimensions(path)
 
         organized_path = None
-        storage_uri = None
+        repo_path = None
+        media_uri = None
         if organize:
             copied = safe_copy(path, organized_root / category / kind)
             relative_organized = copied.relative_to(organized_root).as_posix()
             organized_path = str(copied.relative_to(output_dir))
-            storage_uri = f'supabase://{DEFAULT_BUCKET}/{DEFAULT_PREFIX}/{relative_organized}'
+            repo_path = f'{ASSETS_ROOT}/{relative_organized}'
+            media_uri = f'github-lfs://{REPOSITORY}/{repo_path}'
 
         assets.append({
             'asset_id': f'tbf-{index:04d}',
             'filename': path.name,
             'original_path': str(rel),
             'organized_path': organized_path,
-            'storage_uri': storage_uri,
+            'repo_path': repo_path,
+            'storage_uri': media_uri,
             'type': kind,
             'category': category,
             'mime_type': mimetypes.guess_type(path.name)[0],
@@ -184,11 +186,12 @@ def build_catalog(source: Path, output_dir: Path, organize: bool) -> dict[str, A
         asset['duplicate'] = asset['sha256'] in duplicate_hashes
 
     catalog = {
-        'version': 1,
+        'version': 2,
         'library': 'The Business Flow Media Library',
         'channel_key': 'the_business_flow_en',
-        'storage_bucket': DEFAULT_BUCKET,
-        'storage_prefix': DEFAULT_PREFIX,
+        'media_provider': 'github_lfs',
+        'repository': REPOSITORY,
+        'assets_root': ASSETS_ROOT,
         'asset_count': len(assets),
         'total_bytes': sum(int(item['size_bytes']) for item in assets),
         'duplicate_groups': duplicate_hashes,
@@ -204,8 +207,9 @@ def build_catalog(source: Path, output_dir: Path, organize: bool) -> dict[str, A
         'total_bytes': catalog['total_bytes'],
         'duplicate_groups': len(duplicate_hashes),
         'needs_license_review': sum(1 for a in assets if a['commercial_use_status'] == 'review_required'),
-        'storage_bucket': DEFAULT_BUCKET,
-        'storage_prefix': DEFAULT_PREFIX,
+        'media_provider': 'github_lfs',
+        'repository': REPOSITORY,
+        'assets_root': ASSETS_ROOT,
     }, ensure_ascii=False, indent=2), encoding='utf-8')
 
     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -213,7 +217,7 @@ def build_catalog(source: Path, output_dir: Path, organize: bool) -> dict[str, A
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Build The Business Flow reusable media catalog from a directory or ZIP.')
+    parser = argparse.ArgumentParser(description='Build The Business Flow reusable GitHub media catalog from a directory or ZIP.')
     parser.add_argument('source', type=Path)
     parser.add_argument('--output-dir', type=Path, default=Path('media-library/generated'))
     parser.add_argument('--no-organize', action='store_true')
@@ -228,8 +232,9 @@ def main() -> None:
         'total_mb': round(catalog['total_bytes'] / 1024 / 1024, 2),
         'duplicate_groups': len(catalog['duplicate_groups']),
         'catalog': str((args.output_dir / 'catalog.json').resolve()),
-        'storage_bucket': catalog['storage_bucket'],
-        'storage_prefix': catalog['storage_prefix'],
+        'media_provider': catalog['media_provider'],
+        'repository': catalog['repository'],
+        'assets_root': catalog['assets_root'],
     }, ensure_ascii=False, indent=2))
 
 
