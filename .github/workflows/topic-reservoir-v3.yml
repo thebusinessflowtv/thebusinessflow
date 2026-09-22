@@ -3,7 +3,7 @@ name: The Business Flow Famous Companies Topic Reservoir
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 10 * * *'
+    - cron: '30 10 * * 0'
   push:
     paths:
       - 'production/reservoir-run-v3.request'
@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: the-business-flow-famous-company-reservoir
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   refresh:
@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 45
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_TOPIC_MODEL || vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -33,11 +33,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Verify secrets
+      - name: Verify YouTube secrets
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
           test -n "$YOUTUBE_CLIENT_ID" || { echo 'Missing YOUTUBE_CLIENT_ID'; exit 1; }
           test -n "$YOUTUBE_CLIENT_SECRET" || { echo 'Missing YOUTUBE_CLIENT_SECRET'; exit 1; }
           test -n "$YOUTUBE_REFRESH_TOKEN" || { echo 'Missing YOUTUBE_REFRESH_TOKEN'; exit 1; }
@@ -52,8 +51,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r production/requirements.txt
 
-      - name: Re-rank famous-company reservoir
-        run: python production/topic_reservoir_v4.py
+      - name: Optimize famous-company reservoir with Anthropic
+        id: ai
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo 'Anthropic key unavailable; using deterministic reserve.'
+            exit 1
+          fi
+          python production/topic_reservoir_v4.py
+
+      - name: Fall back to zero-credit famous-company reserve
+        if: steps.ai.outcome != 'success'
+        run: python production/famous_queue_fallback_v2.py
 
       - name: Validate reservoir
         shell: bash
@@ -63,7 +74,11 @@ jobs:
           import json
           d=json.load(open('production/topics.json', encoding='utf-8'))
           ready=[t for t in d.get('topics',[]) if t.get('status')=='ready']
+          used=[t for t in d.get('topics',[]) if t.get('status') in {'used','rendered_pending_manual_upload'}]
           assert len(ready)==50, len(ready)
+          ready_names={str(t.get('topic')).lower().replace('’', "'") for t in ready}
+          used_names={str(t.get('topic')).lower().replace('’', "'") for t in used}
+          assert not (ready_names & used_names), ready_names & used_names
           scores=[int(t.get('click_score') or 0) for t in ready]
           assert scores == sorted(scores, reverse=True), scores
           print('TOP_10_BEGIN')
@@ -92,13 +107,13 @@ jobs:
         with:
           name: the-business-flow-famous-company-reservoir-${{ github.run_id }}
           path: production/reservoir-output/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Summary
         run: |
           echo '### Famous Companies Topic Reservoir ✅' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Exactly 50 ready topics' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Brand recognition = 50% of score' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Household-name companies prioritized' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Titles must explicitly name the brand/company' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Exactly 50 unused ready topics' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Anthropic optimization runs weekly, not daily' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Daily zero-credit maintenance keeps the queue at 50' >> "$GITHUB_STEP_SUMMARY"
+          echo '- API failure automatically falls back instead of breaking the factory' >> "$GITHUB_STEP_SUMMARY"
