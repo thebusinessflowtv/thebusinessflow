@@ -5,9 +5,9 @@ import argparse
 import hashlib
 import json
 import mimetypes
+import os
 import shutil
 import subprocess
-import sys
 import zipfile
 from collections import defaultdict
 from pathlib import Path
@@ -16,6 +16,8 @@ from typing import Any
 VIDEO_EXTS = {'.mp4', '.mov', '.m4v', '.avi', '.mkv', '.webm'}
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tif', '.tiff'}
 MEDIA_EXTS = VIDEO_EXTS | IMAGE_EXTS
+DEFAULT_BUCKET = os.getenv('THEBUSINESSFLOW_MEDIA_BUCKET', 'mediaforge-assets')
+DEFAULT_PREFIX = os.getenv('THEBUSINESSFLOW_MEDIA_PREFIX', 'thebusinessflow/media-library').strip('/')
 
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
     'companies': [
@@ -147,15 +149,19 @@ def build_catalog(source: Path, output_dir: Path, organize: bool) -> dict[str, A
             width, height = image_dimensions(path)
 
         organized_path = None
+        storage_uri = None
         if organize:
             copied = safe_copy(path, organized_root / category / kind)
+            relative_organized = copied.relative_to(organized_root).as_posix()
             organized_path = str(copied.relative_to(output_dir))
+            storage_uri = f'supabase://{DEFAULT_BUCKET}/{DEFAULT_PREFIX}/{relative_organized}'
 
         assets.append({
             'asset_id': f'tbf-{index:04d}',
             'filename': path.name,
             'original_path': str(rel),
             'organized_path': organized_path,
+            'storage_uri': storage_uri,
             'type': kind,
             'category': category,
             'mime_type': mimetypes.guess_type(path.name)[0],
@@ -181,6 +187,8 @@ def build_catalog(source: Path, output_dir: Path, organize: bool) -> dict[str, A
         'version': 1,
         'library': 'The Business Flow Media Library',
         'channel_key': 'the_business_flow_en',
+        'storage_bucket': DEFAULT_BUCKET,
+        'storage_prefix': DEFAULT_PREFIX,
         'asset_count': len(assets),
         'total_bytes': sum(int(item['size_bytes']) for item in assets),
         'duplicate_groups': duplicate_hashes,
@@ -196,6 +204,8 @@ def build_catalog(source: Path, output_dir: Path, organize: bool) -> dict[str, A
         'total_bytes': catalog['total_bytes'],
         'duplicate_groups': len(duplicate_hashes),
         'needs_license_review': sum(1 for a in assets if a['commercial_use_status'] == 'review_required'),
+        'storage_bucket': DEFAULT_BUCKET,
+        'storage_prefix': DEFAULT_PREFIX,
     }, ensure_ascii=False, indent=2), encoding='utf-8')
 
     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -218,6 +228,8 @@ def main() -> None:
         'total_mb': round(catalog['total_bytes'] / 1024 / 1024, 2),
         'duplicate_groups': len(catalog['duplicate_groups']),
         'catalog': str((args.output_dir / 'catalog.json').resolve()),
+        'storage_bucket': catalog['storage_bucket'],
+        'storage_prefix': catalog['storage_prefix'],
     }, ensure_ascii=False, indent=2))
 
 
