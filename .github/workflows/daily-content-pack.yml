@@ -1,4 +1,4 @@
-name: The Business Flow Daily Content Pack
+name: The Business Flow Content Pack Preview
 
 on:
   workflow_dispatch:
@@ -7,15 +7,12 @@ on:
         description: 'Optional topic id, e.g. tbf-001. Leave blank for the next ready topic.'
         required: false
         type: string
-  schedule:
-    - cron: '0 13 * * *'
 
 permissions:
   contents: read
 
 jobs:
   generate-content-pack:
-    if: github.event_name == 'workflow_dispatch' || vars.PRODUCTION_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -75,11 +72,11 @@ jobs:
 
       - name: Summary
         run: |
-          echo '### The Business Flow Content Pack ✅' >> "$GITHUB_STEP_SUMMARY"
+          echo '### The Business Flow Content Pack Preview ✅' >> "$GITHUB_STEP_SUMMARY"
           echo '- Web research via Anthropic: completed' >> "$GITHUB_STEP_SUMMARY"
           echo '- 10 title candidates: generated' >> "$GITHUB_STEP_SUMMARY"
           echo '- 3 thumbnail concepts: generated' >> "$GITHUB_STEP_SUMMARY"
           echo '- Long-form script: generated' >> "$GITHUB_STEP_SUMMARY"
           echo '- Description, tags and chapters: generated' >> "$GITHUB_STEP_SUMMARY"
           echo '- Storyboard for automated B-roll selection: generated' >> "$GITHUB_STEP_SUMMARY"
-          echo '- This workflow intentionally does not publish a video yet.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No video upload occurs in this preview workflow.' >> "$GITHUB_STEP_SUMMARY"
