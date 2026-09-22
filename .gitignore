@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.runtime/
+out/
+output/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.wav
+*.mp3
+*.mp4
+*.mov
+*.mkv
+*.zip
+.DS_Store
