@@ -161,20 +161,54 @@ def cover(img: Image.Image, size=(1280, 720)) -> Image.Image:
     return resized.crop((left, top, left + size[0], top + size[1]))
 
 
-def thumbnail_source(asset: MediaAsset, out_dir: Path) -> Path:
+def thumbnail_source(asset: MediaAsset, out_dir: Path, attempt: int) -> Path:
     src = ROOT / str(asset.repo_path)
+    if not src.is_file() or src.stat().st_size <= 1000:
+        raise RuntimeError(f"Thumbnail source missing/empty: {src}")
     if asset.asset_type == "image":
         return src
-    frame = out_dir / "thumbnail-source.jpg"
-    run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", "1", "-i", str(src), "-frames:v", "1", str(frame)])
-    return frame
+
+    frame = out_dir / f"thumbnail-source-{attempt:02d}.jpg"
+    frame.unlink(missing_ok=True)
+    # Some short clips have no frame at 1s. Try near the start first, then frame zero.
+    for seek in ("0.25", "0"):
+        try:
+            run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-ss", seek, "-i", str(src), "-frames:v", "1", "-q:v", "2", str(frame)
+            ])
+        except subprocess.CalledProcessError:
+            pass
+        if frame.is_file() and frame.stat().st_size > 1000:
+            return frame
+        frame.unlink(missing_ok=True)
+    raise RuntimeError(f"Could not extract thumbnail frame from {src}")
 
 
-def make_thumbnail(package: dict, asset: MediaAsset, out_dir: Path) -> Path:
+def load_thumbnail_base(assets: list[MediaAsset], out_dir: Path) -> Image.Image:
+    errors: list[str] = []
+    for idx, asset in enumerate(assets[:20], 1):
+        try:
+            src = thumbnail_source(asset, out_dir, idx)
+            with Image.open(src) as raw:
+                raw.load()
+                return cover(raw.convert("RGB"))
+        except Exception as exc:
+            errors.append(f"{asset.asset_id}: {type(exc).__name__}: {exc}")
+            continue
+
+    # Thumbnail failure must never destroy an otherwise valid documentary.
+    # Fall back to a deterministic local canvas; packaging text is still applied below.
+    print("Thumbnail media fallback used after asset failures:")
+    for error in errors[-5:]:
+        print(" -", error)
+    return Image.new("RGB", (1280, 720), (18, 18, 18))
+
+
+def make_thumbnail(package: dict, assets: list[MediaAsset], out_dir: Path) -> Path:
     variant = (package.get("thumbnail_variants") or [{}])[0]
     text = str(variant.get("text") or package.get("topic") or "BUSINESS").upper().strip()
-    src = thumbnail_source(asset, out_dir)
-    img = cover(Image.open(src).convert("RGB"))
+    img = load_thumbnail_base(assets, out_dir)
     draw = ImageDraw.Draw(img, "RGBA")
     draw.rectangle((0, 0, 1280, 720), fill=(0, 0, 0, 85))
     draw.rectangle((0, 0, 1280, 720), fill=(0, 0, 0, 30))
@@ -240,7 +274,7 @@ def main() -> None:
     desired = min(len(package.get("storyboard") or []), len(assets), max(40, min(120, round(audio_duration / 8))))
     assignments = choose_assets(package, assets, desired)
     final = build_video(assignments, narration, out_dir)
-    thumb = make_thumbnail(package, assignments[0][1], out_dir)
+    thumb = make_thumbnail(package, [asset for _, asset in assignments], out_dir)
 
     metadata = {
         "title": package["selected_title"],
