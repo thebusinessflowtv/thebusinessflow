@@ -29,6 +29,13 @@ except ModuleNotFoundError:
 
 ROOT = Path(__file__).resolve().parents[1]
 OVERRIDE_ROOT = ROOT / "production" / "recovery-overrides"
+STOPWORDS = {
+    "about", "after", "again", "against", "because", "before", "being", "between", "could", "every",
+    "first", "from", "have", "into", "just", "more", "most", "other", "over", "same", "some", "than",
+    "that", "their", "them", "then", "there", "these", "they", "this", "those", "through", "under", "very",
+    "what", "when", "where", "which", "while", "with", "would", "your", "company", "business", "billion",
+    "million", "dollars", "year", "years", "also", "only", "still", "even", "much", "does", "make", "made",
+}
 
 
 def deterministic_tags(topic: dict[str, Any], research: dict[str, Any]) -> list[str]:
@@ -37,16 +44,102 @@ def deterministic_tags(topic: dict[str, Any], research: dict[str, Any]) -> list[
         brand,
         f"{brand} business model",
         f"how {brand} makes money",
+        f"{brand} strategy",
         "business documentary",
         "business strategy",
         "corporate strategy",
         "The Business Flow",
     ]
-    thesis = str(research.get("thesis") or "").lower()
-    for keyword in ["AWS", "advertising", "marketplace", "Prime", "cloud computing", "retail", "subscriptions"]:
-        if keyword.lower() in thesis and keyword not in tags:
-            tags.append(keyword)
+    corpus = " ".join([
+        str(research.get("thesis") or ""),
+        *[str(row.get("claim") or "") for row in (research.get("facts") or [])],
+    ])
+    # Add a few distinctive researched terms without an extra AI call.
+    candidates = re.findall(r"\b[A-Za-z][A-Za-z0-9-]{3,}\b", corpus)
+    counts: dict[str, int] = {}
+    original: dict[str, str] = {}
+    for word in candidates:
+        low = word.lower()
+        if low in STOPWORDS or low == brand.lower():
+            continue
+        counts[low] = counts.get(low, 0) + 1
+        original.setdefault(low, word)
+    for low, _ in sorted(counts.items(), key=lambda pair: (-pair[1], pair[0])):
+        value = original[low]
+        if value not in tags:
+            tags.append(value)
+        if len(tags) >= 15:
+            break
     return tags[:15]
+
+
+def chapter_title(text: str, index: int, brand: str) -> str:
+    words = re.findall(r"\b[A-Za-z][A-Za-z0-9'-]{3,}\b", text)
+    counts: dict[str, int] = {}
+    original: dict[str, str] = {}
+    for word in words:
+        low = word.lower()
+        if low in STOPWORDS or low == brand.lower():
+            continue
+        counts[low] = counts.get(low, 0) + 1
+        original.setdefault(low, word)
+    ranked = [original[key] for key, _ in sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))]
+    if ranked:
+        phrase = " & ".join(ranked[:2])
+        return f"{brand}: {phrase}"[:80]
+    defaults = ["The Setup", "The Economics", "The Engine", "The Expansion", "The Tradeoffs", "What It Means"]
+    return f"{brand}: {defaults[min(index, len(defaults)-1)]}"
+
+
+def deterministic_chapters(script: str, topic: dict[str, Any], count: int = 6) -> list[dict[str, str]]:
+    """Create concise semantic chapter metadata locally from an already-paid script.
+
+    Chapters are packaging metadata, not new factual content. This deliberately
+    avoids repaying Sonnet when a tool payload is truncated after the narration.
+    """
+    clean = re.sub(r"\s+", " ", script).strip()
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", clean) if s.strip()]
+    if not sentences:
+        return []
+
+    # Split by approximate word mass so every chapter covers a meaningful section.
+    total_words = max(1, len(clean.split()))
+    target_words = max(1, total_words // count)
+    groups: list[list[str]] = []
+    current: list[str] = []
+    current_words = 0
+    for sentence in sentences:
+        words = len(sentence.split())
+        if current and current_words >= target_words and len(groups) < count - 1:
+            groups.append(current)
+            current = []
+            current_words = 0
+        current.append(sentence)
+        current_words += words
+    if current:
+        groups.append(current)
+
+    # If sentence distribution produced fewer groups, split the longest groups.
+    while len(groups) < min(count, len(sentences)):
+        idx = max(range(len(groups)), key=lambda i: sum(len(s.split()) for s in groups[i]))
+        group = groups[idx]
+        if len(group) < 2:
+            break
+        mid = len(group) // 2
+        groups[idx:idx + 1] = [group[:mid], group[mid:]]
+
+    brand = str(topic.get("topic") or "Business").strip()
+    chapters: list[dict[str, str]] = []
+    for index, group in enumerate(groups[:count]):
+        text = " ".join(group)
+        summary = " ".join(group[:2]).strip()
+        if len(summary) > 220:
+            summary = summary[:217].rsplit(" ", 1)[0] + "..."
+        chapters.append({
+            "title": chapter_title(text, index, brand),
+            "summary": summary,
+        })
+    return chapters
 
 
 def apply_curated_script_insert(script: str, topic_id: str) -> tuple[str, bool]:
@@ -72,8 +165,8 @@ def apply_curated_script_insert(script: str, topic_id: str) -> tuple[str, bool]:
 def repair_package(package: dict[str, Any], topic: dict[str, Any], research: dict[str, Any]) -> dict[str, Any]:
     repaired = dict(package)
 
-    # Claude can occasionally serialize the next tool parameter into the previous string.
-    # Recover that locally instead of paying for another model call.
+    # Claude can occasionally serialize a later tool parameter into the previous string.
+    # Recover it locally instead of paying for another model call.
     description = str(repaired.get("description") or "").strip()
     if not repaired.get("tags") and description:
         patterns = [
@@ -109,6 +202,17 @@ def repair_package(package: dict[str, Any], topic: dict[str, Any], research: dic
         if inserted:
             repaired["script"] = script
             repaired["local_recovery_note"] = "Paid Sonnet draft was short; a curated source-backed local insert was applied without another API call."
+    else:
+        repaired["script"] = script
+
+    # Chapters contain no new facts; derive them from the already-paid narration.
+    # This specifically protects against truncated tool payloads that omit trailing
+    # metadata after the expensive script has already been produced.
+    if not repaired.get("chapters"):
+        repaired["chapters"] = deterministic_chapters(str(repaired.get("script") or ""), topic)
+        note = "Missing chapter metadata was rebuilt locally from the paid script; Anthropic API was not called."
+        previous = str(repaired.get("local_recovery_note") or "").strip()
+        repaired["local_recovery_note"] = f"{previous} {note}".strip()
 
     return repaired
 
@@ -145,7 +249,8 @@ def main() -> None:
         "recovered_without_api": True,
         "selected_title": package["selected_title"],
         "script_word_count": package["script_word_count"],
-        "tags": package["tags"],
+        "tag_count": len(package["tags"]),
+        "chapter_count": len(package["chapters"]),
         "anthropic_usage": package["anthropic_usage"],
         "anthropic_cost": package["anthropic_cost"],
         "local_recovery_note": package.get("local_recovery_note"),
