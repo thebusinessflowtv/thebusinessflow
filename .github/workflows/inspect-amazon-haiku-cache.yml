@@ -1,0 +1,33 @@
+name: Inspect Amazon Haiku Cache Free
+
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-amazon-haiku-cache.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore paid Amazon research cache only
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/research-cache/famous-001
+          key: tbf-haiku-research-v2-famous-001
+          fail-on-cache-miss: true
+      - name: Print safe cached response
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s production/research-cache/famous-001/haiku-response.json
+          python - <<'PY'
+          import json
+          p='production/research-cache/famous-001/haiku-response.json'
+          d=json.load(open(p, encoding='utf-8'))
+          print(json.dumps(d, ensure_ascii=False, indent=2))
+          PY
