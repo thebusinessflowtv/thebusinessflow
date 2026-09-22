@@ -1,0 +1,12 @@
+{
+  "source_archive": "Company Vault.zip",
+  "source_size_bytes": 503759480,
+  "expected_asset_count_user_reported": 218,
+  "channel_key": "the_business_flow_en",
+  "target_bucket": "mediaforge-assets",
+  "target_prefix": "thebusinessflow/media-library",
+  "catalog_builder": "tools/build_media_catalog.py",
+  "uploader": "tools/upload_media_library.py",
+  "status": "source_received_processing_pending",
+  "notes": "The original ZIP is preserved in the ChatGPT Library under /The Business Flow/Media Intake/Company Vault.zip. Binary extraction must complete before catalog.json can be finalized."
+}
