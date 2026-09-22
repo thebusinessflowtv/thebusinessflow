@@ -1,4 +1,4 @@
-name: The Business Flow YouTube PRIVATE Smoke Test
+name: The Business Flow YouTube Scheduled Smoke Test
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  private-upload-smoke-test:
+  scheduled-upload-smoke-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -87,7 +87,7 @@ jobs:
           print(f'OK: authenticated The Business Flow channel: {title} ({actual})')
           PY
 
-      - name: Build 30-second narrated smoke video
+      - name: Build narrated smoke video
         shell: bash
         run: |
           set -euo pipefail
@@ -112,7 +112,7 @@ jobs:
           PY
 
           cat > "$RUNTIME/script.txt" <<'TXT'
-          The biggest businesses in America rarely win because of one product. They win because they build systems that are difficult to copy. Distribution, pricing, customer habits, data, and scale can turn an ordinary company into an economic machine. On The Business Flow, we break down how those machines are built, how they make money, and what happens when the strategy stops working. This private video confirms that our automated production factory can render, authenticate, and deliver directly to the correct YouTube channel.
+          The biggest businesses in America rarely win because of one product. They win because they build systems that are difficult to copy. Distribution, pricing, customer habits, data, and scale can turn an ordinary company into an economic machine. On The Business Flow, we break down how those machines are built, how they make money, and what happens when the strategy stops working. This scheduled test confirms that our automated production factory can render, authenticate, upload, and schedule directly to the correct YouTube channel.
           TXT
 
           python -m edge_tts \
@@ -161,26 +161,35 @@ jobs:
           ffmpeg -v error -i "$RUNTIME/test.mp4" -f null -
           ffmpeg -v error -i "$RUNTIME/test.mp4" -map 0:a:0 -f null -
 
-      - name: Create smoke-test thumbnail and metadata
+      - name: Create thumbnail, metadata and schedule
         shell: bash
         run: |
           set -euo pipefail
           RUNTIME='.runtime/youtube-private-smoke'
           ffmpeg -hide_banner -loglevel error -y \
             -i "$RUNTIME/test.mp4" -frames:v 1 \
-            -vf "scale=1280:720,drawbox=x=0:y=0:w=iw:h=150:color=black@0.72:t=fill,drawtext=text='THE BUSINESS FLOW - PRIVATE FACTORY TEST':fontcolor=white:fontsize=42:x=(w-text_w)/2:y=50" \
+            -vf "scale=1280:720,drawbox=x=0:y=0:w=iw:h=150:color=black@0.72:t=fill,drawtext=text='THE BUSINESS FLOW - SCHEDULED FACTORY TEST':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=50" \
             "$RUNTIME/thumbnail.png"
 
-          cat > "$RUNTIME/metadata.json" <<'JSON'
-          {
-            "title": "The Business Flow - PRIVATE Factory Test",
-            "description": "Automated end-to-end factory validation for The Business Flow. This video is intentionally uploaded as PRIVATE and is not intended for publication.",
-            "tags": ["The Business Flow", "factory test", "business documentary"],
-            "category_id": "27"
-          }
-          JSON
+          python - <<'PY'
+          import json
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
 
-      - name: Upload to The Business Flow as PRIVATE
+          publish_at = (datetime.now(timezone.utc) + timedelta(days=7)).replace(microsecond=0)
+          data = {
+              'title': 'The Business Flow - SCHEDULED Factory Test',
+              'description': 'Automated end-to-end factory validation for The Business Flow. This test verifies PRIVATE upload plus scheduled publication through the YouTube Data API.',
+              'tags': ['The Business Flow', 'factory test', 'business documentary'],
+              'category_id': '27',
+              'publish_at': publish_at.isoformat().replace('+00:00', 'Z'),
+          }
+          path = Path('.runtime/youtube-private-smoke/metadata.json')
+          path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+          print('Scheduled publishAt:', data['publish_at'])
+          PY
+
+      - name: Upload and schedule on The Business Flow
         shell: bash
         run: |
           set -euo pipefail
@@ -191,25 +200,30 @@ jobs:
             --metadata "$RUNTIME/metadata.json" \
             --checkpoint "$RUNTIME/youtube-upload.json"
 
-      - name: Validate YouTube checkpoint
+      - name: Validate YouTube checkpoint and schedule
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json, os
+          from datetime import datetime, timezone
           from pathlib import Path
           p = Path('.runtime/youtube-private-smoke/youtube-upload.json')
           data = json.loads(p.read_text(encoding='utf-8'))
           assert data['privacy_status'] == 'private', data
           assert data['channel_id'] == os.environ['YOUTUBE_CHANNEL_ID'], data
           assert data['youtube_video_id'], data
+          assert data['scheduled'] is True, data
+          assert data['publish_at'], data
+          dt = datetime.fromisoformat(data['publish_at'].replace('Z', '+00:00'))
+          assert dt > datetime.now(timezone.utc), data
           print(json.dumps(data, indent=2))
           PY
 
       - name: Upload test checkpoint artifact
         uses: actions/upload-artifact@v4
         with:
-          name: the-business-flow-youtube-private-smoke-test
+          name: the-business-flow-youtube-scheduled-smoke-test
           path: |
             .runtime/youtube-private-smoke/youtube-upload.json
             .runtime/youtube-private-smoke/metadata.json
@@ -219,10 +233,11 @@ jobs:
       - name: Success summary
         shell: bash
         run: |
-          echo '### The Business Flow YouTube PRIVATE Smoke Test ✅' >> "$GITHUB_STEP_SUMMARY"
+          echo '### The Business Flow YouTube Scheduled Smoke Test ✅' >> "$GITHUB_STEP_SUMMARY"
           echo '- Render: passed' >> "$GITHUB_STEP_SUMMARY"
           echo '- Narration: passed' >> "$GITHUB_STEP_SUMMARY"
           echo '- Correct channel authentication: passed' >> "$GITHUB_STEP_SUMMARY"
           echo '- YouTube upload: passed' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Privacy status: PRIVATE' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Privacy status before publication: PRIVATE' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Scheduled publication (publishAt): passed' >> "$GITHUB_STEP_SUMMARY"
           echo '- YouTube video ID checkpoint: generated' >> "$GITHUB_STEP_SUMMARY"
