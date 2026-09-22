@@ -13,7 +13,21 @@ __pycache__/
 *.mp4
 *.mov
 *.mkv
+*.avi
+*.webm
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+*.bmp
+*.tif
+*.tiff
 *.zip
 .DS_Store
 /media-library/generated/organized/
 /media-library/generated/.work/
+
+# The Business Flow approved media library lives in GitHub LFS.
+!media-library/assets/
+!media-library/assets/**
