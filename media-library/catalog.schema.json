@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The Business Flow Media Catalog",
+  "type": "object",
+  "required": ["version", "library", "channel_key", "asset_count", "total_bytes", "assets"],
+  "properties": {
+    "version": {"type": "integer", "minimum": 1},
+    "library": {"type": "string"},
+    "channel_key": {"const": "the_business_flow_en"},
+    "asset_count": {"type": "integer", "minimum": 0},
+    "total_bytes": {"type": "integer", "minimum": 0},
+    "duplicate_groups": {"type": "object"},
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset_id", "filename", "type", "category", "size_bytes", "sha256", "commercial_use_status"],
+        "properties": {
+          "asset_id": {"type": "string"},
+          "filename": {"type": "string"},
+          "original_path": {"type": "string"},
+          "organized_path": {"type": ["string", "null"]},
+          "type": {"enum": ["image", "video"]},
+          "category": {"type": "string"},
+          "mime_type": {"type": ["string", "null"]},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "width": {"type": ["integer", "null"]},
+          "height": {"type": ["integer", "null"]},
+          "duration_seconds": {"type": ["number", "null"]},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "duplicate": {"type": "boolean"},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "company": {"type": ["string", "null"]},
+          "source_url": {"type": ["string", "null"]},
+          "license": {"type": ["string", "null"]},
+          "attribution_required": {"type": ["boolean", "null"]},
+          "commercial_use_status": {"enum": ["approved", "review_required", "blocked"]}
+        }
+      }
+    }
+  }
+}
