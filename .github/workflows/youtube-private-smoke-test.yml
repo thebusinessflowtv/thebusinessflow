@@ -1,0 +1,228 @@
+name: The Business Flow YouTube PRIVATE Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/youtube-private-smoke-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  private-upload-smoke-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+
+    steps:
+      - name: Checkout repository + Git LFS media
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Verify required YouTube secrets before render
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$YOUTUBE_CLIENT_ID" || { echo 'Missing YOUTUBE_CLIENT_ID'; exit 1; }
+          test -n "$YOUTUBE_CLIENT_SECRET" || { echo 'Missing YOUTUBE_CLIENT_SECRET'; exit 1; }
+          test -n "$YOUTUBE_REFRESH_TOKEN" || { echo 'Missing YOUTUBE_REFRESH_TOKEN'; exit 1; }
+          test -n "$YOUTUBE_CHANNEL_ID" || { echo 'Missing YOUTUBE_CHANNEL_ID'; exit 1; }
+
+      - name: Set up Python and dependencies
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install TTS, FFmpeg and YouTube dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install edge-tts
+          pip install -r youtube-worker/requirements.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Validate authenticated YouTube channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from google.auth.transport.requests import Request as GoogleAuthRequest
+          from google.oauth2.credentials import Credentials
+          from googleapiclient.discovery import build
+
+          scopes = [
+              'https://www.googleapis.com/auth/youtube.upload',
+              'https://www.googleapis.com/auth/youtube.readonly',
+          ]
+          creds = Credentials(
+              token=None,
+              refresh_token=os.environ['YOUTUBE_REFRESH_TOKEN'],
+              token_uri='https://oauth2.googleapis.com/token',
+              client_id=os.environ['YOUTUBE_CLIENT_ID'],
+              client_secret=os.environ['YOUTUBE_CLIENT_SECRET'],
+              scopes=scopes,
+          )
+          creds.refresh(GoogleAuthRequest())
+          yt = build('youtube', 'v3', credentials=creds, cache_discovery=False)
+          data = yt.channels().list(part='id,snippet', mine=True, maxResults=1).execute()
+          items = data.get('items') or []
+          if not items:
+              raise SystemExit('No YouTube channel found for authenticated account')
+          channel = items[0]
+          actual = channel.get('id')
+          expected = os.environ['YOUTUBE_CHANNEL_ID']
+          title = (channel.get('snippet') or {}).get('title')
+          if actual != expected:
+              raise SystemExit(f'CHANNEL SAFETY BLOCK: authenticated {actual} ({title}) != expected {expected}')
+          print(f'OK: authenticated The Business Flow channel: {title} ({actual})')
+          PY
+
+      - name: Build 30-second narrated smoke video
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull
+          RUNTIME='.runtime/youtube-private-smoke'
+          mkdir -p "$RUNTIME"
+
+          python - <<'PY'
+          import json, shutil
+          from pathlib import Path
+          runtime = Path('.runtime/youtube-private-smoke')
+          catalog = json.loads(Path('media-library/catalog.json').read_text(encoding='utf-8'))
+          assets = catalog['assets']
+          images = [a for a in assets if a.get('type') == 'image' and a.get('repo_path')]
+          videos = [a for a in assets if a.get('type') == 'video' and a.get('repo_path')]
+          chosen = [images[0], videos[0], images[1], videos[1]]
+          for i, asset in enumerate(chosen, 1):
+              src = Path(asset['repo_path'])
+              if not src.is_file() or src.stat().st_size <= 1000:
+                  raise SystemExit(f'Asset unavailable/LFS pointer: {src}')
+              shutil.copy2(src, runtime / f'source_{i}{src.suffix.lower()}')
+          PY
+
+          cat > "$RUNTIME/script.txt" <<'TXT'
+          The biggest businesses in America rarely win because of one product. They win because they build systems that are difficult to copy. Distribution, pricing, customer habits, data, and scale can turn an ordinary company into an economic machine. On The Business Flow, we break down how those machines are built, how they make money, and what happens when the strategy stops working. This private video confirms that our automated production factory can render, authenticate, and deliver directly to the correct YouTube channel.
+          TXT
+
+          python -m edge_tts \
+            --voice en-US-AndrewNeural \
+            --rate=-4% \
+            --text "$(cat "$RUNTIME/script.txt")" \
+            --write-media "$RUNTIME/narration.mp3"
+
+          DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$RUNTIME/narration.mp3")"
+          SEG="$(python - "$DURATION" <<'PY'
+          import sys
+          print(max(float(sys.argv[1]) / 4.0, 1.0))
+          PY
+          )"
+
+          IMAGE1="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_1.*' | head -n1)"
+          VIDEO1="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_2.*' | head -n1)"
+          IMAGE2="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_3.*' | head -n1)"
+          VIDEO2="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_4.*' | head -n1)"
+
+          render_image() {
+            ffmpeg -hide_banner -loglevel warning -y -loop 1 -framerate 30 -i "$1" -t "$SEG" \
+              -vf 'scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=yuv420p' \
+              -an -c:v libx264 -preset veryfast -crf 22 -r 30 "$2"
+          }
+          render_video() {
+            ffmpeg -hide_banner -loglevel warning -y -stream_loop -1 -i "$1" -t "$SEG" \
+              -vf 'scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=yuv420p' \
+              -an -c:v libx264 -preset veryfast -crf 22 -r 30 "$2"
+          }
+
+          render_image "$IMAGE1" "$RUNTIME/segment_1.mp4"
+          render_video "$VIDEO1" "$RUNTIME/segment_2.mp4"
+          render_image "$IMAGE2" "$RUNTIME/segment_3.mp4"
+          render_video "$VIDEO2" "$RUNTIME/segment_4.mp4"
+
+          printf "file 'segment_1.mp4'\nfile 'segment_2.mp4'\nfile 'segment_3.mp4'\nfile 'segment_4.mp4'\n" > "$RUNTIME/concat.txt"
+          (
+            cd "$RUNTIME"
+            ffmpeg -hide_banner -loglevel warning -y -f concat -safe 0 -i concat.txt -c copy picture_track.mp4
+            ffmpeg -hide_banner -loglevel warning -y -i picture_track.mp4 -i narration.mp3 \
+              -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
+              -shortest -movflags +faststart test.mp4
+          )
+
+          ffmpeg -v error -i "$RUNTIME/test.mp4" -f null -
+          ffmpeg -v error -i "$RUNTIME/test.mp4" -map 0:a:0 -f null -
+
+      - name: Create smoke-test thumbnail and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME='.runtime/youtube-private-smoke'
+          ffmpeg -hide_banner -loglevel error -y \
+            -i "$RUNTIME/test.mp4" -frames:v 1 \
+            -vf "scale=1280:720,drawbox=x=0:y=0:w=iw:h=150:color=black@0.72:t=fill,drawtext=text='THE BUSINESS FLOW - PRIVATE FACTORY TEST':fontcolor=white:fontsize=42:x=(w-text_w)/2:y=50" \
+            "$RUNTIME/thumbnail.png"
+
+          cat > "$RUNTIME/metadata.json" <<'JSON'
+          {
+            "title": "The Business Flow - PRIVATE Factory Test",
+            "description": "Automated end-to-end factory validation for The Business Flow. This video is intentionally uploaded as PRIVATE and is not intended for publication.",
+            "tags": ["The Business Flow", "factory test", "business documentary"],
+            "category_id": "27"
+          }
+          JSON
+
+      - name: Upload to The Business Flow as PRIVATE
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME='.runtime/youtube-private-smoke'
+          python youtube-worker/youtube_private_uploader.py \
+            --video "$RUNTIME/test.mp4" \
+            --thumbnail "$RUNTIME/thumbnail.png" \
+            --metadata "$RUNTIME/metadata.json" \
+            --checkpoint "$RUNTIME/youtube-upload.json"
+
+      - name: Validate YouTube checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path('.runtime/youtube-private-smoke/youtube-upload.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data['privacy_status'] == 'private', data
+          assert data['channel_id'] == os.environ['YOUTUBE_CHANNEL_ID'], data
+          assert data['youtube_video_id'], data
+          print(json.dumps(data, indent=2))
+          PY
+
+      - name: Upload test checkpoint artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-youtube-private-smoke-test
+          path: |
+            .runtime/youtube-private-smoke/youtube-upload.json
+            .runtime/youtube-private-smoke/metadata.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Success summary
+        shell: bash
+        run: |
+          echo '### The Business Flow YouTube PRIVATE Smoke Test ✅' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Render: passed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Narration: passed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Correct channel authentication: passed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- YouTube upload: passed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Privacy status: PRIVATE' >> "$GITHUB_STEP_SUMMARY"
+          echo '- YouTube video ID checkpoint: generated' >> "$GITHUB_STEP_SUMMARY"
