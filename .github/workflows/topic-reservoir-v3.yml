@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 45
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_TOPIC_MODEL || vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_TOPIC_MODEL || 'claude-haiku-4-5-20251001' }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -51,7 +51,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r production/requirements.txt
 
-      - name: Optimize famous-company reservoir with Anthropic
+      - name: Optimize famous-company reservoir with low-cost Haiku
         id: ai
         continue-on-error: true
         shell: bash
@@ -99,7 +99,7 @@ jobs:
             exit 0
           fi
           git commit -m 'Refresh famous-company 50-topic reservoir'
-          git pull --rebase origin main
+          git pull --rebase --autostash origin main
           git push origin HEAD:main
 
       - name: Upload reservoir analysis
@@ -114,6 +114,6 @@ jobs:
         run: |
           echo '### Famous Companies Topic Reservoir ✅' >> "$GITHUB_STEP_SUMMARY"
           echo '- Exactly 50 unused ready topics' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Anthropic optimization runs weekly, not daily' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Low-cost Haiku optimization runs once weekly' >> "$GITHUB_STEP_SUMMARY"
           echo '- Daily zero-credit maintenance keeps the queue at 50' >> "$GITHUB_STEP_SUMMARY"
           echo '- API failure automatically falls back instead of breaking the factory' >> "$GITHUB_STEP_SUMMARY"
