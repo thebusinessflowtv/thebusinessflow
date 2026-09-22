@@ -19,6 +19,7 @@ class MediaAsset:
     tags: tuple[str, ...]
     company: str | None
     storage_uri: str | None
+    repo_path: str | None
     commercial_use_status: str
     duplicate: bool
 
@@ -32,6 +33,7 @@ class MediaAsset:
             tags=tuple(str(v).lower() for v in (row.get("tags") or []) if str(v).strip()),
             company=(str(row.get("company")).strip() if row.get("company") else None),
             storage_uri=(str(row.get("storage_uri")).strip() if row.get("storage_uri") else None),
+            repo_path=(str(row.get("repo_path")).strip() if row.get("repo_path") else None),
             commercial_use_status=str(row.get("commercial_use_status") or "review_required"),
             duplicate=bool(row.get("duplicate")),
         )
@@ -88,6 +90,8 @@ def select_assets(
     for asset in assets:
         if not asset.asset_id or asset.asset_id in excluded:
             continue
+        if not asset.repo_path:
+            continue
         if asset_type and asset.asset_type != asset_type:
             continue
         if require_approved_license and asset.commercial_use_status != "approved":
@@ -95,7 +99,6 @@ def select_assets(
         score = _score(asset, query_tokens, company, preferred)
         if score <= 0:
             continue
-        # deterministic jitter breaks ties without making selection unstable.
         candidates.append((score, rng.random(), asset))
 
     candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
