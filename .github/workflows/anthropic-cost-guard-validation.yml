@@ -1,0 +1,85 @@
+name: Anthropic Cost Guard Validation
+
+on:
+  push:
+    paths:
+      - 'production/anthropic_budget.py'
+      - 'production/research_episode.py'
+      - 'production/generate_episode.py'
+      - 'production/scout_youtube.py'
+      - '.github/workflows/daily-production.yml'
+      - '.github/workflows/daily-content-pack.yml'
+      - '.github/workflows/weekly-topic-scout.yml'
+      - '.github/workflows/anthropic-cost-guard-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-without-paid-api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install free validation dependency
+        run: pip install pyyaml
+
+      - name: Compile Python without calling Anthropic
+        run: |
+          python -m py_compile \
+            production/anthropic_budget.py \
+            production/research_episode.py \
+            production/generate_episode.py \
+            production/scout_youtube.py
+
+      - name: Parse workflow YAML
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          paths = [
+              '.github/workflows/daily-production.yml',
+              '.github/workflows/daily-content-pack.yml',
+              '.github/workflows/weekly-topic-scout.yml',
+              '.github/workflows/anthropic-cost-guard-validation.yml',
+          ]
+          for path in paths:
+              data = yaml.safe_load(Path(path).read_text(encoding='utf-8'))
+              if not isinstance(data, dict) or 'jobs' not in data:
+                  raise SystemExit(f'Invalid workflow structure: {path}')
+              print('YAML OK:', path)
+          PY
+
+      - name: Assert spend protections statically
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          research = Path('production/research_episode.py').read_text(encoding='utf-8')
+          writer = Path('production/generate_episode.py').read_text(encoding='utf-8')
+          scout = Path('production/scout_youtube.py').read_text(encoding='utf-8')
+          daily = Path('.github/workflows/daily-production.yml').read_text(encoding='utf-8')
+
+          checks = {
+              'Haiku research model': 'claude-haiku-4-5-20251001' in research,
+              'one web search maximum': '"max_uses": 1' in research,
+              'research disables SDK retries': 'max_retries=0' in research,
+              'Sonnet has no web search': 'web_search_' not in writer,
+              'Sonnet disables thinking': 'thinking={"type": "disabled"}' in writer,
+              'Sonnet disables SDK retries': 'max_retries=0' in writer,
+              'hard total budget': 'ANTHROPIC_TOTAL_BUDGET_USD' in writer,
+              'weekly scout uses Haiku': 'claude-haiku-4-5-20251001' in scout,
+              'daily restores research cache': 'actions/cache/restore@v4' in daily and 'tbf-haiku-research' in daily,
+              'daily saves paid state on failure': 'actions/cache/save@v4' in daily and 'Recovery artifact on any failure' in daily,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          for name, ok in checks.items():
+              print(('PASS' if ok else 'FAIL'), name)
+          if failed:
+              raise SystemExit('Cost guard validation failed: ' + ', '.join(failed))
+          PY
