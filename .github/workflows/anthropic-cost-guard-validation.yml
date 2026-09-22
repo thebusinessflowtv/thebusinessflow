@@ -7,6 +7,7 @@ on:
       - 'production/research_episode.py'
       - 'production/generate_episode.py'
       - 'production/scout_youtube.py'
+      - 'production/research-library/**'
       - '.github/workflows/daily-production.yml'
       - '.github/workflows/daily-content-pack.yml'
       - '.github/workflows/weekly-topic-scout.yml'
@@ -27,8 +28,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install free validation dependency
-        run: pip install pyyaml
+      - name: Install free validation dependencies
+        run: pip install pyyaml anthropic
 
       - name: Compile Python without calling Anthropic
         run: |
@@ -75,6 +76,7 @@ jobs:
               'hard total budget': 'ANTHROPIC_TOTAL_BUDGET_USD' in writer,
               'weekly scout uses Haiku': 'claude-haiku-4-5-20251001' in scout,
               'daily restores research cache': 'actions/cache/restore@v4' in daily and 'tbf-haiku-research' in daily,
+              'daily hydrates durable research': 'Hydrate durable research checkpoint' in daily,
               'daily saves paid state on failure': 'actions/cache/save@v4' in daily and 'Recovery artifact on any failure' in daily,
           }
           failed = [name for name, ok in checks.items() if not ok]
@@ -82,4 +84,27 @@ jobs:
               print(('PASS' if ok else 'FAIL'), name)
           if failed:
               raise SystemExit('Cost guard validation failed: ' + ', '.join(failed))
+          PY
+
+      - name: Amazon Sonnet preflight without paid API
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from production.generate_episode import build_prompt, EPISODE_TOOL
+
+          topic=next(t for t in json.load(open('production/topics.json',encoding='utf-8'))['topics'] if t['id']=='famous-001')
+          research=json.load(open('production/research-library/famous-001.json',encoding='utf-8'))
+          editorial=json.load(open('channel/editorial.json',encoding='utf-8'))
+          prompt=build_prompt(topic,research,editorial)
+          research_cost=float(research.get('estimated_cost_usd') or 0)
+          max_output_tokens=4100
+          input_chars=len(prompt)+len(json.dumps(EPISODE_TOOL,ensure_ascii=False))
+          estimated_input_tokens=max(1,int(input_chars/2.5))
+          conservative_total=research_cost + estimated_input_tokens/1_000_000*2.0 + max_output_tokens/1_000_000*10.0
+          print('Amazon paid research already spent:', round(research_cost,6))
+          print('Estimated Sonnet input tokens:', estimated_input_tokens)
+          print('Worst-case total at current output cap:', round(conservative_total,6))
+          if conservative_total > 0.080:
+              raise SystemExit(f'Amazon exceeds $0.080 budget before Sonnet: ${conservative_total:.6f}')
           PY
