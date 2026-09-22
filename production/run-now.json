@@ -2,6 +2,7 @@
   "topic_id": "famous-001",
   "topic": "Amazon",
   "mode": "render_only_until_youtube_audit",
-  "reason": "First permanent-factory production using Haiku 4.5 research + Sonnet 5 cached writing",
-  "requested_date": "2026-09-22"
+  "reason": "Retry from durable research checkpoint; zero repeat Haiku spend; Sonnet budget guarded",
+  "requested_date": "2026-09-22",
+  "attempt": 2
 }
