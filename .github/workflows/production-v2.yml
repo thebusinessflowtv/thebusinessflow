@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: the-business-flow-production-v2
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   produce:
@@ -96,12 +96,9 @@ jobs:
           git lfs pull
           test -s media-library/catalog.json
 
-      - name: Apply current Anthropic model compatibility
-        shell: bash
+      - name: Validate production Python
         run: |
-          set -euo pipefail
-          sed -i '/temperature=0.7,/d' production/generate_episode.py
-          python -m py_compile production/generate_episode.py
+          python -m py_compile production/generate_episode.py production/render_episode.py
 
       - name: One-off media acknowledgement for user-requested render
         if: github.event_name == 'push'
@@ -226,12 +223,17 @@ jobs:
       - name: Summary
         shell: bash
         run: |
+          PACKAGE='${{ steps.generate.outputs.package }}'
           TITLE="$(python -c "import json; print(json.load(open('production/rendered/metadata.json'))['title'])")"
           PUBLISH_AT="$(python -c "import json; print(json.load(open('production/rendered/metadata.json'))['publish_at'])")"
+          INPUT_TOKENS="$(python -c "import json; print(json.load(open('$PACKAGE')).get('anthropic_usage',{}).get('input_tokens',0))")"
+          OUTPUT_TOKENS="$(python -c "import json; print(json.load(open('$PACKAGE')).get('anthropic_usage',{}).get('output_tokens',0))")"
           echo '### The Business Flow real production ✅' >> "$GITHUB_STEP_SUMMARY"
           echo "- Topic: ${{ steps.generate.outputs.topic_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Title: $TITLE" >> "$GITHUB_STEP_SUMMARY"
           echo "- Target publishAt: $PUBLISH_AT" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Anthropic input tokens: $INPUT_TOKENS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Anthropic output tokens: $OUTPUT_TOKENS" >> "$GITHUB_STEP_SUMMARY"
           echo "- API upload executed: ${{ steps.mode.outputs.should_upload }}" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ steps.mode.outputs.should_upload }}" != "true" ]; then
             echo '- API upload intentionally skipped until YouTube audit approval; use the artifact for YouTube Studio upload.' >> "$GITHUB_STEP_SUMMARY"
