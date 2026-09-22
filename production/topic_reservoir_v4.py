@@ -21,52 +21,49 @@ def ask_famous_anthropic(youtube_sample, data):
     topics = data.get("topics") or []
     ready = [t for t in topics if t.get("status") == "ready"]
     all_names = [str(t.get("topic") or "") for t in topics]
-    client = Anthropic(api_key=core.need("ANTHROPIC_API_KEY"))
-    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5").strip() or "claude-sonnet-5"
+    client = Anthropic(api_key=core.need("ANTHROPIC_API_KEY"), max_retries=0)
+    model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001").strip() or "claude-haiku-4-5-20251001"
+
+    # Send only compact fields to keep weekly input/output spend low.
+    compact_ready = [
+        {
+            "id": t.get("id"),
+            "topic": t.get("topic"),
+            "title_seed": t.get("title_seed"),
+            "click_score": t.get("click_score"),
+        }
+        for t in ready
+    ]
+    compact_sample = (youtube_sample or [])[:30] if isinstance(youtube_sample, list) else youtube_sample
 
     prompt = f"""
-You are the audience-development editor for The Business Flow, a US-focused faceless business documentary YouTube channel.
-The channel strategy is now FAMOUS COMPANIES FIRST.
+You are the audience-development editor for The Business Flow, a US business-documentary YouTube channel.
+FAMOUS COMPANIES FIRST. Keep every explanation extremely concise.
 
-NON-NEGOTIABLE AUDIENCE RULE
-A viewer in the United States should usually recognize the company/brand before clicking. Household-name brand recognition is the single biggest ranking factor.
-
-PRIORITY BRAND UNIVERSE
+PRIORITY BRANDS
 {json.dumps(PRIORITY_BRANDS, ensure_ascii=False)}
 
-RECENT BUSINESS-DOCUMENTARY YOUTUBE SAMPLE
-{json.dumps(youtube_sample, ensure_ascii=False)}
+RECENT YOUTUBE SAMPLE
+{json.dumps(compact_sample, ensure_ascii=False)}
 
 CURRENT READY QUEUE
-{json.dumps(ready, ensure_ascii=False)}
+{json.dumps(compact_ready, ensure_ascii=False)}
 
-ALL STORED TOPICS - DO NOT CREATE EXACT DUPLICATES
+ALL STORED COMPANY NAMES — DO NOT DUPLICATE
 {json.dumps(all_names, ensure_ascii=False)}
 
-Score EVERY current ready topic from 0-100 using these weights:
-- 50% immediate US brand/company recognition;
-- 20% curiosity/tension/reversal/hidden economics;
-- 15% proven demand from the supplied YouTube outliers;
-- 10% simple visual thumbnail potential;
-- 5% evergreen longevity.
+Score every ready topic 0-100 using: 50% US brand recognition, 20% curiosity/tension, 15% demand signal, 10% thumbnail potential, 5% evergreen longevity.
+Household brands should normally outrank obscure companies.
+Propose at least 20 unused household-name company topics.
+Every title_seed must contain the company/brand name. Factual clickbait only; no invented crimes, numbers, motives or outcomes.
+Thumbnail text: maximum 4 words.
 
-A lesser-known company or generic industry should NOT outrank Amazon, Coca-Cola, Meta, Tesla, SpaceX, Apple, Google, Microsoft, McDonald's, Walmart, Disney, Nike, Netflix, Costco, Nvidia, etc. merely because its story is dramatic.
-
-Propose at least 20 new candidates. At least 16 must be about household-name companies or brands from the PRIORITY BRAND UNIVERSE that are not already stored. Elon Musk companies are explicitly encouraged: Tesla, SpaceX, X and xAI can each have their own documentary angles.
-
-PACKAGING RULES
-- Every title_seed MUST explicitly contain the company or brand name.
-- Avoid generic title seeds like 'The Lie', 'The Collapse', 'They Fooled Everyone' without the brand name.
-- thumbnail_text_seed can be 0-4 words, but the visual concept implied by the topic must use a recognizable brand element: logo, flagship product, founder/CEO, storefront, packaging, vehicle, app icon or other instantly recognizable asset.
-- Prefer angles like hidden economics, strange profit engines, impossible scale, business-model contradictions, expensive mistakes, strategic reversals, monopoly-like moats, distribution machines and founder bets.
-- Aggressive factual clickbait is good. Do not invent crimes, numbers, motives, accusations or outcomes.
-
-Call submit_topic_reservoir exactly once with all {len(ready)} scores and at least 20 candidates. Keep explanations concise.
+Call submit_topic_reservoir exactly once. Output only what the tool requires; no extra prose.
 """.strip()
 
     response = client.messages.create(
         model=model,
-        max_tokens=16000,
+        max_tokens=4500,
         tools=[core.TOOL],
         tool_choice={"type": "tool", "name": "submit_topic_reservoir"},
         messages=[{"role": "user", "content": prompt}],
