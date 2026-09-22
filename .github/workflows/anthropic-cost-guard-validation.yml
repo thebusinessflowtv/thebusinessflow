@@ -6,11 +6,11 @@ on:
       - 'production/anthropic_budget.py'
       - 'production/research_episode.py'
       - 'production/generate_episode.py'
-      - 'production/scout_youtube.py'
+      - 'production/topic_reservoir_v4.py'
       - 'production/research-library/**'
       - '.github/workflows/daily-production.yml'
       - '.github/workflows/daily-content-pack.yml'
-      - '.github/workflows/weekly-topic-scout.yml'
+      - '.github/workflows/topic-reservoir-v3.yml'
       - '.github/workflows/anthropic-cost-guard-validation.yml'
   workflow_dispatch:
 
@@ -37,7 +37,7 @@ jobs:
             production/anthropic_budget.py \
             production/research_episode.py \
             production/generate_episode.py \
-            production/scout_youtube.py
+            production/topic_reservoir_v4.py
 
       - name: Parse workflow YAML
         run: |
@@ -47,7 +47,7 @@ jobs:
           paths = [
               '.github/workflows/daily-production.yml',
               '.github/workflows/daily-content-pack.yml',
-              '.github/workflows/weekly-topic-scout.yml',
+              '.github/workflows/topic-reservoir-v3.yml',
               '.github/workflows/anthropic-cost-guard-validation.yml',
           ]
           for path in paths:
@@ -63,7 +63,8 @@ jobs:
           from pathlib import Path
           research = Path('production/research_episode.py').read_text(encoding='utf-8')
           writer = Path('production/generate_episode.py').read_text(encoding='utf-8')
-          scout = Path('production/scout_youtube.py').read_text(encoding='utf-8')
+          reservoir = Path('production/topic_reservoir_v4.py').read_text(encoding='utf-8')
+          reservoir_wf = Path('.github/workflows/topic-reservoir-v3.yml').read_text(encoding='utf-8')
           daily = Path('.github/workflows/daily-production.yml').read_text(encoding='utf-8')
 
           checks = {
@@ -74,7 +75,9 @@ jobs:
               'Sonnet disables thinking': 'thinking={"type": "disabled"}' in writer,
               'Sonnet disables SDK retries': 'max_retries=0' in writer,
               'hard total budget': 'ANTHROPIC_TOTAL_BUDGET_USD' in writer,
-              'weekly scout uses Haiku': 'claude-haiku-4-5-20251001' in scout,
+              'weekly optimizer uses Haiku': 'claude-haiku-4-5-20251001' in reservoir and 'claude-haiku-4-5-20251001' in reservoir_wf,
+              'weekly optimizer disables retries': 'max_retries=0' in reservoir,
+              'weekly optimizer output cap': 'max_tokens=4500' in reservoir,
               'daily restores research cache': 'actions/cache/restore@v4' in daily and 'tbf-haiku-research' in daily,
               'daily hydrates durable research': 'Hydrate durable research checkpoint' in daily,
               'daily saves paid state on failure': 'actions/cache/save@v4' in daily and 'Recovery artifact on any failure' in daily,
@@ -90,9 +93,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
-          from pathlib import Path
           from production.generate_episode import build_prompt, EPISODE_TOOL
-
           topic=next(t for t in json.load(open('production/topics.json',encoding='utf-8'))['topics'] if t['id']=='famous-001')
           research=json.load(open('production/research-library/famous-001.json',encoding='utf-8'))
           editorial=json.load(open('channel/editorial.json',encoding='utf-8'))
