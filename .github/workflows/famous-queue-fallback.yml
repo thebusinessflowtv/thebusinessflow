@@ -1,0 +1,51 @@
+name: The Business Flow Famous Queue Fallback
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'production/famous-queue-run.request'
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build 50-topic famous-company queue
+        run: python production/famous_queue_fallback.py
+
+      - name: Validate queue
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('production/topics.json',encoding='utf-8'))
+          ready=[t for t in d['topics'] if t.get('status')=='ready']
+          assert len(ready)==50
+          assert ready[0]['topic']=='Amazon'
+          assert all(t.get('title_seed','').lower().find(t.get('topic','').lower()) >= 0 for t in ready)
+          print('Top 10 famous companies:')
+          for i,t in enumerate(ready[:10],1): print(i,t['click_score'],t['topic'],t['title_seed'])
+          PY
+
+      - name: Commit fallback queue
+        run: |
+          git config user.name 'The Business Flow Topic Engine'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Switch queue to famous companies first'
+          git pull --rebase origin main
+          git push origin HEAD:main
