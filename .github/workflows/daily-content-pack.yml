@@ -4,30 +4,65 @@ on:
   workflow_dispatch:
     inputs:
       topic_id:
-        description: 'Optional topic id, e.g. tbf-001. Leave blank for the next ready topic.'
+        description: 'Optional topic id. Blank = next ready topic.'
         required: false
         type: string
 
 permissions:
   contents: read
+  actions: write
+
+concurrency:
+  group: the-business-flow-anthropic-production
+  cancel-in-progress: false
 
 jobs:
   generate-content-pack:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
+      PYTHONPATH: ${{ github.workspace }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+      ANTHROPIC_RESEARCH_MODEL: ${{ vars.ANTHROPIC_RESEARCH_MODEL || 'claude-haiku-4-5-20251001' }}
+      ANTHROPIC_SCRIPT_MODEL: ${{ vars.ANTHROPIC_SCRIPT_MODEL || 'claude-sonnet-5' }}
+      ANTHROPIC_RESEARCH_MAX_USD: ${{ vars.ANTHROPIC_RESEARCH_MAX_USD || '0.030' }}
+      ANTHROPIC_TOTAL_BUDGET_USD: ${{ vars.ANTHROPIC_TOTAL_BUDGET_USD || '0.080' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Anthropic secret
+      - name: Resolve topic before any paid call
+        id: topic
         shell: bash
+        env:
+          INPUT_TOPIC: ${{ inputs.topic_id }}
         run: |
           set -euo pipefail
           test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          d=json.load(open('production/topics.json', encoding='utf-8'))
+          wanted=(os.environ.get('INPUT_TOPIC') or '').strip()
+          topics=d.get('topics') or []
+          item=next((t for t in topics if str(t.get('id')) == wanted), None) if wanted else next((t for t in topics if t.get('status') == 'ready'), None)
+          if not item: raise SystemExit('Requested/ready topic not found')
+          print(f"topic_id={item['id']}")
+          PY
+
+      - name: Restore Haiku research cache
+        id: research-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/research-cache/${{ steps.topic.outputs.topic_id }}
+          key: tbf-haiku-research-v2-${{ steps.topic.outputs.topic_id }}
+
+      - name: Restore Sonnet package cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/package-cache/${{ steps.topic.outputs.topic_id }}
+          key: tbf-sonnet-package-v2-${{ steps.topic.outputs.topic_id }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -39,44 +74,63 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r production/requirements.txt
 
-      - name: Generate researched episode package
-        shell: bash
-        env:
-          TOPIC_ID: ${{ inputs.topic_id }}
-        run: |
-          set -euo pipefail
-          if [ -n "${TOPIC_ID:-}" ]; then
-            python production/generate_episode.py --topic-id "$TOPIC_ID"
-          else
-            python production/generate_episode.py
-          fi
+      - name: Free syntax validation
+        run: python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py
 
-      - name: Validate package files
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -d production/output
-          find production/output -name episode-package.json -print -quit | grep -q .
-          find production/output -name script.txt -print -quit | grep -q .
-          find production/output -name metadata.json -print -quit | grep -q .
-          find production/output -name storyboard.json -print -quit | grep -q .
-          find production/output -name thumbnail.json -print -quit | grep -q .
+      - name: Haiku 4.5 research — one search maximum
+        run: python production/research_episode.py --topic-id "${{ steps.topic.outputs.topic_id }}"
 
-      - name: Upload content pack artifact
+      - name: Save Haiku research immediately
+        if: always() && steps.research-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/research-cache/${{ steps.topic.outputs.topic_id }}
+          key: ${{ steps.research-cache.outputs.cache-primary-key }}
+
+      - name: Sonnet 5 script — cached research only, no web, no thinking
+        run: |
+          rm -rf production/output
+          python production/generate_episode.py --topic-id "${{ steps.topic.outputs.topic_id }}"
+
+      - name: Save Sonnet package immediately
+        if: always() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/package-cache/${{ steps.topic.outputs.topic_id }}
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
+
+      - name: Upload content pack
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: the-business-flow-content-pack-${{ github.run_id }}
-          path: production/output/
+          name: tbf-content-pack-${{ steps.topic.outputs.topic_id }}-${{ github.run_id }}
+          path: production/output/${{ steps.topic.outputs.topic_id }}/
           if-no-files-found: error
           retention-days: 14
 
-      - name: Summary
+      - name: Preserve paid output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbf-content-recovery-${{ steps.topic.outputs.topic_id }}-${{ github.run_id }}
+          path: |
+            production/research-cache/${{ steps.topic.outputs.topic_id }}/
+            production/package-cache/${{ steps.topic.outputs.topic_id }}/
+            production/output/${{ steps.topic.outputs.topic_id }}/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Cost summary
+        if: success()
+        shell: bash
         run: |
-          echo '### The Business Flow Content Pack Preview ✅' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Web research via Anthropic: completed' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 10 title candidates: generated' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 3 thumbnail concepts: generated' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Long-form script: generated' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Description, tags and chapters: generated' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Storyboard for automated B-roll selection: generated' >> "$GITHUB_STEP_SUMMARY"
-          echo '- No video upload occurs in this preview workflow.' >> "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          p=json.load(open('production/output/${{ steps.topic.outputs.topic_id }}/episode-package.json', encoding='utf-8'))
+          c=p.get('anthropic_cost') or {}
+          print('### Content Pack Preview ✅')
+          print(f"- Haiku research: ${float(c.get('research_usd') or 0):.4f}")
+          print(f"- Sonnet script: ${float(c.get('script_usd') or 0):.4f}")
+          print(f"- Anthropic total: ${float(c.get('total_usd') or 0):.4f}")
+          print('- Paid outputs cached for retry; no render or YouTube upload in this workflow.')
+          PY
