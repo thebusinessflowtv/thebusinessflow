@@ -40,6 +40,15 @@ $PublishScript = Join-Path $RepoRoot "tools\publish_media_to_github.py"
 
 Assert-Command "git"
 
+Push-Location $RepoRoot
+try {
+    Write-Host "Synchronizing thebusinessflowtv/thebusinessflow..." -ForegroundColor Yellow
+    git pull --rebase origin main
+    if ($LASTEXITCODE -ne 0) { throw "git pull --rebase failed" }
+} finally {
+    Pop-Location
+}
+
 Write-Host "Installing/checking Python dependencies..." -ForegroundColor Yellow
 Invoke-Python -m pip install --upgrade "pillow==12.3.0"
 
@@ -67,23 +76,19 @@ if (-not $PublishOnly) {
     Write-Host "PublishOnly mode: reusing the already-generated catalog and 221 organized assets." -ForegroundColor DarkGray
 }
 
-Write-Host "Preparing GitHub-only media library..." -ForegroundColor Yellow
-Invoke-Python $PublishScript $OutputDir --repo-root $RepoRoot
-
 Write-Host "Checking Git LFS..." -ForegroundColor Yellow
 & git lfs version
 if ($LASTEXITCODE -ne 0) {
     throw "Git LFS is not installed. Install Git LFS on the Dell, then rerun this command."
 }
 
+Write-Host "Preparing GitHub-only media library..." -ForegroundColor Yellow
+Invoke-Python $PublishScript $OutputDir --repo-root $RepoRoot
+
 Push-Location $RepoRoot
 try {
     git lfs install --local
     if ($LASTEXITCODE -ne 0) { throw "git lfs install failed" }
-
-    # Make sure the local checkout has the newest text configuration before pushing binaries.
-    git pull --rebase origin main
-    if ($LASTEXITCODE -ne 0) { throw "git pull --rebase failed" }
 
     Write-Host "Staging catalog + Git LFS assets..." -ForegroundColor Yellow
     git add .gitattributes media-library/catalog.json media-library/summary.json media-library/assets
@@ -107,7 +112,6 @@ try {
     Write-Host "Repository: thebusinessflowtv/thebusinessflow"
     Write-Host "Assets: media-library/assets/ (Git LFS)"
     Write-Host "Catalog: media-library/catalog.json"
-}
-finally {
+} finally {
     Pop-Location
 }
