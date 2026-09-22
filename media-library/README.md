@@ -1,8 +1,14 @@
 # The Business Flow Media Library
 
-This folder contains the **catalog and rules**, not the heavy binary media itself.
+The reusable photos and B-roll videos for **The Business Flow** live in this same GitHub repository.
 
-The reusable photos and B-roll videos live in object storage. GitHub stores only metadata, schemas, selection logic and generated catalog snapshots.
+Heavy binary files are stored with **Git LFS** under:
+
+```text
+media-library/assets/
+```
+
+Git stores the catalog, schemas, selection logic and the LFS pointers; Git LFS stores the actual media objects.
 
 ## Structure
 
@@ -10,16 +16,9 @@ The reusable photos and B-roll videos live in object storage. GitHub stores only
 media-library/
   README.md
   catalog.schema.json
-  generated/
-    catalog.json
-    summary.json
-```
-
-The binary storage layout is namespaced for this channel:
-
-```text
-thebusinessflow/
-  media-library/
+  catalog.json
+  summary.json
+  assets/
     companies/
     corporate/
     finance/
@@ -38,18 +37,22 @@ thebusinessflow/
 
 Every asset receives a stable `asset_id`, SHA-256 checksum, type, category, dimensions and (for videos) duration. Exact duplicate hashes are marked so MediaForge can avoid unnecessary reuse.
 
+Each published asset contains a repository path and a `github-lfs://thebusinessflowtv/thebusinessflow/...` media URI.
+
 Licensing fields are deliberately conservative. Assets remain `review_required` until their reuse rights are confirmed. The production resolver must not assume that a file is safe for commercial YouTube use merely because it exists in the library.
 
-## Build locally
+## Local import
 
-```bash
-python tools/build_media_catalog.py "/path/to/Company Vault.zip" --output-dir media-library/generated
+The Dell/Windows importer can build the catalog and publish the assets directly to this repository with Git LFS:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\windows_import_media.ps1
 ```
 
-Requirements for full metadata extraction:
+If the ZIP has already been analyzed and organized, use:
 
-- Python 3.11+
-- FFmpeg/ffprobe
-- Pillow (`pip install pillow`)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\windows_import_media.ps1 -PublishOnly
+```
 
-The generated `catalog.json` is the source MediaForge will use for semantic asset selection after topic tags and company metadata are enriched.
+No external object storage is used by this project.
