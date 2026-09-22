@@ -5,6 +5,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$ExpectedRemote = "https://github.com/thebusinessflowtv/thebusinessflow.git"
+$GitUserName = "The Business Flow"
+$GitUserEmail = "thebusinessflowtv@gmail.com"
+
 Write-Host "=== The Business Flow Media Import -> GitHub LFS ===" -ForegroundColor Cyan
 
 function Resolve-PythonCommand {
@@ -32,6 +36,14 @@ function Assert-Command {
     }
 }
 
+function Invoke-Git {
+    param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Args)
+    & git @Args
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($Args -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
 $Python = Resolve-PythonCommand
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $OutputDir = Join-Path $RepoRoot "media-library\generated"
@@ -42,9 +54,40 @@ Assert-Command "git"
 
 Push-Location $RepoRoot
 try {
-    Write-Host "Synchronizing thebusinessflowtv/thebusinessflow..." -ForegroundColor Yellow
-    git pull --rebase origin main
-    if ($LASTEXITCODE -ne 0) { throw "git pull --rebase failed" }
+    $InsideWorkTree = (& git rev-parse --is-inside-work-tree 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $InsideWorkTree.Trim() -ne "true") {
+        throw "This folder is not a Git repository: $RepoRoot"
+    }
+
+    $Origin = (& git remote get-url origin 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Git remote 'origin' is missing."
+    }
+    $NormalizedOrigin = $Origin.Trim().TrimEnd('/')
+    $AllowedOrigins = @(
+        "https://github.com/thebusinessflowtv/thebusinessflow.git",
+        "https://github.com/thebusinessflowtv/thebusinessflow",
+        "git@github.com:thebusinessflowtv/thebusinessflow.git"
+    )
+    if ($AllowedOrigins -notcontains $NormalizedOrigin) {
+        throw "Refusing to publish to unexpected Git remote: $Origin"
+    }
+
+    # Keep identity local to this repository. This prevents 'Author identity unknown'
+    # on fresh Windows/Dell installations without changing the user's global Git config.
+    Invoke-Git config user.name $GitUserName
+    Invoke-Git config user.email $GitUserEmail
+    Write-Host "Git identity configured locally: $GitUserName <$GitUserEmail>" -ForegroundColor DarkGray
+
+    # A previous run may already have staged hundreds of LFS files before a commit error.
+    # Pull only when the working tree/index is clean so reruns resume instead of failing.
+    $ExistingChanges = @(& git status --porcelain)
+    if ($ExistingChanges.Count -eq 0) {
+        Write-Host "Synchronizing thebusinessflowtv/thebusinessflow..." -ForegroundColor Yellow
+        Invoke-Git pull --rebase origin main
+    } else {
+        Write-Host "Local/staged media changes already exist; skipping pull and resuming publish safely." -ForegroundColor DarkYellow
+    }
 } finally {
     Pop-Location
 }
@@ -73,7 +116,7 @@ if (-not $PublishOnly) {
     if (-not (Test-Path -LiteralPath (Join-Path $OutputDir "organized"))) {
         throw "PublishOnly requested, but organized media folder was not found at $OutputDir"
     }
-    Write-Host "PublishOnly mode: reusing the already-generated catalog and 221 organized assets." -ForegroundColor DarkGray
+    Write-Host "PublishOnly mode: reusing the already-generated catalog and organized assets." -ForegroundColor DarkGray
 }
 
 Write-Host "Checking Git LFS..." -ForegroundColor Yellow
@@ -87,23 +130,20 @@ Invoke-Python $PublishScript $OutputDir --repo-root $RepoRoot
 
 Push-Location $RepoRoot
 try {
-    git lfs install --local
-    if ($LASTEXITCODE -ne 0) { throw "git lfs install failed" }
+    Invoke-Git lfs install --local
 
     Write-Host "Staging catalog + Git LFS assets..." -ForegroundColor Yellow
-    git add .gitattributes media-library/catalog.json media-library/summary.json media-library/assets
-    if ($LASTEXITCODE -ne 0) { throw "git add failed" }
+    Invoke-Git add .gitattributes media-library/catalog.json media-library/summary.json media-library/assets
 
-    $Pending = git status --porcelain
-    if ([string]::IsNullOrWhiteSpace(($Pending -join ""))) {
+    $Pending = @(& git status --porcelain)
+    if ($Pending.Count -eq 0) {
         Write-Host "Nothing new to commit. The GitHub media library is already up to date." -ForegroundColor Green
     } else {
-        git commit -m "Add The Business Flow reusable media library"
-        if ($LASTEXITCODE -ne 0) { throw "git commit failed" }
+        Write-Host "Creating media-library commit..." -ForegroundColor Yellow
+        Invoke-Git commit -m "Add The Business Flow reusable media library"
 
         Write-Host "Uploading media directly to thebusinessflowtv/thebusinessflow via Git LFS..." -ForegroundColor Yellow
-        git push origin main
-        if ($LASTEXITCODE -ne 0) { throw "git push failed" }
+        Invoke-Git push origin HEAD:main
     }
 
     Write-Host ""
