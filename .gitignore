@@ -15,3 +15,5 @@ __pycache__/
 *.mkv
 *.zip
 .DS_Store
+/media-library/generated/organized/
+/media-library/generated/.work/
