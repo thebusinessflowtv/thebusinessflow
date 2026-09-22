@@ -2,12 +2,18 @@ name: The Business Flow Famous Queue Fallback
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 10 * * *'
   push:
     paths:
       - 'production/famous-queue-run.request'
 
 permissions:
   contents: write
+
+concurrency:
+  group: the-business-flow-famous-queue-maintenance
+  cancel-in-progress: true
 
 jobs:
   rebuild:
@@ -24,8 +30,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build 50-topic famous-company queue
-        run: python production/famous_queue_fallback.py
+      - name: Maintain 50 unused famous-company topics
+        run: python production/famous_queue_fallback_v2.py
 
       - name: Validate queue
         run: |
@@ -33,20 +39,24 @@ jobs:
           import json
           d=json.load(open('production/topics.json',encoding='utf-8'))
           ready=[t for t in d['topics'] if t.get('status')=='ready']
-          assert len(ready)==50
-          assert ready[0]['topic']=='Amazon'
+          used=[t for t in d['topics'] if t.get('status') in {'used','rendered_pending_manual_upload'}]
+          assert len(ready)==50, len(ready)
+          ready_names={str(t.get('topic')).lower().replace('’', "'") for t in ready}
+          used_names={str(t.get('topic')).lower().replace('’', "'") for t in used}
+          assert not (ready_names & used_names), ready_names & used_names
           assert all(t.get('title_seed') for t in ready)
           assert all(t.get('thumbnail_text_seed') for t in ready)
+          print('ready=',len(ready),'used=',len(used),'backlog=',len(d['topics'])-len(ready)-len(used))
           print('Top 10 famous companies:')
           for i,t in enumerate(ready[:10],1): print(i,t['click_score'],t['topic'],t['title_seed'])
           PY
 
-      - name: Commit fallback queue
+      - name: Commit maintained queue
         run: |
           git config user.name 'The Business Flow Topic Engine'
           git config user.email 'thebusinessflowtv@gmail.com'
           git add production/topics.json
           git diff --cached --quiet && exit 0
-          git commit -m 'Switch queue to famous companies first'
+          git commit -m 'Maintain 50 unused famous-company topics'
           git pull --rebase origin main
           git push origin HEAD:main
