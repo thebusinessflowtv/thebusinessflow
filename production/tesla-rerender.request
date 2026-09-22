@@ -9,5 +9,8 @@
   "preferred_source_resolution": "3840x2160+",
   "output_resolution": "3840x2160",
   "motion": ["zoom_in", "zoom_out"],
-  "generic_video_fallback": false
+  "generic_video_fallback": false,
+  "exact_audio_remux": true,
+  "upload_private_after_validation": true,
+  "requested_at": "2026-09-22T21:12:00Z"
 }
