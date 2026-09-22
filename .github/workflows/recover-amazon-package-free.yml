@@ -1,0 +1,56 @@
+name: Recover Amazon Package Free
+
+on:
+  push:
+    paths:
+      - 'production/recover_paid_episode.py'
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install parser dependency only
+        run: pip install 'anthropic>=0.72.0,<1'
+      - name: Restore paid Sonnet snapshot
+        uses: actions/cache/restore@v4
+        with:
+          path: production/package-cache/famous-001
+          key: tbf-sonnet-package-v2-famous-001
+          fail-on-cache-miss: true
+      - name: Hydrate already-paid research
+        run: |
+          mkdir -p production/research-cache/famous-001
+          cp production/research-library/famous-001.json production/research-cache/famous-001/research.json
+      - name: Recover package locally with no API key
+        env:
+          ANTHROPIC_API_KEY: ''
+        run: |
+          python -m py_compile production/recover_paid_episode.py
+          python production/recover_paid_episode.py --topic-id famous-001
+      - name: Validate recovered package
+        run: |
+          test -s production/output/famous-001/episode-package.json
+          test -s production/output/famous-001/script.txt
+          python - <<'PY'
+          import json
+          p=json.load(open('production/output/famous-001/episode-package.json',encoding='utf-8'))
+          assert p['tags']
+          assert '</description>' not in p['description']
+          assert 1750 <= p['script_word_count'] <= 2150
+          assert p['anthropic_cost']['total_usd'] <= 0.080
+          print(json.dumps({
+            'title': p['selected_title'],
+            'words': p['script_word_count'],
+            'research_usd': p['anthropic_cost']['research_usd'],
+            'script_usd': p['anthropic_cost']['script_usd'],
+            'total_usd': p['anthropic_cost']['total_usd'],
+            'tags': p['tags'],
+          }, indent=2))
+          PY
