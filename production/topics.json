@@ -16,11 +16,14 @@
       "working_angle": "How Amazon Really Makes Money",
       "title_seed": "How Amazon Really Makes Money",
       "thumbnail_text_seed": "AMAZON MACHINE",
-      "status": "rendered_pending_manual_upload",
+      "status": "uploaded_private",
       "click_score": 100,
       "click_reason": "Deterministic famous-company reserve; brand recognition prioritized.",
       "scored_at": "2026-09-22T10:10:51.199389+00:00",
-      "rendered_at": "2026-09-22T13:12:23.939149+00:00"
+      "rendered_at": "2026-09-22T13:12:23.939149+00:00",
+      "youtube_video_id": "GuFm_fiVdMk",
+      "youtube_privacy_status": "private",
+      "youtube_uploaded_at": "2026-09-22T14:53:44.095643+00:00"
     },
     {
       "id": "famous-002",
