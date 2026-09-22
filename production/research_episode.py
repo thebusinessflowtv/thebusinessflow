@@ -26,21 +26,22 @@ RESEARCH_TOOL = {
             "thesis": {"type": "string"},
             "facts": {
                 "type": "array",
+                "minItems": 6,
+                "maxItems": 6,
                 "items": {
                     "type": "object",
                     "properties": {
                         "claim": {"type": "string"},
-                        "source_title": {"type": "string"},
                         "source_url": {"type": "string"},
-                        "source_type": {"type": "string"},
                         "safe_for_packaging": {"type": "boolean"},
                     },
-                    "required": ["claim", "source_title", "source_url", "source_type", "safe_for_packaging"],
+                    "required": ["claim", "source_url", "safe_for_packaging"],
                     "additionalProperties": False,
                 },
             },
             "verified_numbers": {
                 "type": "array",
+                "maxItems": 4,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -54,6 +55,7 @@ RESEARCH_TOOL = {
             },
             "timeline": {
                 "type": "array",
+                "maxItems": 4,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -67,6 +69,8 @@ RESEARCH_TOOL = {
             },
             "sources": {
                 "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -78,7 +82,7 @@ RESEARCH_TOOL = {
                     "additionalProperties": False,
                 },
             },
-            "risk_flags": {"type": "array", "items": {"type": "string"}},
+            "risk_flags": {"type": "array", "maxItems": 2, "items": {"type": "string"}},
         },
         "required": ["thesis", "facts", "verified_numbers", "timeline", "sources", "risk_flags"],
         "additionalProperties": False,
@@ -168,21 +172,21 @@ You are the low-cost research desk for The Business Flow, a US-focused business 
 TOPIC SEED
 {json.dumps(topic, ensure_ascii=False)}
 
-COST RULES — FOLLOW EXACTLY
+STRICT COST / OUTPUT RULES
 - Perform AT MOST ONE web search total. Never perform a second search.
-- If you search, make that single query broad and information-dense enough to surface primary/company filings or official material plus reputable financial journalism.
-- Do not browse for trivia. We need only the facts necessary to support a 12-15 minute documentary.
-- Keep your final research brief compact. Do not quote long passages.
+- Do not narrate your process before or after searching.
+- Make the one search broad and information-dense, prioritizing the company's latest annual report/SEC filing, investor relations, official documentation and reputable financial reporting.
+- After the search, call {RESEARCH_TOOL_NAME} immediately and exactly once.
+- Keep the tool payload extremely compact: thesis <= 60 words; exactly 6 factual claims, each <= 32 words; exactly 4 sources; at most 4 verified numbers; at most 4 timeline entries; at most 2 short risk flags.
+- Do not repeat source titles/types inside each fact. Facts need only claim, source_url and safe_for_packaging.
 
 RESEARCH RULES
 - Treat the seed angle as a hypothesis, not a fact.
 - Prefer annual reports, SEC/regulator/court/official sources and established financial journalism.
-- Capture 6-10 high-value factual claims, at least 4 distinct sources, useful dates, and only the most important verified numbers.
-- Mark a fact safe_for_packaging=true only when the cited source directly supports using it in a title/thumbnail/hook.
-- Do not infer crimes, fraud, motives, or causation beyond the evidence.
+- Use only claims directly supported by the cited URL.
+- Mark safe_for_packaging=true only when the cited source directly supports title/thumbnail/hook use.
+- Do not infer crimes, fraud, motives or causation beyond evidence.
 - If a dramatic claim cannot be supported within the single-search budget, omit it rather than spending another search.
-
-After research, call {RESEARCH_TOOL_NAME} exactly once. Keep the tool payload concise.
 """.strip()
 
 
@@ -258,7 +262,7 @@ def main() -> None:
     client = Anthropic(api_key=required_env("ANTHROPIC_API_KEY"), max_retries=0)
     response = client.messages.create(
         model=model,
-        max_tokens=1200,
+        max_tokens=1500,
         tools=[
             {
                 "type": "web_search_20260318",
