@@ -1,0 +1,122 @@
+name: The Business Flow Visual Pipeline Validation
+
+on:
+  push:
+    paths:
+      - 'production/visual-validation.request'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      ANTHROPIC_API_KEY: ''
+      VISUAL_IMAGE_TARGET: '50'
+      VISUAL_IMAGE_MIN: '40'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install free validation runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          pip install -r production/requirements.txt
+          python -m py_compile production/collect_visual_assets.py production/render_episode.py production/research_episode.py production/generate_episode.py
+
+      - name: Build zero-credit Tesla research fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p production/research-cache/visual-smoke
+          cat > production/research-cache/visual-smoke/research.json <<'JSON'
+          {
+            "topic_id": "visual-smoke",
+            "topic": "Tesla",
+            "thesis": "Tesla combines electric vehicles, Gigafactory manufacturing, Supercharger infrastructure, energy storage and software economics.",
+            "facts": [
+              {"claim": "Tesla operates Gigafactory manufacturing facilities and produces electric vehicles including Model 3, Model Y, Model S and Cybertruck."},
+              {"claim": "Tesla operates the Supercharger charging network."},
+              {"claim": "Elon Musk is Tesla's chief executive."},
+              {"claim": "Tesla also sells energy storage products including Megapack and Powerwall."},
+              {"claim": "Tesla vehicles use large touch-screen software interfaces."},
+              {"claim": "Tesla has manufacturing and business operations in the United States and other markets."}
+            ],
+            "sources": []
+          }
+          JSON
+
+      - name: Collect real topic visuals without Anthropic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/collect_visual_assets.py --topic-id visual-smoke --target 50
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          p=Path('production/visual-cache/visual-smoke/visual-assets.json')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          assets=d.get('assets') or []
+          if len(assets) < 40:
+              raise SystemExit(f'Only {len(assets)} images collected')
+          if not d.get('logos_excluded'):
+              raise SystemExit('Logo exclusion flag missing')
+          for row in assets:
+              path=Path(row['local_path'])
+              with Image.open(path) as im:
+                  if im.size != (1280,720):
+                      raise SystemExit(f'Not 16:9 normalized: {path} {im.size}')
+          print('Validated topic images:', len(assets))
+          PY
+
+      - name: Prove Ken Burns works and video cannot loop
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/tbf-visual-test
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=black:s=1280x720:r=30 -t 2.4 -an -c:v libx264 /tmp/tbf-visual-test/source.mp4
+          cp production/visual-cache/visual-smoke/images/image_001.jpg /tmp/tbf-visual-test/source.jpg
+          python - <<'PY'
+          from pathlib import Path
+          from production.render_episode import RenderAsset, duration, render_image_segment, render_video_segment, safe_video_seconds
+          root=Path('/tmp/tbf-visual-test')
+          img=RenderAsset('img',root/'source.jpg','image','Tesla','Tesla factory','test')
+          vid=RenderAsset('vid',root/'source.mp4','video','Tesla clip','Tesla','test')
+          render_image_segment(img,2.0,root/'image-motion.mp4',0)
+          requested=safe_video_seconds(vid)
+          render_video_segment(vid,requested,root/'video-once.mp4')
+          source=duration(vid.path)
+          rendered=duration(root/'video-once.mp4')
+          if rendered > source + 0.15:
+              raise SystemExit(f'Video was extended/looped: source={source}, rendered={rendered}')
+          if not 1.8 <= duration(root/'image-motion.mp4') <= 2.2:
+              raise SystemExit('Ken Burns image segment duration invalid')
+          print('Anti-loop verified. Source:',source,'Rendered:',rendered,'Requested:',requested)
+          PY
+
+      - name: Summary
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d=json.load(open('production/visual-cache/visual-smoke/visual-assets.json',encoding='utf-8'))
+          print('### Visual factory validation ✅')
+          print(f"- Topic images collected: {len(d.get('assets') or [])}")
+          print('- Normalization: 1280x720 / 16:9')
+          print('- Logos: excluded')
+          print('- Video looping: prohibited and tested')
+          print('- Image motion: Ken Burns zoom tested')
+          print('- Anthropic calls: 0')
+          PY
