@@ -28,7 +28,7 @@ concurrency:
 jobs:
   produce:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       PYTHONPATH: ${{ github.workspace }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -36,6 +36,9 @@ jobs:
       ANTHROPIC_SCRIPT_MODEL: ${{ vars.ANTHROPIC_SCRIPT_MODEL || 'claude-sonnet-5' }}
       ANTHROPIC_RESEARCH_MAX_USD: ${{ vars.ANTHROPIC_RESEARCH_MAX_USD || '0.030' }}
       ANTHROPIC_TOTAL_BUDGET_USD: ${{ vars.ANTHROPIC_TOTAL_BUDGET_USD || '0.080' }}
+      VISUAL_IMAGE_TARGET: '50'
+      VISUAL_IMAGE_MIN: '40'
+      VISUAL_MAX_PER_QUERY: '7'
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -78,7 +81,7 @@ jobs:
             test -n "$YOUTUBE_CHANNEL_ID" || { echo 'Missing YOUTUBE_CHANNEL_ID'; exit 1; }
             SHOULD_UPLOAD=true
           elif [ "$REQUEST_UPLOAD" = "true" ]; then
-            echo 'YouTube auto-upload is gated. This run will render and preserve the complete video without API upload.'
+            echo 'Public/scheduled YouTube auto-upload is gated. This run will render; the private-upload workflow handles validated private delivery.'
           fi
           echo "should_upload=$SHOULD_UPLOAD" >> "$GITHUB_OUTPUT"
 
@@ -113,6 +116,15 @@ jobs:
           path: production/package-cache/${{ steps.setup.outputs.topic_id }}
           key: tbf-sonnet-package-v2-${{ steps.setup.outputs.topic_id }}
 
+      - name: Restore visual asset cache
+        id: visual-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/visual-cache/${{ steps.setup.outputs.topic_id }}
+          key: tbf-visual-v1-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
+          restore-keys: |
+            tbf-visual-v1-${{ steps.setup.outputs.topic_id }}-
+
       - name: Hydrate durable research checkpoint
         shell: bash
         run: |
@@ -140,7 +152,7 @@ jobs:
           pip install -r production/requirements.txt
           pip install -r youtube-worker/requirements.txt
           git lfs pull
-          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/recover_paid_episode.py production/render_episode.py
+          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/recover_paid_episode.py production/collect_visual_assets.py production/render_episode.py
           test -s media-library/catalog.json
           ffmpeg -version >/dev/null
 
@@ -197,6 +209,44 @@ jobs:
           mkdir -p production/research-library
           cp "$SRC" "$DST"
 
+      - name: Collect up to 50 topic-specific 16:9 images — free web sources, cache first
+        id: visuals
+        continue-on-error: true
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ''
+        run: |
+          set -euo pipefail
+          python production/collect_visual_assets.py \
+            --topic-id "${{ steps.setup.outputs.topic_id }}" \
+            --research "production/research-cache/${{ steps.setup.outputs.topic_id }}/research.json" \
+            --target 50
+
+      - name: Save visual work immediately
+        if: always() && steps.visual-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/visual-cache/${{ steps.setup.outputs.topic_id }}
+          key: ${{ steps.visual-cache.outputs.cache-primary-key }}
+
+      - name: Verify topic visual package before any Sonnet/render work
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="production/visual-cache/${{ steps.setup.outputs.topic_id }}/visual-assets.json"
+          test -s "$MANIFEST"
+          python - "$MANIFEST" <<'PY'
+          import json, pathlib, sys
+          p=pathlib.Path(sys.argv[1])
+          d=json.loads(p.read_text(encoding='utf-8'))
+          assets=d.get('assets') or []
+          if len(assets) < 40:
+              raise SystemExit(f'Only {len(assets)} topic images collected; need at least 40')
+          assert all(int(a.get('width') or 0)==1280 and int(a.get('height') or 0)==720 for a in assets)
+          assert d.get('logos_excluded') is True
+          print('Topic visuals verified:', len(assets), 'unique 16:9 images; Anthropic visual calls: 0')
+          PY
+
       - name: Sonnet 5 writing — no web, thinking disabled, cache first
         id: sonnet
         continue-on-error: true
@@ -240,7 +290,7 @@ jobs:
           print('Anthropic total:', (p.get('anthropic_cost') or {}).get('total_usd'))
           PY
 
-      - name: Render and validate
+      - name: Render and validate — 40-50 images, 5-8 unique videos, zero loops
         shell: bash
         run: |
           set -euo pipefail
@@ -250,15 +300,29 @@ jobs:
           test -s production/rendered/final.mp4
           test -s production/rendered/thumbnail.png
           test -s production/rendered/metadata.json
+          test -s production/rendered/selected-assets.json
+          test -s production/rendered/scene-plan.json
           ffmpeg -v error -i production/rendered/final.mp4 -f null -
           ffmpeg -v error -i production/rendered/final.mp4 -map 0:a:0 -f null -
           DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 production/rendered/final.mp4)"
           python - "$DURATION" <<'PY'
-          import sys
+          import json, sys
           d=float(sys.argv[1])
           if not 600 <= d <= 1800:
               raise SystemExit(f'Bad duration: {d:.2f}s')
-          print('Validated duration:', round(d,2))
+          plan=json.load(open('production/rendered/selected-assets.json', encoding='utf-8'))
+          ids=[x['asset_id'] for x in plan]
+          if len(ids) != len(set(ids)):
+              raise SystemExit('Repeated asset detected')
+          if any(x.get('looped') for x in plan):
+              raise SystemExit('Video loop detected')
+          images=sum(x.get('asset_type')=='image' for x in plan)
+          videos=sum(x.get('asset_type')=='video' for x in plan)
+          if images < 40:
+              raise SystemExit(f'Not enough topic images in final timeline: {images}')
+          if videos > 8:
+              raise SystemExit(f'Too many supporting videos: {videos}')
+          print('Validated duration:', round(d,2), '| images:', images, '| videos:', videos, '| loops: 0')
           PY
 
       - name: Upload and schedule after audit + license approval
@@ -303,11 +367,13 @@ jobs:
           name: tbf-production-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
           path: |
             production/research-library/${{ steps.setup.outputs.topic_id }}.json
+            production/visual-cache/${{ steps.setup.outputs.topic_id }}/visual-assets.json
             production/output/${{ steps.setup.outputs.topic_id }}/
             production/rendered/final.mp4
             production/rendered/thumbnail.png
             production/rendered/metadata.json
             production/rendered/selected-assets.json
+            production/rendered/scene-plan.json
             production/rendered/youtube-upload.json
           if-no-files-found: warn
           retention-days: 7
@@ -338,11 +404,13 @@ jobs:
             production/research-library/${{ steps.setup.outputs.topic_id }}.json
             production/research-cache/${{ steps.setup.outputs.topic_id }}/
             production/package-cache/${{ steps.setup.outputs.topic_id }}/
+            production/visual-cache/${{ steps.setup.outputs.topic_id }}/visual-assets.json
             production/output/${{ steps.setup.outputs.topic_id }}/
             production/rendered/final.mp4
             production/rendered/thumbnail.png
             production/rendered/metadata.json
             production/rendered/selected-assets.json
+            production/rendered/scene-plan.json
             production/rendered/youtube-upload.json
           if-no-files-found: warn
           retention-days: 7
@@ -366,6 +434,11 @@ jobs:
               print(f"- Anthropic total: ${float(c.get('total_usd') or 0):.4f}")
           else:
               print('- Episode package not completed; inspect cached/recovery state before any retry.')
-          print('- Paid research/script outputs are cached before rendering and valid research is also persisted in Git.')
-          print('- Automatic YouTube upload: ${{ steps.setup.outputs.should_upload }}')
+          visual=Path(f'production/visual-cache/{topic}/visual-assets.json')
+          if visual.exists():
+              v=json.loads(visual.read_text(encoding='utf-8'))
+              print(f"- Topic-specific images: {len(v.get('assets') or [])}")
+              print('- Additional Anthropic cost for visual collection: $0.0000')
+          print('- Paid Haiku/Sonnet outputs are cached before rendering; visual downloads are cached independently.')
+          print('- Automatic public/scheduled upload gate: ${{ steps.setup.outputs.should_upload }}')
           PY
