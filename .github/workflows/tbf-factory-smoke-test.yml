@@ -1,0 +1,168 @@
+name: The Business Flow Factory Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/tbf-factory-smoke-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository + Git LFS media
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Verify Git LFS library and catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull
+          LFS_COUNT="$(git lfs ls-files | wc -l | tr -d ' ')"
+          echo "Git LFS tracked files: $LFS_COUNT"
+          test "$LFS_COUNT" -ge 221
+
+          python - <<'PY'
+          import json
+          import shutil
+          from pathlib import Path
+
+          catalog_path = Path('media-library/catalog.json')
+          catalog = json.loads(catalog_path.read_text(encoding='utf-8'))
+          assets = catalog.get('assets', [])
+          assert catalog.get('asset_count') == 221, catalog.get('asset_count')
+          assert len(assets) == 221, len(assets)
+
+          images = [a for a in assets if a.get('type') == 'image' and a.get('repo_path')]
+          videos = [a for a in assets if a.get('type') == 'video' and a.get('repo_path')]
+          assert images, 'No image assets found in catalog'
+          assert videos, 'No video assets found in catalog'
+
+          runtime = Path('.runtime/smoke')
+          runtime.mkdir(parents=True, exist_ok=True)
+
+          def stage(asset, label):
+              source = Path(asset['repo_path'])
+              assert source.is_file(), f'Missing LFS asset: {source}'
+              size = source.stat().st_size
+              assert size > 1000, f'Asset still looks like an LFS pointer: {source} ({size} bytes)'
+              target = runtime / f'{label}{source.suffix.lower()}'
+              shutil.copy2(source, target)
+              print(f'{label}: {source} -> {target} ({size} bytes)')
+              return target
+
+          image = stage(images[0], 'source_image')
+          video = stage(videos[0], 'source_video')
+
+          (runtime / 'selection.json').write_text(json.dumps({
+              'image_asset_id': images[0].get('asset_id'),
+              'image_repo_path': images[0].get('repo_path'),
+              'video_asset_id': videos[0].get('asset_id'),
+              'video_repo_path': videos[0].get('repo_path'),
+          }, indent=2), encoding='utf-8')
+          PY
+
+      - name: Install FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      - name: Render 20-second factory smoke video
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME=".runtime/smoke"
+          IMAGE="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_image.*' | head -n1)"
+          VIDEO="$(find "$RUNTIME" -maxdepth 1 -type f -name 'source_video.*' | head -n1)"
+          test -n "$IMAGE"
+          test -n "$VIDEO"
+
+          ffmpeg -hide_banner -loglevel warning -y \
+            -loop 1 -framerate 30 -i "$IMAGE" \
+            -f lavfi -i "anullsrc=channel_layout=stereo:sample_rate=48000" \
+            -t 5 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+            -c:v libx264 -preset veryfast -crf 23 -r 30 \
+            -c:a aac -b:a 128k -ar 48000 \
+            -shortest "$RUNTIME/part_image.mp4"
+
+          ffmpeg -hide_banner -loglevel warning -y \
+            -stream_loop -1 -i "$VIDEO" \
+            -f lavfi -i "anullsrc=channel_layout=stereo:sample_rate=48000" \
+            -t 15 \
+            -map 0:v:0 -map 1:a:0 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+            -c:v libx264 -preset veryfast -crf 23 -r 30 \
+            -c:a aac -b:a 128k -ar 48000 \
+            "$RUNTIME/part_video.mp4"
+
+          printf "file 'part_image.mp4'\nfile 'part_video.mp4'\n" > "$RUNTIME/concat.txt"
+          (
+            cd "$RUNTIME"
+            ffmpeg -hide_banner -loglevel warning -y \
+              -f concat -safe 0 -i concat.txt \
+              -c copy the-business-flow-smoke-test.mp4
+          )
+
+      - name: Validate rendered MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=".runtime/smoke/the-business-flow-smoke-test.mp4"
+          test -s "$FILE"
+
+          ffmpeg -v error -i "$FILE" -f null -
+
+          WIDTH="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$FILE")"
+          HEIGHT="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$FILE")"
+          DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$FILE")"
+          SIZE="$(stat -c%s "$FILE")"
+
+          echo "width=$WIDTH"
+          echo "height=$HEIGHT"
+          echo "duration=$DURATION"
+          echo "size_bytes=$SIZE"
+
+          test "$WIDTH" = "1280"
+          test "$HEIGHT" = "720"
+          python - "$DURATION" "$SIZE" <<'PY'
+          import sys
+          duration = float(sys.argv[1])
+          size = int(sys.argv[2])
+          assert 18 <= duration <= 22, duration
+          assert size > 100_000, size
+          PY
+
+      - name: Upload smoke-test video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-business-flow-factory-smoke-test
+          path: |
+            .runtime/smoke/the-business-flow-smoke-test.mp4
+            .runtime/smoke/selection.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Test summary
+        shell: bash
+        run: |
+          echo "### The Business Flow Factory Smoke Test ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Git LFS library: 221 assets verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Real image asset: loaded" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Real video asset: loaded" >> "$GITHUB_STEP_SUMMARY"
+          echo "- FFmpeg render: 1280x720 / ~20s" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Full decode validation: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- YouTube upload: intentionally not part of this machine-only smoke test" >> "$GITHUB_STEP_SUMMARY"
