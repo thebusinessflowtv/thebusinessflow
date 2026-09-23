@@ -1,10 +1,10 @@
 {
-  "topic_id": "famous-005",
-  "topic": "Meta",
+  "topic_id": "famous-006",
+  "topic": "SpaceX",
   "mode": "private_review",
   "target_publish_date": "2026-09-24",
-  "target_slot_local": "11:30",
-  "requested_at": "2026-09-23T11:50:00-03:00",
+  "target_slot_local": "21:00",
+  "requested_at": "2026-09-23T11:51:00-03:00",
   "thumbnail_system": "persuasive_v1",
   "reason": "Produce after successful Apple completion; private upload for validation; do not duplicate existing execution"
 }
