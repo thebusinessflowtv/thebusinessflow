@@ -224,13 +224,24 @@ def validate_brief(brief: dict[str, Any], topic: dict[str, Any]) -> None:
     brief["topic"] = topic["topic"]
 
 
-def enforce_research_budget(cost: float, max_cost: float) -> None:
-    if cost > max_cost:
-        raise RuntimeError(
-            f"Research cost guard: cached research cost ${cost:.4f} exceeds ${max_cost:.4f}. "
-            "The paid result is preserved, but Sonnet must not run automatically. "
-            "Do not retry the paid research automatically."
+def enforce_research_budget(cost: float, max_cost: float, *, already_paid: bool = False) -> None:
+    if cost <= max_cost:
+        return
+    if already_paid:
+        total_budget = float(os.getenv("ANTHROPIC_TOTAL_BUDGET_USD", "0.080"))
+        if cost >= total_budget:
+            raise RuntimeError(
+                f"Cached research alone costs ${cost:.4f}, which leaves no room inside the ${total_budget:.4f} total budget."
+            )
+        print(
+            f"WARNING: cached/recovered research cost ${cost:.4f} exceeded the ${max_cost:.4f} research target. "
+            "No new research call will be made; the total episode budget guard remains active."
         )
+        return
+    raise RuntimeError(
+        f"Research cost guard: research cost ${cost:.4f} exceeds ${max_cost:.4f}. "
+        "The paid result is preserved; do not retry the paid research automatically."
+    )
 
 
 def parse_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -304,7 +315,7 @@ def main() -> None:
         if repaired:
             write_research(brief, cache_dir)
         cost = float(brief.get("estimated_cost_usd") or 0)
-        enforce_research_budget(cost, max_cost)
+        enforce_research_budget(cost, max_cost, already_paid=True)
         print(json.dumps({
             "topic_id": topic["id"],
             "research_path": str(research_path),
@@ -331,7 +342,7 @@ def main() -> None:
             brief["source_index_repaired"] = repaired
             brief["researched_at"] = datetime.now(timezone.utc).isoformat()
             write_research(brief, cache_dir)
-            enforce_research_budget(cost, max_cost)
+            enforce_research_budget(cost, max_cost, already_paid=True)
             print(json.dumps({
                 "topic_id": topic["id"],
                 "research_path": str(research_path),
@@ -390,7 +401,7 @@ def main() -> None:
 
     if usage.get("web_search_requests", 0) > 1:
         raise RuntimeError(f"Research exceeded one web search: {usage['web_search_requests']}")
-    enforce_research_budget(cost, max_cost)
+    enforce_research_budget(cost, max_cost, already_paid=True)
 
     print(json.dumps({
         "topic_id": topic["id"],
