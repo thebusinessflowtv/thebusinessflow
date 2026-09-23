@@ -8,6 +8,7 @@ from famous_queue_fallback import SEEDS
 
 ROOT = Path(__file__).resolve().parents[1]
 TOPICS = ROOT / "production" / "topics.json"
+YOUTUBE_CHECKPOINTS = ROOT / "production" / "youtube-checkpoints"
 TARGET_READY = 50
 
 EXTRA_SEEDS = [
@@ -54,16 +55,57 @@ def seed_to_topic(seed, index: int, status: str, now: str) -> dict:
     }
 
 
+def recovered_uploaded_topics(old_topics: list[dict], now: str) -> list[dict]:
+    """Recover uploaded topics from durable YouTube checkpoints even if queue state was reset."""
+    by_id = {str(t.get("id")): t for t in old_topics if t.get("id")}
+    recovered: list[dict] = []
+    if not YOUTUBE_CHECKPOINTS.exists():
+        return recovered
+    for checkpoint_path in sorted(YOUTUBE_CHECKPOINTS.glob("famous-*.json")):
+        # Ignore auxiliary checkpoints such as famous-002-hq.json.
+        stem = checkpoint_path.stem
+        if not stem.startswith("famous-") or not stem[7:].isdigit():
+            continue
+        topic = by_id.get(stem)
+        if not topic:
+            continue
+        try:
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        video_id = str(checkpoint.get("youtube_video_id") or "").strip()
+        if not video_id:
+            continue
+        row = dict(topic)
+        row["status"] = "uploaded_private" if checkpoint.get("privacy_status") == "private" else "used"
+        row["youtube_video_id"] = video_id
+        row["youtube_privacy_status"] = checkpoint.get("privacy_status")
+        row.setdefault("youtube_uploaded_at", now)
+        recovered.append(row)
+    return recovered
+
+
 def main() -> None:
     data = json.loads(TOPICS.read_text(encoding="utf-8")) if TOPICS.exists() else {"topics": []}
     now = datetime.now(timezone.utc).isoformat()
     old_topics = data.get("topics") or []
 
-    used = [t for t in old_topics if t.get("status") in {"used", "rendered_pending_manual_upload"}]
-    used_names = {norm(str(t.get("topic") or "")) for t in used}
+    terminal_statuses = {"used", "rendered_pending_manual_upload", "uploaded_private"}
+    preserved = [t for t in old_topics if t.get("status") in terminal_statuses]
+
+    # Durable YouTube checkpoints are authoritative. They repair queue state if a prior rebuild
+    # accidentally reset already-uploaded topics back to ready.
+    uploaded = recovered_uploaded_topics(old_topics, now)
+    by_name: dict[str, dict] = {}
+    for row in [*preserved, *uploaded]:
+        name = norm(str(row.get("topic") or ""))
+        if name:
+            by_name[name] = row
+    consumed = list(by_name.values())
+    consumed_names = set(by_name)
 
     combined = SEEDS + EXTRA_SEEDS
-    available = [seed for seed in combined if norm(seed[0]) not in used_names]
+    available = [seed for seed in combined if norm(seed[0]) not in consumed_names]
     ready_seeds = available[:TARGET_READY]
     backlog_seeds = available[TARGET_READY:]
 
@@ -82,7 +124,7 @@ def main() -> None:
         if t.get("status") == "backlog" and norm(str(t.get("topic") or "")) not in canonical_names
     ]
 
-    data["topics"] = ready + backlog + preserved_extra + used
+    data["topics"] = ready + backlog + preserved_extra + consumed
     data["reservoir"] = {
         "target_ready": TARGET_READY,
         "ready_count": len(ready),
@@ -90,13 +132,13 @@ def main() -> None:
         "last_refreshed_at": now,
         "ranking": "famous_company_reserve",
         "anthropic_optional_optimizer": True,
-        "used_topics_preserved": len(used),
+        "used_topics_preserved": len(consumed),
     }
     TOPICS.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({
         "ready_topics": len(ready),
         "backlog_topics": len(backlog) + len(preserved_extra),
-        "used_topics": len(used),
+        "used_topics": len(consumed),
         "top_topic": ready[0]["topic"],
     }, indent=2))
 
