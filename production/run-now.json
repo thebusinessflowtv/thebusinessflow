@@ -1,10 +1,10 @@
 {
-  "topic_id": "famous-003",
-  "topic": "Apple",
+  "topic_id": "famous-004",
+  "topic": "Coca-Cola",
   "mode": "tomorrow_batch_private_review",
   "target_publish_date": "2026-09-23",
-  "target_slot_local": "11:30",
-  "requested_at": "2026-09-22T23:18:00-03:00",
+  "target_slot_local": "21:00",
+  "requested_at": "2026-09-22T23:19:00-03:00",
   "thumbnail_system": "persuasive_v1",
-  "reason": "Retry using cached paid research and Sonnet output after deterministic short-script recovery fix; no duplicate paid model call"
+  "reason": "Queue after Apple using cached paid research and Sonnet output after deterministic short-script recovery fix; no duplicate paid model call"
 }
