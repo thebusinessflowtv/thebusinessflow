@@ -1,8 +1,10 @@
 {
-  "topic_id": "famous-002",
-  "topic": "Tesla",
-  "mode": "daily_production_private_upload",
-  "reason": "Resume from paid caches; locally complete short Sonnet narration from already-verified Tesla research; no additional Anthropic calls",
-  "requested_date": "2026-09-23",
-  "attempt": 4
+  "topic_id": "famous-003",
+  "topic": "Apple",
+  "mode": "tomorrow_batch_private_review",
+  "target_publish_date": "2026-09-23",
+  "target_slot_local": "11:30",
+  "requested_at": "2026-09-22T21:33:00-03:00",
+  "thumbnail_system": "persuasive_v1",
+  "reason": "Produce one day early for manual review before tomorrow's first publishing slot"
 }
