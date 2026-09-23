@@ -61,14 +61,39 @@ jobs:
         with:
           path: production/research-cache/famous-003
           key: tbf-haiku-research-v2-famous-003
-          fail-on-cache-miss: true
+          fail-on-cache-miss: false
 
       - name: Restore Apple paid Sonnet package cache
         uses: actions/cache/restore@v4
         with:
           path: production/package-cache/famous-003
           key: tbf-sonnet-package-v2-famous-003
-          fail-on-cache-miss: true
+          fail-on-cache-miss: false
+
+      - name: Download preserved Apple recovery checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: tbf-recovery-famous-003-35809691782
+          path: restored-apple-recovery
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35809691782
+
+      - name: Hydrate exact Apple paid state from preserved recovery artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p production/research-cache/famous-003 production/package-cache/famous-003
+          RESEARCH="$(find restored-apple-recovery -type f -path '*/research-cache/famous-003/research.json' | head -n 1)"
+          SONNET="$(find restored-apple-recovery -type f -path '*/package-cache/famous-003/sonnet-response.json' | head -n 1)"
+          PACKAGE="$(find restored-apple-recovery -type f -path '*/package-cache/famous-003/episode-package.json' | head -n 1)"
+          test -s "$RESEARCH"
+          test -s "$SONNET"
+          cp "$RESEARCH" production/research-cache/famous-003/research.json
+          cp "$SONNET" production/package-cache/famous-003/sonnet-response.json
+          if [ -n "$PACKAGE" ] && [ -s "$PACKAGE" ]; then
+            cp "$PACKAGE" production/package-cache/famous-003/episode-package.json
+          fi
+          echo 'Apple research + paid Sonnet snapshot hydrated from preserved recovery artifact.'
 
       - name: Restore Apple HQ visual cache
         id: visual-cache
