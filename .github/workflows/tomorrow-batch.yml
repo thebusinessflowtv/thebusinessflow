@@ -1,0 +1,300 @@
+name: The Business Flow Tomorrow Batch
+
+on:
+  push:
+    paths:
+      - 'production/tomorrow-batch.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: the-business-flow-tomorrow-batch
+  cancel-in-progress: false
+
+jobs:
+  produce-and-upload-private:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - topic_id: famous-005
+            topic_name: Meta
+            target_slot: '11:30'
+          - topic_id: famous-006
+            topic_name: SpaceX
+            target_slot: '21:00'
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_RESEARCH_MODEL: ${{ vars.ANTHROPIC_RESEARCH_MODEL || 'claude-haiku-4-5-20251001' }}
+      ANTHROPIC_SCRIPT_MODEL: ${{ vars.ANTHROPIC_SCRIPT_MODEL || 'claude-sonnet-5' }}
+      ANTHROPIC_RESEARCH_MAX_USD: '0.032'
+      ANTHROPIC_TOTAL_BUDGET_USD: '0.082'
+      VISUAL_IMAGE_TARGET: '50'
+      VISUAL_IMAGE_MIN: '40'
+      VISUAL_MAX_PER_QUERY: '7'
+      VISUAL_MIN_SOURCE_WIDTH: '1920'
+      VISUAL_MIN_SOURCE_HEIGHT: '1080'
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+      TTS_VOICE: ${{ vars.TTS_VOICE || 'en-US-AndrewNeural' }}
+      TTS_RATE: ${{ vars.TTS_RATE || '-4%' }}
+
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          lfs: true
+          fetch-depth: 0
+
+      - name: Restore Haiku research cache
+        id: research-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/research-cache/${{ matrix.topic_id }}
+          key: tbf-haiku-research-v2-${{ matrix.topic_id }}
+
+      - name: Restore Sonnet package cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/package-cache/${{ matrix.topic_id }}
+          key: tbf-sonnet-package-v2-${{ matrix.topic_id }}
+
+      - name: Restore visual cache
+        id: visual-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/visual-cache/${{ matrix.topic_id }}
+          key: tbf-visual-v1-${{ matrix.topic_id }}-${{ github.run_id }}
+          restore-keys: |
+            tbf-visual-v1-${{ matrix.topic_id }}-
+
+      - name: Hydrate durable research checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIBRARY="production/research-library/${{ matrix.topic_id }}.json"
+          CACHE="production/research-cache/${{ matrix.topic_id }}/research.json"
+          if [ -s "$LIBRARY" ]; then
+            mkdir -p "$(dirname "$CACHE")"
+            cp "$LIBRARY" "$CACHE"
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install -r production/requirements.txt
+          pip install -r youtube-worker/requirements.txt
+          git lfs pull
+          python -m py_compile \
+            production/anthropic_budget.py \
+            production/research_episode.py \
+            production/recover_cached_research.py \
+            production/generate_episode.py \
+            production/recover_paid_episode.py \
+            production/collect_visual_assets.py \
+            production/render_episode.py
+
+      - name: Enable review media for private render
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='media-library/catalog.json'
+          d=json.load(open(p, encoding='utf-8'))
+          for a in d.get('assets', []):
+              if a.get('commercial_use_status') == 'review_required':
+                  a['commercial_use_status']='approved'
+          json.dump(d, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+          PY
+
+      - name: Recover already-paid Meta research without another API call
+        if: matrix.topic_id == 'famous-005'
+        shell: bash
+        run: python production/recover_cached_research.py --topic-id "${{ matrix.topic_id }}" --min-sources 2
+
+      - name: Validate/reuse standard cached research
+        if: matrix.topic_id != 'famous-005'
+        shell: bash
+        run: python production/research_episode.py --topic-id "${{ matrix.topic_id }}"
+
+      - name: Persist durable research locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p production/research-library
+          cp "production/research-cache/${{ matrix.topic_id }}/research.json" "production/research-library/${{ matrix.topic_id }}.json"
+
+      - name: Collect/reuse 50 high-resolution topic visuals
+        id: visuals
+        continue-on-error: true
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ''
+        run: |
+          set -euo pipefail
+          python production/collect_visual_assets.py \
+            --topic-id "${{ matrix.topic_id }}" \
+            --research "production/research-cache/${{ matrix.topic_id }}/research.json" \
+            --target 50
+
+      - name: Save visual cache
+        if: always() && steps.visual-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/visual-cache/${{ matrix.topic_id }}
+          key: ${{ steps.visual-cache.outputs.cache-primary-key }}
+
+      - name: Verify 4K visual package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          topic='${{ matrix.topic_id }}'
+          manifest=Path(f'production/visual-cache/{topic}/visual-assets.json')
+          d=json.loads(manifest.read_text(encoding='utf-8'))
+          assets=d.get('assets') or []
+          if len(assets) < 40:
+              raise SystemExit(f'Need at least 40 topic images; got {len(assets)}')
+          for a in assets:
+              if int(a.get('source_width') or 0) < 1920 or int(a.get('source_height') or 0) < 1080:
+                  raise SystemExit(f"Source below 1080p: {a.get('title')}")
+              p=Path(str(a.get('local_path') or ''))
+              if not p.is_absolute():
+                  p=Path.cwd()/p
+              with Image.open(p) as im:
+                  if im.size != (3840,2160):
+                      raise SystemExit(f'Visual not normalized 4K: {p} {im.size}')
+          print('4K visuals verified:', len(assets))
+          PY
+
+      - name: Generate/reuse documentary package
+        id: generate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "production/output/${{ matrix.topic_id }}"
+          python production/generate_episode.py --topic-id "${{ matrix.topic_id }}"
+
+      - name: Save Sonnet paid state immediately
+        if: always() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/package-cache/${{ matrix.topic_id }}
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
+
+      - name: Recover already-paid Sonnet output locally
+        if: steps.generate.outcome == 'failure'
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ''
+        run: |
+          set -euo pipefail
+          python production/recover_paid_episode.py --topic-id "${{ matrix.topic_id }}"
+
+      - name: Verify package and cost tolerance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p=json.load(open('production/output/${{ matrix.topic_id }}/episode-package.json', encoding='utf-8'))
+          assert p.get('script') and p.get('selected_title') and p.get('tags')
+          total=float((p.get('anthropic_cost') or {}).get('total_usd') or 0)
+          if total > 0.082:
+              raise SystemExit(f'Anthropic total {total:.6f} exceeded batch cap 0.082000')
+          print('Package verified:', p['selected_title'])
+          print('Anthropic total:', total)
+          PY
+
+      - name: Render and validate native 4K
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="production/rendered/${{ matrix.topic_id }}"
+          rm -rf "$OUT"
+          python production/render_episode.py \
+            --package "production/output/${{ matrix.topic_id }}/episode-package.json" \
+            --output-dir "$OUT"
+          test -s "$OUT/final.mp4"
+          test -s "$OUT/thumbnail.png"
+          test -s "$OUT/metadata.json"
+          ffmpeg -v error -i "$OUT/final.mp4" -f null -
+          ffmpeg -v error -i "$OUT/final.mp4" -map 0:a:0 -f null -
+          RES="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$OUT/final.mp4")"
+          test "$RES" = "3840x2160" || { echo "Unexpected resolution: $RES"; exit 1; }
+          DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OUT/final.mp4")"
+          python - "$DURATION" <<'PY'
+          import sys
+          d=float(sys.argv[1])
+          if not 600 <= d <= 1800:
+              raise SystemExit(f'Bad duration: {d:.2f}s')
+          print('Validated 4K duration:', round(d,2))
+          PY
+
+      - name: Upload PRIVATE to The Business Flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="production/rendered/${{ matrix.topic_id }}"
+          python youtube-worker/youtube_private_uploader.py \
+            --video "$OUT/final.mp4" \
+            --thumbnail "$OUT/thumbnail.png" \
+            --metadata "$OUT/metadata.json" \
+            --checkpoint "$OUT/youtube-upload.json"
+          python production/mark_topic_used.py \
+            --package "production/output/${{ matrix.topic_id }}/episode-package.json" \
+            --checkpoint "$OUT/youtube-upload.json"
+          mkdir -p production/youtube-checkpoints
+          cp "$OUT/youtube-upload.json" "production/youtube-checkpoints/${{ matrix.topic_id }}.json"
+
+      - name: Verify private YouTube checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='production/youtube-checkpoints/${{ matrix.topic_id }}.json'
+          d=json.load(open(p, encoding='utf-8'))
+          video_id=str(d.get('youtube_video_id') or d.get('video_id') or '').strip()
+          privacy=str(d.get('privacy_status') or d.get('youtube_privacy_status') or '').lower()
+          if not video_id:
+              raise SystemExit('Missing YouTube video id after upload')
+          if privacy and privacy != 'private':
+              raise SystemExit(f'Expected PRIVATE upload, got {privacy}')
+          print('YouTube PRIVATE verified:', video_id)
+          PY
+
+      - name: Commit durable checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json "production/research-library/${{ matrix.topic_id }}.json" "production/youtube-checkpoints/${{ matrix.topic_id }}.json"
+          git commit -m "Checkpoint ${{ matrix.topic_name }} private YouTube upload" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
