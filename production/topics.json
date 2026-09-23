@@ -61,11 +61,14 @@
       "working_angle": "How Coca-Cola Built One of the World’s Most Powerful Distribution Machines",
       "title_seed": "How Coca-Cola Built One of the World’s Most Powerful Distribution Machines",
       "thumbnail_text_seed": "COKE MACHINE",
-      "status": "rendered_pending_manual_upload",
+      "status": "uploaded_private",
       "click_score": 97,
       "click_reason": "Deterministic famous-company reserve; brand recognition prioritized.",
       "scored_at": "2026-09-22T10:10:51.199389+00:00",
-      "rendered_at": "2026-09-23T02:55:20.898050+00:00"
+      "rendered_at": "2026-09-23T02:55:20.898050+00:00",
+      "youtube_video_id": "S8kMgUG46KU",
+      "youtube_privacy_status": "private",
+      "youtube_uploaded_at": "2026-09-23T02:56:56.912965+00:00"
     },
     {
       "id": "famous-005",
