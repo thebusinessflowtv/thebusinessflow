@@ -1,0 +1,290 @@
+name: The Business Flow Apple 4K Recovery Upload
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'production/apple-recovery-now.request'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: the-business-flow-apple-recovery-hq
+  cancel-in-progress: false
+
+jobs:
+  recover-render-upload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      ANTHROPIC_API_KEY: ''
+      TTS_VOICE: ${{ vars.TTS_VOICE || 'en-US-AndrewNeural' }}
+      TTS_RATE: ${{ vars.TTS_RATE || '-4%' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install render and YouTube dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install -r production/requirements.txt
+          pip install -r youtube-worker/requirements.txt
+          git lfs pull
+          python -m py_compile production/recover_paid_episode.py production/collect_visual_assets_hq.py production/render_episode_hq.py youtube-worker/youtube_private_uploader.py
+          test -n "$YOUTUBE_CLIENT_ID"
+          test -n "$YOUTUBE_CLIENT_SECRET"
+          test -n "$YOUTUBE_REFRESH_TOKEN"
+          test -n "$YOUTUBE_CHANNEL_ID"
+
+      - name: Restore Apple research cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/research-cache/famous-003
+          key: tbf-haiku-research-v2-famous-003
+          fail-on-cache-miss: true
+
+      - name: Restore Apple paid Sonnet package cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/package-cache/famous-003
+          key: tbf-sonnet-package-v2-famous-003
+          fail-on-cache-miss: true
+
+      - name: Restore Apple HQ visual cache
+        id: visual-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/visual-cache/famous-003
+          key: tbf-visual-hq-v1-famous-003-${{ github.run_id }}
+          restore-keys: |
+            tbf-visual-hq-v1-famous-003-
+
+      - name: Recover already-paid Apple package locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/recover_paid_episode.py --topic-id famous-003
+          test -s production/output/famous-003/episode-package.json
+
+      - name: Validate recovered package without a new Anthropic charge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p=json.load(open('production/output/famous-003/episode-package.json', encoding='utf-8'))
+          assert p.get('topic_id') == 'famous-003', p.get('topic_id')
+          assert str(p.get('topic') or '').lower() == 'apple', p.get('topic')
+          assert p.get('script') and len(p['script'].split()) >= 1750
+          assert p.get('tags') and p.get('chapters')
+          historical=float((p.get('anthropic_cost') or {}).get('total_usd') or 0)
+          if historical > 0.081:
+              raise SystemExit(f'Unexpected recovered historical cost: ${historical:.6f}')
+          print('Recovered Apple package:', p['selected_title'])
+          print('Words:', len(p['script'].split()))
+          print(f'Historical Anthropic cost already incurred: ${historical:.6f}')
+          print('New Anthropic calls in this workflow: 0')
+          PY
+
+      - name: Collect strict Apple visuals at 1080p minimum, 4K preferred
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/collect_visual_assets_hq.py \
+            --topic-id famous-003 \
+            --research production/research-cache/famous-003/research.json \
+            --target 50
+
+      - name: Save Apple HQ visual cache
+        if: always() && steps.visual-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: production/visual-cache/famous-003
+          key: ${{ steps.visual-cache.outputs.cache-primary-key }}
+
+      - name: Validate Apple HQ visual package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from PIL import Image
+          from pathlib import Path
+          d=json.load(open('production/visual-cache/famous-003/visual-assets.json', encoding='utf-8'))
+          assets=d.get('assets') or []
+          if len(assets) < 40:
+              raise SystemExit(f'Need at least 40 Apple visuals; found {len(assets)}')
+          for a in assets:
+              if int(a.get('source_width') or 0) < 1920 or int(a.get('source_height') or 0) < 1080:
+                  raise SystemExit(f"Source below 1080p: {a.get('title')}")
+              path=Path(a['local_path'])
+              with Image.open(path) as img:
+                  if img.size != (3840,2160):
+                      raise SystemExit(f'Not normalized 4K: {path} = {img.size}')
+          print('Apple HQ visuals validated:', len(assets), 'images; native 4K:', d.get('native_4k_count'))
+          PY
+
+      - name: Render Apple in 4K
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf production/apple-hq-rendered
+          python production/render_episode_hq.py \
+            --package production/output/famous-003/episode-package.json \
+            --output-dir production/apple-hq-rendered
+
+      - name: Validate final Apple video
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s production/apple-hq-rendered/final.mp4
+          test -s production/apple-hq-rendered/thumbnail.png
+          test -s production/apple-hq-rendered/metadata.json
+          ffmpeg -v error -i production/apple-hq-rendered/final.mp4 -f null -
+          ffmpeg -v error -i production/apple-hq-rendered/final.mp4 -map 0:a:0 -f null -
+          RES="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 production/apple-hq-rendered/final.mp4)"
+          DURATION="$(ffprobe -v error -show_entries format=duration -of csv=p=0 production/apple-hq-rendered/final.mp4)"
+          python - "$RES" "$DURATION" <<'PY'
+          import json, sys
+          res=sys.argv[1].strip()
+          duration=float(sys.argv[2])
+          if res != '3840x2160': raise SystemExit(f'Not 4K: {res}')
+          if not 600 <= duration <= 1800: raise SystemExit(f'Bad duration: {duration:.2f}s')
+          plan=json.load(open('production/apple-hq-rendered/selected-assets.json', encoding='utf-8'))
+          ids=[x['asset_id'] for x in plan]
+          if len(ids) != len(set(ids)): raise SystemExit('Repeated asset detected')
+          if any(x.get('looped') for x in plan): raise SystemExit('Video loop detected')
+          bad_motion=[x for x in plan if x.get('asset_type')=='image' and x.get('motion') not in {'zoom_in','zoom_out'}]
+          if bad_motion: raise SystemExit(f'Invalid image motion: {bad_motion[:2]}')
+          print('Final Apple video validated:', res, round(duration,2), 'sec, assets:', len(plan), 'loops: 0, reuse: 0')
+          PY
+
+      - name: Prepare private-only metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          src='production/apple-hq-rendered/metadata.json'
+          dst='production/apple-hq-rendered/private-metadata.json'
+          d=json.load(open(src, encoding='utf-8'))
+          d.pop('publish_at', None)
+          json.dump(d, open(dst,'w',encoding='utf-8'), ensure_ascii=False, indent=2)
+          PY
+
+      - name: Restore durable Apple YouTube checkpoint if it exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -s production/youtube-checkpoints/famous-003.json ]; then
+            cp production/youtube-checkpoints/famous-003.json production/apple-hq-rendered/youtube-upload-private.json
+            echo 'Existing Apple checkpoint restored; uploader will verify/reuse it.'
+          fi
+
+      - name: Upload Apple to YouTube as PRIVATE
+        shell: bash
+        run: |
+          set -euo pipefail
+          python youtube-worker/youtube_private_uploader.py \
+            --video production/apple-hq-rendered/final.mp4 \
+            --thumbnail production/apple-hq-rendered/thumbnail.png \
+            --metadata production/apple-hq-rendered/private-metadata.json \
+            --checkpoint production/apple-hq-rendered/youtube-upload-private.json
+
+      - name: Verify private YouTube upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('production/apple-hq-rendered/youtube-upload-private.json', encoding='utf-8'))
+          assert d.get('youtube_video_id'), d
+          assert d.get('privacy_status') == 'private', d
+          assert not d.get('scheduled'), d
+          assert not d.get('publish_at'), d
+          print('Apple PRIVATE upload verified:', d['youtube_video_id'])
+          print('Permalink:', d['youtube_permalink'])
+          PY
+
+      - name: Persist Apple checkpoint and correct queue state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git pull --rebase origin main
+          mkdir -p production/youtube-checkpoints
+          cp production/apple-hq-rendered/youtube-upload-private.json production/youtube-checkpoints/famous-003.json
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          checkpoint=json.load(open('production/youtube-checkpoints/famous-003.json', encoding='utf-8'))
+          p='production/topics.json'
+          d=json.load(open(p, encoding='utf-8'))
+          for t in d.get('topics', []):
+              if str(t.get('topic') or '').lower() == 'apple':
+                  t['status']='uploaded_private'
+                  t['youtube_video_id']=checkpoint['youtube_video_id']
+                  t['youtube_privacy_status']='private'
+                  t['youtube_uploaded_at']=datetime.now(timezone.utc).isoformat()
+                  t['visual_quality']='hq_4k'
+                  break
+          else:
+              raise SystemExit('Apple topic not found in queue')
+          json.dump(d, open(p,'w',encoding='utf-8'), ensure_ascii=False, indent=2)
+          PY
+          git add production/topics.json production/youtube-checkpoints/famous-003.json
+          git commit -m 'Checkpoint Apple 4K private YouTube upload'
+          git push origin HEAD:main
+
+      - name: Preserve Apple 4K production artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbf-apple-4k-${{ github.run_id }}
+          path: |
+            production/output/famous-003/
+            production/visual-cache/famous-003/visual-assets.json
+            production/apple-hq-rendered/final.mp4
+            production/apple-hq-rendered/thumbnail.png
+            production/apple-hq-rendered/metadata.json
+            production/apple-hq-rendered/selected-assets.json
+            production/apple-hq-rendered/scene-plan.json
+            production/apple-hq-rendered/youtube-upload-private.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Summary
+        if: success()
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d=json.load(open('production/apple-hq-rendered/youtube-upload-private.json', encoding='utf-8'))
+          print('### Apple 4K recovery + YouTube upload ✅')
+          print(f"- Video ID: {d['youtube_video_id']}")
+          print(f"- Permalink: {d['youtube_permalink']}")
+          print('- Privacy: private')
+          print('- Resolution: 3840x2160')
+          print('- New Anthropic calls: 0')
+          PY
