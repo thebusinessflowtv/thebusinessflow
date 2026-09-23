@@ -39,14 +39,14 @@ jobs:
           import json
           d=json.load(open('production/topics.json',encoding='utf-8'))
           ready=[t for t in d['topics'] if t.get('status')=='ready']
-          used=[t for t in d['topics'] if t.get('status') in {'used','rendered_pending_manual_upload'}]
+          consumed=[t for t in d['topics'] if t.get('status') in {'used','rendered_pending_manual_upload','uploaded_private'}]
           assert len(ready)==50, len(ready)
           ready_names={str(t.get('topic')).lower().replace('’', "'") for t in ready}
-          used_names={str(t.get('topic')).lower().replace('’', "'") for t in used}
-          assert not (ready_names & used_names), ready_names & used_names
+          consumed_names={str(t.get('topic')).lower().replace('’', "'") for t in consumed}
+          assert not (ready_names & consumed_names), ready_names & consumed_names
           assert all(t.get('title_seed') for t in ready)
           assert all(t.get('thumbnail_text_seed') for t in ready)
-          print('ready=',len(ready),'used=',len(used),'backlog=',len(d['topics'])-len(ready)-len(used))
+          print('ready=',len(ready),'consumed=',len(consumed),'backlog=',len(d['topics'])-len(ready)-len(consumed))
           print('Top 10 famous companies:')
           for i,t in enumerate(ready[:10],1): print(i,t['click_score'],t['topic'],t['title_seed'])
           PY
