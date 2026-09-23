@@ -1,0 +1,110 @@
+{
+  "thesis": "Coca-Cola's dominance stems from a franchise distribution model that pairs concentrate manufacturing with independent bottling partners, enabling global scale without owning all physical infrastructure while maintaining brand control and pricing power.",
+  "facts": [
+    {
+      "claim": "Coca-Cola beverages account for approximately 2.2 billion of an estimated 65 billion servings consumed worldwide daily, demonstrating unmatched global reach.",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The concentrate operations model represented 85% of worldwide unit case volume in 2025 while generating 59% of company revenue, enabling asset-light growth.",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-swot-analysis-2026/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Authorized bottling partners provide substantial local production, packaging, sales and distribution capabilities within the Coca-Cola system.",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-swot-analysis-2026/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The Coca-Cola system's franchise model combines brand expertise and intellectual property with local operating infrastructure and customer relationships across territories.",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The company's global franchise operating model combines the benefits of scale with deep, local market intimacy as a core strategic advantage.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/21344/000110465926028215/ko-20260429xdef14a.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The Coca-Cola system sold 33.8 billion unit cases in 2025, illustrating the scale advantage of the franchise distribution network.",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "2.2 billion servings per day",
+      "context": "Coca-Cola-branded beverages of estimated 65 billion total daily beverage servings globally",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/"
+    },
+    {
+      "value": "33.8 billion unit cases",
+      "context": "Total sold by Coca-Cola system in 2025",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/"
+    },
+    {
+      "value": "85% of unit case volume / 59% of revenue",
+      "context": "Concentrate operations as share in 2025",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-swot-analysis-2026/"
+    },
+    {
+      "value": "$47.94 billion",
+      "context": "Coca-Cola annual revenue in 2025, growing 2.4% year-over-year",
+      "source_url": "https://pitchgrade.com/companies/coca-cola"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2025",
+      "event": "Coca-Cola system sold 33.8 billion unit cases, demonstrating full-year distribution network capacity",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/"
+    },
+    {
+      "date": "2025",
+      "event": "Concentrate operations generated 59% of company revenue while representing 85% of worldwide unit case volume",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-swot-analysis-2026/"
+    },
+    {
+      "date": "2025",
+      "event": "Company refranchised bottling operations in Philippines, Bangladesh and certain Indian territories, reflecting dynamic asset management",
+      "source_url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/"
+    }
+  ],
+  "sources": [
+    {
+      "title": "thestrategystory.com",
+      "url": "https://thestrategystory.com/blog/coca-cola-business-model-2026-how-does-coca-cola-make-money/",
+      "source_type": "web"
+    },
+    {
+      "title": "thestrategystory.com",
+      "url": "https://thestrategystory.com/blog/coca-cola-swot-analysis-2026/",
+      "source_type": "web"
+    },
+    {
+      "title": "sec.gov",
+      "url": "https://www.sec.gov/Archives/edgar/data/21344/000110465926028215/ko-20260429xdef14a.htm",
+      "source_type": "web"
+    },
+    {
+      "title": "pitchgrade.com",
+      "url": "https://pitchgrade.com/companies/coca-cola",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "famous-004",
+  "topic": "Coca-Cola",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 11614,
+    "output_tokens": 1588,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.029554,
+  "recovered_from_paid_response": true,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-23T02:18:24.137135+00:00"
+}
