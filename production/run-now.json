@@ -1,10 +1,10 @@
 {
-  "topic_id": "famous-004",
-  "topic": "Coca-Cola",
+  "topic_id": "famous-003",
+  "topic": "Apple",
   "mode": "tomorrow_batch_private_review",
   "target_publish_date": "2026-09-23",
-  "target_slot_local": "21:00",
-  "requested_at": "2026-09-22T22:50:00-03:00",
+  "target_slot_local": "11:30",
+  "requested_at": "2026-09-22T23:00:00-03:00",
   "thumbnail_system": "persuasive_v1",
-  "reason": "Retry after Haiku source-recovery fix; produce one day early for manual review"
+  "reason": "Retry after cached research budget handling fix; produce one day early for manual review"
 }
