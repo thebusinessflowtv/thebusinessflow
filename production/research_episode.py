@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from anthropic import Anthropic
 
@@ -126,7 +127,78 @@ def extract_json(text: str) -> dict[str, Any]:
     return json.loads(text[start : end + 1])
 
 
+def valid_http_url(value: Any) -> str:
+    url = str(value or "").strip()
+    return url if url.startswith(("http://", "https://")) else ""
+
+
+def source_label(url: str) -> str:
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        host = ""
+    if host.startswith("www."):
+        host = host[4:]
+    return host or "Source"
+
+
+def normalize_brief_sources(brief: dict[str, Any]) -> bool:
+    """Repair a paid brief only from source URLs the model already cited.
+
+    Haiku can occasionally return a valid six-fact payload while leaving the
+    top-level `sources` array empty. The facts/numbers/timeline still contain
+    the URLs required by the schema. Rebuilding the source index from those
+    already-cited URLs avoids a second paid call without inventing evidence.
+    """
+    changed = False
+    ordered: dict[str, dict[str, str]] = {}
+
+    raw_sources = brief.get("sources")
+    if not isinstance(raw_sources, list):
+        raw_sources = []
+        changed = True
+
+    for source in raw_sources:
+        if not isinstance(source, dict):
+            changed = True
+            continue
+        url = valid_http_url(source.get("url"))
+        if not url:
+            changed = True
+            continue
+        title = str(source.get("title") or "").strip() or source_label(url)
+        source_type = str(source.get("source_type") or "").strip() or "web"
+        if title != str(source.get("title") or "").strip() or source_type != str(source.get("source_type") or "").strip():
+            changed = True
+        ordered.setdefault(url, {"title": title, "url": url, "source_type": source_type})
+
+    for collection_name in ("facts", "verified_numbers", "timeline"):
+        collection = brief.get(collection_name) or []
+        if not isinstance(collection, list):
+            continue
+        for item in collection:
+            if not isinstance(item, dict):
+                continue
+            url = valid_http_url(item.get("source_url"))
+            if not url or url in ordered:
+                continue
+            ordered[url] = {
+                "title": source_label(url),
+                "url": url,
+                "source_type": "web",
+            }
+            changed = True
+
+    normalized = list(ordered.values())[:4]
+    if normalized != raw_sources:
+        brief["sources"] = normalized
+        changed = True
+
+    return changed
+
+
 def validate_brief(brief: dict[str, Any], topic: dict[str, Any]) -> None:
+    normalize_brief_sources(brief)
     if not str(brief.get("thesis") or "").strip():
         raise RuntimeError("Research brief is missing thesis")
     facts = brief.get("facts") or []
@@ -134,9 +206,19 @@ def validate_brief(brief: dict[str, Any], topic: dict[str, Any]) -> None:
     if len(facts) < 6:
         raise RuntimeError(f"Research brief needs at least 6 sourced facts; got {len(facts)}")
     if len(sources) < 4:
-        raise RuntimeError(f"Research brief needs at least 4 sources; got {len(sources)}")
-    urls = {str(s.get("url") or "").strip() for s in sources}
-    if not all(url.startswith(("http://", "https://")) for url in urls if url):
+        cited_urls = []
+        for collection_name in ("facts", "verified_numbers", "timeline"):
+            for item in brief.get(collection_name) or []:
+                if isinstance(item, dict):
+                    url = valid_http_url(item.get("source_url"))
+                    if url and url not in cited_urls:
+                        cited_urls.append(url)
+        raise RuntimeError(
+            f"Research brief needs at least 4 sources; got {len(sources)}. "
+            f"Recoverable distinct cited URLs: {len(cited_urls)}"
+        )
+    urls = [valid_http_url(s.get("url")) for s in sources if isinstance(s, dict)]
+    if len(urls) < 4 or any(not url for url in urls):
         raise RuntimeError("Research brief contains an invalid source URL")
     brief["topic_id"] = topic["id"]
     brief["topic"] = topic["topic"]
@@ -178,6 +260,8 @@ STRICT COST / OUTPUT RULES
 - Make the one search broad and information-dense, prioritizing the company's latest annual report/SEC filing, investor relations, official documentation and reputable financial reporting.
 - After the search, call {RESEARCH_TOOL_NAME} immediately and exactly once.
 - Keep the tool payload extremely compact: thesis <= 60 words; exactly 6 factual claims, each <= 32 words; exactly 4 sources; at most 4 verified numbers; at most 4 timeline entries; at most 2 short risk flags.
+- The `sources` array MUST contain exactly four distinct HTTP(S) URLs.
+- Every facts[].source_url, verified_numbers[].source_url and timeline[].source_url MUST match one of those four sources[].url values.
 - Do not repeat source titles/types inside each fact. Facts need only claim, source_url and safe_for_packaging.
 
 RESEARCH RULES
@@ -215,13 +299,17 @@ def main() -> None:
 
     if research_path.exists():
         brief = load_json(research_path)
+        repaired = normalize_brief_sources(brief)
         validate_brief(brief, topic)
+        if repaired:
+            write_research(brief, cache_dir)
         cost = float(brief.get("estimated_cost_usd") or 0)
         enforce_research_budget(cost, max_cost)
         print(json.dumps({
             "topic_id": topic["id"],
             "research_path": str(research_path),
             "cache_hit": True,
+            "source_index_repaired": repaired,
             "estimated_cost_usd": cost,
         }, indent=2))
         return
@@ -231,6 +319,7 @@ def main() -> None:
         snapshot = load_json(snapshot_path)
         try:
             brief = parse_snapshot(snapshot)
+            repaired = normalize_brief_sources(brief)
             validate_brief(brief, topic)
             usage = snapshot.get("usage") or {}
             model = str(snapshot.get("model") or os.getenv("ANTHROPIC_RESEARCH_MODEL") or "claude-haiku-4-5-20251001")
@@ -239,6 +328,7 @@ def main() -> None:
             brief["anthropic_usage"] = usage
             brief["estimated_cost_usd"] = cost
             brief["recovered_from_paid_response"] = True
+            brief["source_index_repaired"] = repaired
             brief["researched_at"] = datetime.now(timezone.utc).isoformat()
             write_research(brief, cache_dir)
             enforce_research_budget(cost, max_cost)
@@ -247,6 +337,7 @@ def main() -> None:
                 "research_path": str(research_path),
                 "cache_hit": True,
                 "recovered_response": True,
+                "source_index_repaired": repaired,
                 "estimated_cost_usd": cost,
             }, indent=2))
             return
@@ -286,12 +377,14 @@ def main() -> None:
     snapshot_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
 
     brief = parse_snapshot(snapshot)
+    repaired = normalize_brief_sources(brief)
     validate_brief(brief, topic)
     usage = usage_dict(response)
     cost = estimate_cost_usd(model, usage)
     brief["research_model"] = model
     brief["anthropic_usage"] = usage
     brief["estimated_cost_usd"] = cost
+    brief["source_index_repaired"] = repaired
     brief["researched_at"] = datetime.now(timezone.utc).isoformat()
     write_research(brief, cache_dir)
 
@@ -305,6 +398,7 @@ def main() -> None:
         "cache_hit": False,
         "model": model,
         "anthropic_usage": usage,
+        "source_index_repaired": repaired,
         "estimated_cost_usd": cost,
     }, indent=2))
 
