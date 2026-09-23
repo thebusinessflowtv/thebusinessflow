@@ -1,0 +1,17 @@
+{
+  "batch_date": "2026-09-24",
+  "mode": "private_review",
+  "videos": [
+    {
+      "topic_id": "famous-005",
+      "topic": "Meta",
+      "target_slot_local": "11:30"
+    },
+    {
+      "topic_id": "famous-006",
+      "topic": "SpaceX",
+      "target_slot_local": "21:00"
+    }
+  ],
+  "reason": "Produce tomorrow's two videos now in native 4K and upload both PRIVATE to The Business Flow for review."
+}
