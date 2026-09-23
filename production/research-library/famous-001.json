@@ -61,24 +61,80 @@
     }
   ],
   "verified_numbers": [
-    {"value": "$716.924B", "context": "Amazon 2025 consolidated net sales", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
-    {"value": "$128.725B", "context": "AWS 2025 net sales", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
-    {"value": "$45.606B", "context": "AWS 2025 operating income", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
-    {"value": "$68.635B", "context": "Amazon 2025 advertising services sales", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
-    {"value": ">60%", "context": "Share of Amazon store sales from independent sellers", "source_url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report"},
-    {"value": "$42.2B", "context": "AWS Q2 2026 net sales", "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light"}
+    {
+      "value": "$716.924B",
+      "context": "Amazon 2025 consolidated net sales",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"
+    },
+    {
+      "value": "$128.725B",
+      "context": "AWS 2025 net sales",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"
+    },
+    {
+      "value": "$45.606B",
+      "context": "AWS 2025 operating income",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"
+    },
+    {
+      "value": "$68.635B",
+      "context": "Amazon 2025 advertising services sales",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"
+    },
+    {
+      "value": ">60%",
+      "context": "Share of Amazon store sales from independent sellers",
+      "source_url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report"
+    },
+    {
+      "value": "$42.2B",
+      "context": "AWS Q2 2026 net sales",
+      "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light"
+    }
   ],
   "timeline": [
-    {"date": "2000", "event": "Amazon opened its store to independent sellers.", "source_url": "https://sellingpartners.aboutamazon.com/25-years-of-amazons-partnership-with-independent-sellers"},
-    {"date": "2025", "event": "Amazon reached $716.924 billion in annual net sales; AWS reached $128.725 billion.", "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"},
-    {"date": "2025", "event": "Independent sellers accounted for more than 60% of sales in Amazon's store.", "source_url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report"},
-    {"date": "2026-Q2", "event": "AWS quarterly net sales reached $42.2 billion, up 37% year over year.", "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light"}
+    {
+      "date": "2000",
+      "event": "Amazon opened its store to independent sellers.",
+      "source_url": "https://sellingpartners.aboutamazon.com/25-years-of-amazons-partnership-with-independent-sellers"
+    },
+    {
+      "date": "2025",
+      "event": "Amazon reached $716.924 billion in annual net sales; AWS reached $128.725 billion.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf"
+    },
+    {
+      "date": "2025",
+      "event": "Independent sellers accounted for more than 60% of sales in Amazon's store.",
+      "source_url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report"
+    },
+    {
+      "date": "2026-Q2",
+      "event": "AWS quarterly net sales reached $42.2 billion, up 37% year over year.",
+      "source_url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light"
+    }
   ],
   "sources": [
-    {"title": "Amazon 2025 Annual Report", "url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf", "source_type": "SEC filing"},
-    {"title": "Amazon Q2 2026 Results", "url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light", "source_type": "Amazon investor relations"},
-    {"title": "Amazon 2025 Small Business Empowerment Report", "url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report", "source_type": "Amazon corporate report"},
-    {"title": "Amazon Retail Ad Service announcement", "url": "https://advertising.amazon.com/library/news/retail-ad-service-announcement", "source_type": "Amazon product announcement"}
+    {
+      "title": "Amazon 2025 Annual Report",
+      "url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926041036/tm263815d4_ars.pdf",
+      "source_type": "SEC filing"
+    },
+    {
+      "title": "Amazon Q2 2026 Results",
+      "url": "https://ir.aboutamazon.com/news-release/news-release-details/2026/Amazon-com-Announces-Second-Quarter-Results/default.aspx?mode=light",
+      "source_type": "Amazon investor relations"
+    },
+    {
+      "title": "Amazon 2025 Small Business Empowerment Report",
+      "url": "https://www.aboutamazon.com/news/small-business/amazon-2025-small-business-empowerment-report",
+      "source_type": "Amazon corporate report"
+    },
+    {
+      "title": "Amazon Retail Ad Service announcement",
+      "url": "https://advertising.amazon.com/library/news/retail-ad-service-announcement",
+      "source_type": "Amazon product announcement"
+    }
   ],
   "risk_flags": [
     "Do not claim retail is unprofitable; Amazon reports profitable North America and International segments in 2025.",
