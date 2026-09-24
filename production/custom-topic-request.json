@@ -1,0 +1,64 @@
+{
+  "id": "custom-meta-vr-glasses-2026-09",
+  "topic": "Meta VR Glasses",
+  "category": "technology / spatial computing / Meta",
+  "working_angle": "Meta just unveiled 100-gram VR glasses for $1,299.99. Explain what they are, how the two-part glasses-plus-compute-puck system works, what people can actually do with them, why Meta is making this bet, and put the product in the context of Reality Labs' enormous investment and operating losses without falsely claiming those losses were spent on this single product.",
+  "title_seed": "Meta's $1,300 VR Glasses Could Replace Your Screens",
+  "thumbnail_text_seed": "THE $1,300 FUTURE",
+  "status": "ready",
+  "click_score": 100,
+  "click_reason": "Brand-new Meta Connect 2026 hardware with a concrete $1,299.99 price, unusual 100-gram form factor and a strong business-investment story.",
+  "language": "en-US",
+  "audience": "United States",
+  "editorial_requirements": [
+    "Open with the contrast: roughly 100 grams on the face, $1,299.99 price, and one of tech's most expensive long-term VR bets behind it.",
+    "Explain clearly that the glasses contain sensors/display while compute, battery and storage live in a tethered external puck.",
+    "Cover 5K Infinite Display with micro-OLED, 37 pixels per degree, Dolby Vision, Dolby Atmos, Snapdragon Reality Elite, eye/hand/voice input and up to three hours of high-resolution media playback.",
+    "Explain use cases: IMAX/3D cinema, 100+ immersive live sports events annually, private multi-screen workspace, flat-surface keyboard/touchpad, gesture gaming/Xbox Cloud Gaming and hologram calling.",
+    "State launch window and price: Spring 2027 in the US at $1,299.99.",
+    "For development cost, say the exact standalone R&D cost of Meta VR Glasses has not been publicly disclosed.",
+    "Use Reality Labs financials only as investment-scale context, not as the development cost of this product.",
+    "Include the business strategy: Meta's attempt to own a post-smartphone computing platform and make immersive computing more wearable.",
+    "Keep the tone factual, high-curiosity and documentary-style; do not present rumors as confirmed specs."
+  ],
+  "verified_context": [
+    {
+      "claim": "Meta announced Meta VR Glasses on September 23, 2026 and says they weigh about 100 grams, roughly five times lighter than Meta Quest 3.",
+      "source": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/"
+    },
+    {
+      "claim": "Meta says the device will go on sale in Spring 2027 for $1,299.99 USD.",
+      "source": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/"
+    },
+    {
+      "claim": "Reality Labs recorded a $19.193 billion operating loss in 2025; this is a division-level operating loss and must not be described as the cost of developing these glasses.",
+      "source": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Fourth-Quarter-and-Full-Year-2025-Results/"
+    },
+    {
+      "claim": "Reality Labs recorded an $8.647 billion operating loss in the first six months of 2026; again, this is division-level context, not product R&D cost.",
+      "source": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Second-Quarter-2026-Results/"
+    }
+  ],
+  "reference_media": [
+    {
+      "type": "official_announcement_page",
+      "url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/",
+      "usage": "Primary factual and visual reference; Meta Newsroom offers downloadable press images."
+    },
+    {
+      "type": "official_video_reference",
+      "url": "https://about.fb.com/wp-content/uploads/2026/09/03_VRGlasses_Inline_Airplane.mp4",
+      "usage": "Reference for cinema/travel use case."
+    },
+    {
+      "type": "official_video_reference",
+      "url": "https://about.fb.com/wp-content/uploads/2026/09/05_VRGlasses_inline_cafe.mp4",
+      "usage": "Reference for workspace use case."
+    },
+    {
+      "type": "official_video_reference",
+      "url": "https://about.fb.com/wp-content/uploads/2026/09/06_VRGlasses_inline_hologram.mp4",
+      "usage": "Reference for hologram calling."
+    }
+  ]
+}
