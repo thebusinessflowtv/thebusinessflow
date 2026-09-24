@@ -1,0 +1,108 @@
+{
+  "thesis": "Amazon DSP delivery drivers earn close to $24 per hour nationally, while heavy and tractor-trailer truck drivers had a $58,640 median annual wage in May 2025. The pay gap comes with different licensing, schedules, route types and time-away-from-home demands.",
+  "facts": [
+    {
+      "claim": "Amazon said its 2026 DSP investment is expected to raise national average Delivery Associate earnings to nearly $24 per hour.",
+      "source_url": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Amazon announced another $1.9 billion for the DSP program in 2027 to support participating delivery companies and drivers.",
+      "source_url": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "BLS reports a May 2025 median wage of $58,640 per year, or $28.19 per hour, for heavy and tractor-trailer truck drivers.",
+      "source_url": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "BLS reports the lowest 10 percent below $40,140 and the highest 10 percent above $79,380 for heavy truck drivers in May 2025.",
+      "source_url": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "BLS reports a May 2025 national mean annual wage of $59,710 for heavy and tractor-trailer truck drivers.",
+      "source_url": "https://www.bls.gov/news.release/ocwage.t01.htm",
+      "safe_for_packaging": false
+    },
+    {
+      "claim": "FMCSA says most commercial truck drivers need a CDL and must meet knowledge, skills and applicable entry-level training requirements.",
+      "source_url": "https://www.fmcsa.dot.gov/registration/commercial-drivers-license/how-do-i-get-commercial-drivers-license",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "nearly $24/hour",
+      "context": "Amazon DSP Delivery Associate national average earnings target",
+      "source_url": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026"
+    },
+    {
+      "value": "$58,640/year",
+      "context": "Heavy truck driver median annual wage, May 2025",
+      "source_url": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm"
+    },
+    {
+      "value": "$28.19/hour",
+      "context": "Heavy truck driver median hourly wage, May 2025",
+      "source_url": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm"
+    },
+    {
+      "value": "$59,710/year",
+      "context": "Heavy truck driver mean annual wage, May 2025",
+      "source_url": "https://www.bls.gov/news.release/ocwage.t01.htm"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "May 2025",
+      "event": "BLS wage data places the heavy-truck median at $58,640 annually.",
+      "source_url": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm"
+    },
+    {
+      "date": "September 2026",
+      "event": "Amazon says DSP Delivery Associate national average earnings are expected to approach $24 per hour.",
+      "source_url": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Amazon DSP Program Investment 2026",
+      "url": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026",
+      "source_type": "official"
+    },
+    {
+      "title": "BLS Occupational Outlook Handbook - Heavy Truck Drivers",
+      "url": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm",
+      "source_type": "government"
+    },
+    {
+      "title": "BLS Occupational Employment and Wage Statistics",
+      "url": "https://www.bls.gov/news.release/ocwage.t01.htm",
+      "source_type": "government"
+    },
+    {
+      "title": "FMCSA - How to Get a CDL",
+      "url": "https://www.fmcsa.dot.gov/registration/commercial-drivers-license/how-do-i-get-commercial-drivers-license",
+      "source_type": "government"
+    }
+  ],
+  "risk_flags": [
+    "Do not imply Amazon DSP drivers are generally direct Amazon employees.",
+    "Do not present owner-operator gross revenue as take-home wages."
+  ],
+  "topic_id": "custom-amazon-drivers-us-truckers-pay-2026-09",
+  "topic": "Amazon Drivers and US Truckers",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 16055,
+    "output_tokens": 1588,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.033995,
+  "repaired_from_paid_response": true,
+  "researched_at": "2026-09-24T20:05:33+00:00"
+}
