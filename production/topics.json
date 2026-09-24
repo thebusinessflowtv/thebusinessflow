@@ -12,67 +12,19 @@
     {
       "id": "custom-amazon-drivers-us-truckers-pay-2026-09",
       "topic": "Amazon Drivers and US Truckers",
-      "category": "jobs / logistics / wages / Amazon",
-      "working_angle": "How much does an Amazon delivery driver actually make in the United States, and how does that compare with a professional U.S. truck driver? Explain the difference between Amazon DSP delivery associates and heavy/tractor-trailer truck drivers, compare hourly and annual earnings, show what higher-paid truckers can make, and explain the workload, mileage pay, CDL requirements and time away from home that sit behind the headline numbers.",
+      "category": "jobs logistics wages",
+      "working_angle": "Compare Amazon DSP delivery-driver earnings with US heavy-truck-driver earnings and explain the licensing, schedule and lifestyle trade-offs. Use the durable research checkpoint for all facts.",
       "title_seed": "How Much Do Amazon Drivers and U.S. Truckers Really Make?",
       "thumbnail_text_seed": "WHAT THEY REALLY MAKE",
       "status": "ready",
       "click_score": 100,
-      "click_reason": "High-curiosity income topic tied to Amazon and one of America's most visible blue-collar careers, with fresh official wage data available in September 2026.",
+      "click_reason": "High-curiosity US income comparison tied to Amazon and trucking.",
       "language": "en-US",
       "audience": "United States",
-      "editorial_requirements": [
-        "Open with the contrast: an Amazon-branded delivery van driver is now near $24 per hour nationally through DSPs, while the median heavy-truck driver earns $58,640 a year.",
-        "Explain immediately that most last-mile Amazon delivery drivers in the DSP network are employed by independent Delivery Service Partners, not directly by Amazon.",
-        "Use Amazon's September 2026 DSP announcement: national average Delivery Associate earnings are expected to rise to nearly $24 per hour, with pay varying by DSP and geography.",
-        "Translate $24 per hour into a simple 40-hour-week annualized illustration of about $49,920 before taxes, clearly label it as an arithmetic illustration rather than guaranteed annual income, and note overtime/hours can change actual earnings.",
-        "Use BLS May 2025 wage data for heavy and tractor-trailer truck drivers: median $58,640 per year / $28.19 per hour; mean $59,710; lowest 10 percent below $40,140 and highest 10 percent above $79,380.",
-        "Explain that heavy truck drivers often are paid by miles driven plus bonuses and normally need a CDL; long-haul drivers can spend days or weeks away from home.",
-        "Do not mix company-driver wages with owner-operator gross revenue. If owner-operators are mentioned, make clear revenue is not take-home pay because fuel, insurance, maintenance, truck payments and other costs come out first.",
-        "Show realistic monthly and weekly equivalents from verified wage figures, but clearly distinguish calculations from reported wage statistics.",
-        "Include why trucking pay varies: route type, experience, region, freight, endorsements, local vs over-the-road, mileage rates, bonuses and overtime.",
-        "Keep the documentary angle around the question: is the extra trucking income worth the CDL, hours, safety responsibility and time away from home? Do not answer with a personal recommendation; present the trade-offs factually."
-      ],
-      "verified_context": [
-        {
-          "claim": "Amazon said in September 2026 that new DSP investment is expected to help raise national average Delivery Associate earnings to nearly $24 per hour; exact pay varies by DSP and geography.",
-          "source": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026"
-        },
-        {
-          "claim": "Amazon says it has invested $21.7 billion in the DSP program over its eight-year history and announced another $1.9 billion investment for 2027.",
-          "source": "https://www.aboutamazon.com/news/transportation/amazon-dsp-program-investment-2026"
-        },
-        {
-          "claim": "The U.S. Bureau of Labor Statistics reports a May 2025 median annual wage of $58,640, or $28.19 per hour, for heavy and tractor-trailer truck drivers.",
-          "source": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm"
-        },
-        {
-          "claim": "BLS reports that the lowest 10 percent of heavy and tractor-trailer truck drivers earned less than $40,140 and the highest 10 percent earned more than $79,380 in May 2025.",
-          "source": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm"
-        },
-        {
-          "claim": "BLS reports a May 2025 national mean annual wage of $59,710 for heavy and tractor-trailer truck drivers.",
-          "source": "https://www.bls.gov/news.release/ocwage.t01.htm"
-        }
-      ],
-      "reference_media": [
-        {
-          "type": "official_amazon_driver_photo_story",
-          "url": "https://www.aboutamazon.com/news/transportation/photos-day-in-the-life-amazon-delivery-driver",
-          "usage": "Reference imagery for Amazon DSP vans, loading, route work and package delivery."
-        },
-        {
-          "type": "official_amazon_van_reference",
-          "url": "https://www.aboutamazon.com/news/transportation/see-inside-amazon-dsp-delivery-van",
-          "usage": "Reference for Amazon delivery van interior and daily-driver workflow."
-        },
-        {
-          "type": "official_wage_source",
-          "url": "https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm",
-          "usage": "Primary wage, job requirements and long-haul work-context source for U.S. truck drivers."
-        }
-      ],
-      "scored_at": "2026-09-24T20:04:19.363229+00:00"
+      "editorial_requirements": [],
+      "verified_context": [],
+      "reference_media": [],
+      "scored_at": "2026-09-24T22:13:35.553864+00:00"
     },
     {
       "id": "custom-meta-vr-glasses-2026-09",
