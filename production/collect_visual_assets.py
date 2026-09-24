@@ -36,9 +36,10 @@ core.SUBJECT_PROFILES.setdefault(
 )
 
 
-# Income-comparison episodes need both sides of the job story represented. This
-# profile intentionally combines Amazon DSP delivery imagery with real U.S.
-# heavy-truck / long-haul visuals, while excluding generic e-commerce graphics.
+# Income-comparison episodes need both sides of the job story represented. Use
+# branded Amazon/DSP imagery where reusable sources provide it, then broaden to
+# truthful last-mile delivery and U.S. trucking B-roll so the 40-image quality
+# floor can be reached without lowering the 1080p source requirement.
 core.SUBJECT_PROFILES.setdefault(
     "amazon drivers and us truckers",
     {
@@ -51,6 +52,13 @@ core.SUBJECT_PROFILES.setdefault(
             "Amazon logistics delivery van",
             "Amazon semi truck",
             "Amazon freight truck",
+            "package delivery van driver",
+            "last mile delivery driver van",
+            "courier loading delivery van packages",
+            "delivery vans distribution center",
+            "package delivery warehouse loading",
+            "cargo van parcel delivery",
+            "logistics distribution center trucks",
             "United States semi truck highway",
             "American long haul truck driver",
             "tractor trailer truck driver USA",
@@ -58,11 +66,21 @@ core.SUBJECT_PROFILES.setdefault(
             "truck stop semi trucks United States",
             "interstate highway semi truck",
             "long haul trucking United States",
+            "18 wheeler American highway",
+            "freight truck loading dock",
+            "semi truck cab interior driver",
+            "commercial truck driver highway",
+            "tractor trailer logistics terminal",
+            "freight trucking distribution center",
+            "semi trailers truck stop",
+            "diesel semi truck interstate",
         ],
         "allow_terms": {
-            "amazon", "delivery driver", "delivery van", "rivian", "dsp",
-            "semi truck", "truck driver", "trucker", "tractor trailer",
-            "tractor-trailer", "cdl", "long haul", "long-haul", "freight truck",
+            "amazon", "delivery", "delivery driver", "delivery van", "courier", "parcel",
+            "package", "cargo van", "warehouse", "distribution center", "logistics", "rivian", "dsp",
+            "semi", "semi truck", "truck", "truck driver", "trucker", "tractor trailer", "trailer",
+            "tractor-trailer", "18 wheeler", "cdl", "long haul", "long-haul", "freight", "freight truck",
+            "truck stop", "loading dock", "interstate", "commercial vehicle",
         },
         "block_terms": {
             "logo", "logos", "stock chart", "ecommerce icon", "shopping cart icon",
