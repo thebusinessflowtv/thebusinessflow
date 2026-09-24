@@ -1,0 +1,103 @@
+name: The Business Flow Custom Topic Launcher
+
+on:
+  push:
+    paths:
+      - 'production/custom-topic-request.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: the-business-flow-custom-topic-launcher
+  cancel-in-progress: false
+
+jobs:
+  register-and-launch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Register custom topic
+        id: topic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          request_path = Path('production/custom-topic-request.json')
+          topics_path = Path('production/topics.json')
+          request = json.loads(request_path.read_text(encoding='utf-8'))
+          data = json.loads(topics_path.read_text(encoding='utf-8'))
+
+          topic_id = str(request.get('id') or '').strip()
+          topic_name = str(request.get('topic') or '').strip()
+          if not topic_id or not topic_name:
+              raise SystemExit('custom-topic-request.json requires id and topic')
+
+          now = datetime.now(timezone.utc).isoformat()
+          item = dict(request)
+          item['id'] = topic_id
+          item['topic'] = topic_name
+          item['status'] = 'ready'
+          item.setdefault('category', 'timely business/technology')
+          item.setdefault('working_angle', topic_name)
+          item.setdefault('title_seed', item['working_angle'])
+          item.setdefault('thumbnail_text_seed', 'NEW TECH')
+          item.setdefault('click_score', 100)
+          item.setdefault('click_reason', 'User-requested timely episode.')
+          item['scored_at'] = now
+
+          topics = data.get('topics') or []
+          existing = next((i for i,t in enumerate(topics) if str(t.get('id')) == topic_id), None)
+          if existing is None:
+              topics.insert(0, item)
+          else:
+              previous = topics[existing]
+              if previous.get('status') in {'uploaded_private', 'used'} and previous.get('youtube_video_id'):
+                  raise SystemExit(f'Topic id {topic_id} already has a durable YouTube upload; use a new id')
+              topics[existing] = {**previous, **item}
+
+          data['topics'] = topics
+          topics_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          Path('/tmp/topic_id').write_text(topic_id, encoding='utf-8')
+          print(json.dumps({'topic_id': topic_id, 'topic': topic_name, 'title_seed': item.get('title_seed')}, indent=2))
+          PY
+          echo "topic_id=$(cat /tmp/topic_id)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit registered topic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Register custom topic ${{ steps.topic.outputs.topic_id }}"
+            git pull --rebase --autostash origin main
+            git push origin HEAD:main
+          else
+            echo 'Topic already registered; no queue commit needed.'
+          fi
+
+      - name: Launch daily production for custom topic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run daily-production.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f topic_id="${{ steps.topic.outputs.topic_id }}" \
+            -f upload_and_schedule=false
+          echo "Dispatched daily-production.yml for ${{ steps.topic.outputs.topic_id }}"
