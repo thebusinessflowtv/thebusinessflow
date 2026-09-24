@@ -1,0 +1,108 @@
+{
+  "thesis": "Meta's new $1,299.99 VR Glasses use a lightweight glasses-plus-compute-puck design aimed at making spatial computing wearable. The exact product R&D cost is undisclosed; Reality Labs losses provide only division-level investment context.",
+  "facts": [
+    {
+      "claim": "Meta announced VR Glasses at about 100 grams with a 5K micro-OLED display and an external compute puck.",
+      "source_url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The glasses are priced at $1,299.99 and are scheduled to launch in the United States in Spring 2027.",
+      "source_url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Meta highlights immersive movies, live sports, multi-screen work, gaming and hologram-style calling as core use cases.",
+      "source_url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The external puck carries core compute, battery and storage and supports up to roughly three hours of high-resolution media playback.",
+      "source_url": "https://interestingengineering.com/innovation/meta-unveils-new-vr-glasses",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Reality Labs recorded a $19.193 billion operating loss in 2025; this is not the development cost of the glasses.",
+      "source_url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Fourth-Quarter-and-Full-Year-2025-Results/",
+      "safe_for_packaging": false
+    },
+    {
+      "claim": "Reality Labs recorded an $8.647 billion operating loss in the first six months of 2026, again only division-level context.",
+      "source_url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Second-Quarter-2026-Results/",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "100 grams",
+      "context": "Approximate glasses weight",
+      "source_url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/"
+    },
+    {
+      "value": "$1,299.99",
+      "context": "US launch price",
+      "source_url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/"
+    },
+    {
+      "value": "$19.193 billion",
+      "context": "Reality Labs 2025 operating loss",
+      "source_url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Fourth-Quarter-and-Full-Year-2025-Results/"
+    },
+    {
+      "value": "$8.647 billion",
+      "context": "Reality Labs H1 2026 operating loss",
+      "source_url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Second-Quarter-2026-Results/"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "September 23, 2026",
+      "event": "Meta announces Meta VR Glasses.",
+      "source_url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/"
+    },
+    {
+      "date": "Spring 2027",
+      "event": "Planned US launch at $1,299.99.",
+      "source_url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Meta Newsroom",
+      "url": "https://about.fb.com/news/2026/09/introducing-meta-vr-glasses-3d-movies-immersive-live-sports-100-grams/",
+      "source_type": "official"
+    },
+    {
+      "title": "Interesting Engineering",
+      "url": "https://interestingengineering.com/innovation/meta-unveils-new-vr-glasses",
+      "source_type": "journalism"
+    },
+    {
+      "title": "Meta 2025 Results",
+      "url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Fourth-Quarter-and-Full-Year-2025-Results/",
+      "source_type": "investor_relations"
+    },
+    {
+      "title": "Meta Q2 2026 Results",
+      "url": "https://investor.atmeta.com/investor-news/press-release-details/2026/Meta-Reports-Second-Quarter-2026-Results/",
+      "source_type": "investor_relations"
+    }
+  ],
+  "risk_flags": [
+    "Do not describe Reality Labs losses as the development cost of this product.",
+    "Exact standalone R&D cost has not been publicly disclosed."
+  ],
+  "topic_id": "custom-meta-vr-glasses-2026-09",
+  "topic": "Meta VR Glasses",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 14669,
+    "output_tokens": 1599,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.032664,
+  "repaired_from_paid_response": true,
+  "researched_at": "2026-09-24T19:50:32.376899+00:00"
+}
