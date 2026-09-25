@@ -99,11 +99,9 @@ jobs:
           upload_active = int(os.environ.get('UPLOAD_ACTIVE') or 0)
           latest_success = str(os.environ.get('LATEST_SUCCESS_RUN') or '').strip()
 
-          # Never start another job while either worker is actually active.
           if daily_active or upload_active:
               reason = 'worker already active'
           else:
-              # Reconcile the current topic first.
               if current:
                   item = by_id.get(current)
                   status = str((item or {}).get('status') or '')
@@ -115,10 +113,6 @@ jobs:
                       current = None
                       source_run_id = None
                   elif status == 'rendered_pending_manual_upload':
-                      # A successful Daily Production workflow automatically launches the
-                      # private uploader. When this orchestration was itself triggered by
-                      # that successful production, give the workflow_run trigger time to
-                      # create the upload job instead of creating a duplicate upload.
                       if event_workflow == 'The Business Flow Daily Production' and event_conclusion == 'success':
                           reason = 'production finished; waiting for automatic private upload'
                       else:
@@ -170,8 +164,6 @@ jobs:
                   else:
                       reason = f'current topic status is {status or "unknown"}; waiting'
 
-              # Pick the next ready topic only when the current one has fully completed
-              # or was explicitly blocked after retries.
               if not current and action == 'wait':
                   for candidate in batch_ids:
                       item = by_id.get(candidate)
@@ -209,7 +201,6 @@ jobs:
           print(f'topic_id={topic_id}')
           print(f'reason={reason}')
           print(f'source_run_id={source_run_id or ""}')
-          print('Queue plan:', action, topic_id, '-', reason)
           PY
 
       - name: Persist queue state safely
