@@ -16,13 +16,13 @@
   "current_topic": "custom-10-american-billion-dollar-companies-2026-09",
   "source_run_id": null,
   "production_attempts": {
-    "custom-10-american-billion-dollar-companies-2026-09": 0,
+    "custom-10-american-billion-dollar-companies-2026-09": 1,
     "custom-15-us-industries-billions-2026-09": 0
   },
   "upload_attempts": {},
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "pipeline_repaired",
-  "updated_at": "2026-09-25T23:49:22.701208+00:00",
-  "last_reason": "retry first topic with resilient package recovery and 3-source research floor"
+  "updated_at": "2026-09-25T23:50:04.098510+00:00",
+  "last_reason": "retrying production attempt 1/3"
 }
