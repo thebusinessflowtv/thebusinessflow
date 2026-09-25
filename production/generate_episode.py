@@ -407,7 +407,7 @@ def main() -> None:
     prompt = build_prompt(topic, research, editorial)
     total_budget = float(os.getenv("ANTHROPIC_TOTAL_BUDGET_USD", "0.080"))
     research_cost = float(research.get("estimated_cost_usd") or 0)
-    max_output_tokens = 4100
+    max_output_tokens = 4000
     # Conservative local preflight: include prompt + tool schema at ~2.5 chars/token and the full output cap.
     input_chars = len(prompt) + len(json.dumps(EPISODE_TOOL, ensure_ascii=False))
     estimated_input_tokens = max(1, int(input_chars / 2.5))
