@@ -1,0 +1,266 @@
+name: The Business Flow Sequential Queue Orchestrator
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_run:
+    workflows:
+      - 'The Business Flow Daily Production'
+      - 'The Business Flow Private YouTube Upload'
+    types: [completed]
+  push:
+    paths:
+      - 'production/queue-kick.json'
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: the-business-flow-sequential-queue
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether production or upload is already active
+        id: workers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DAILY_ACTIVE="$(gh run list --repo '${{ github.repository }}' --workflow daily-production.yml --limit 30 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "pending" or .status == "requested")] | length')"
+          UPLOAD_ACTIVE="$(gh run list --repo '${{ github.repository }}' --workflow private-upload-after-production.yml --limit 30 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "pending" or .status == "requested")] | length')"
+          LATEST_SUCCESS="$(gh run list --repo '${{ github.repository }}' --workflow daily-production.yml --limit 30 --json databaseId,status,conclusion --jq '[.[] | select(.status == "completed" and .conclusion == "success")][0].databaseId // ""')"
+          echo "daily_active=$DAILY_ACTIVE" >> "$GITHUB_OUTPUT"
+          echo "upload_active=$UPLOAD_ACTIVE" >> "$GITHUB_OUTPUT"
+          echo "latest_success=$LATEST_SUCCESS" >> "$GITHUB_OUTPUT"
+          echo "Daily active: $DAILY_ACTIVE | Private upload active: $UPLOAD_ACTIVE | Latest successful production: ${LATEST_SUCCESS:-none}"
+
+      - name: Reconcile queue and choose exactly one action
+        id: plan
+        env:
+          DAILY_ACTIVE: ${{ steps.workers.outputs.daily_active }}
+          UPLOAD_ACTIVE: ${{ steps.workers.outputs.upload_active }}
+          LATEST_SUCCESS_RUN: ${{ steps.workers.outputs.latest_success }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          topics_path = Path('production/topics.json')
+          state_path = Path('production/queue-state.json')
+          event_path = Path(os.environ['GITHUB_EVENT_PATH'])
+          topics_doc = json.loads(topics_path.read_text(encoding='utf-8'))
+          state = json.loads(state_path.read_text(encoding='utf-8'))
+          event = json.loads(event_path.read_text(encoding='utf-8'))
+          now = datetime.now(timezone.utc).isoformat()
+
+          topics = topics_doc.get('topics') or []
+          by_id = {str(t.get('id')): t for t in topics}
+          batch_ids = [str(x) for x in state.get('batch_ids') or []]
+          production_attempts = state.setdefault('production_attempts', {})
+          upload_attempts = state.setdefault('upload_attempts', {})
+          max_prod = int(state.get('max_production_attempts') or 3)
+          max_upload = int(state.get('max_upload_attempts') or 3)
+          current = str(state.get('current_topic') or '').strip() or None
+          source_run_id = state.get('source_run_id')
+          action = 'wait'
+          topic_id = ''
+          reason = ''
+
+          wr = event.get('workflow_run') or {}
+          event_workflow = str(wr.get('name') or '')
+          event_conclusion = str(wr.get('conclusion') or '')
+          event_run_id = wr.get('id')
+
+          if event_workflow == 'The Business Flow Daily Production' and current:
+              if event_conclusion == 'success' and event_run_id:
+                  state['source_run_id'] = int(event_run_id)
+                  source_run_id = int(event_run_id)
+                  state['last_action'] = f'production_success:{current}'
+              elif event_conclusion and event_conclusion != 'success':
+                  state['last_action'] = f'production_{event_conclusion}:{current}'
+
+          daily_active = int(os.environ.get('DAILY_ACTIVE') or 0)
+          upload_active = int(os.environ.get('UPLOAD_ACTIVE') or 0)
+          latest_success = str(os.environ.get('LATEST_SUCCESS_RUN') or '').strip()
+
+          # Never start another job while either worker is actually active.
+          if daily_active or upload_active:
+              reason = 'worker already active'
+          else:
+              # Reconcile the current topic first.
+              if current:
+                  item = by_id.get(current)
+                  status = str((item or {}).get('status') or '')
+
+                  if status in {'uploaded_private', 'used'}:
+                      state['last_action'] = f'completed:{current}'
+                      state['current_topic'] = None
+                      state['source_run_id'] = None
+                      current = None
+                      source_run_id = None
+                  elif status == 'rendered_pending_manual_upload':
+                      # A successful Daily Production workflow automatically launches the
+                      # private uploader. When this orchestration was itself triggered by
+                      # that successful production, give the workflow_run trigger time to
+                      # create the upload job instead of creating a duplicate upload.
+                      if event_workflow == 'The Business Flow Daily Production' and event_conclusion == 'success':
+                          reason = 'production finished; waiting for automatic private upload'
+                      else:
+                          if not source_run_id and latest_success:
+                              source_run_id = int(latest_success)
+                              state['source_run_id'] = source_run_id
+                          count = int(upload_attempts.get(current) or 0)
+                          if source_run_id and count < max_upload:
+                              upload_attempts[current] = count + 1
+                              action = 'retry_upload'
+                              topic_id = current
+                              reason = f'retrying private upload attempt {count + 1}/{max_upload}'
+                          elif count >= max_upload:
+                              if item:
+                                  item['status'] = 'queue_blocked'
+                                  item['queue_block_reason'] = 'private upload failed after maximum retries'
+                                  item['queue_blocked_at'] = now
+                              state['last_action'] = f'blocked_upload:{current}'
+                              state['current_topic'] = None
+                              state['source_run_id'] = None
+                              current = None
+                              source_run_id = None
+                              reason = 'upload retry limit reached; moving to next topic'
+                          else:
+                              reason = 'waiting for a valid production run id before upload retry'
+                  elif status == 'ready':
+                      count = int(production_attempts.get(current) or 0)
+                      if count < max_prod:
+                          production_attempts[current] = count + 1
+                          action = 'dispatch_production'
+                          topic_id = current
+                          reason = f'retrying production attempt {count + 1}/{max_prod}'
+                      else:
+                          if item:
+                              item['status'] = 'queue_blocked'
+                              item['queue_block_reason'] = 'production failed after maximum retries'
+                              item['queue_blocked_at'] = now
+                          state['last_action'] = f'blocked_production:{current}'
+                          state['current_topic'] = None
+                          state['source_run_id'] = None
+                          current = None
+                          source_run_id = None
+                          reason = 'production retry limit reached; moving to next topic'
+                  elif status == 'queue_blocked':
+                      state['current_topic'] = None
+                      state['source_run_id'] = None
+                      current = None
+                      source_run_id = None
+                  else:
+                      reason = f'current topic status is {status or "unknown"}; waiting'
+
+              # Pick the next ready topic only when the current one has fully completed
+              # or was explicitly blocked after retries.
+              if not current and action == 'wait':
+                  for candidate in batch_ids:
+                      item = by_id.get(candidate)
+                      if item and str(item.get('status') or '') == 'ready':
+                          state['current_topic'] = candidate
+                          state['source_run_id'] = None
+                          current = candidate
+                          count = int(production_attempts.get(candidate) or 0) + 1
+                          production_attempts[candidate] = count
+                          action = 'dispatch_production'
+                          topic_id = candidate
+                          reason = f'starting next queued topic attempt {count}/{max_prod}'
+                          break
+                  else:
+                      remaining = [x for x in batch_ids if str((by_id.get(x) or {}).get('status') or '') not in {'uploaded_private', 'used', 'queue_blocked'}]
+                      reason = 'queue complete' if not remaining else 'no ready topic available yet'
+
+          if action == 'retry_upload':
+              item = by_id.get(topic_id) or {}
+              trigger = {
+                  'topic_id': topic_id,
+                  'topic': item.get('topic') or topic_id,
+                  'source_run_id': int(source_run_id),
+                  'mode': 'private_youtube_upload_retry',
+                  'requested_at': now,
+              }
+              Path('production/private-upload-now.json').write_text(json.dumps(trigger, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          state['updated_at'] = now
+          state['last_reason'] = reason
+          state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          topics_path.write_text(json.dumps(topics_doc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          print(f'action={action}')
+          print(f'topic_id={topic_id}')
+          print(f'reason={reason}')
+          print(f'source_run_id={source_run_id or ""}')
+          print('Queue plan:', action, topic_id, '-', reason)
+          PY
+
+      - name: Persist queue state safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/queue-state.json production/topics.json
+          if [ -f production/private-upload-now.json ]; then
+            git add production/private-upload-now.json
+          fi
+          if git diff --cached --quiet; then
+            echo 'No queue state change to commit.'
+            exit 0
+          fi
+          git commit -m "Advance sequential video production queue"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
+
+      - name: Start exactly one Daily Production run
+        if: steps.plan.outputs.action == 'dispatch_production'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOPIC='${{ steps.plan.outputs.topic_id }}'
+          test -n "$TOPIC"
+          gh workflow run daily-production.yml \
+            --repo '${{ github.repository }}' \
+            --ref main \
+            -f topic_id="$TOPIC" \
+            -f upload_and_schedule=false
+          echo "Started one production only: $TOPIC"
+
+      - name: Private upload retry is triggered by checkpoint push
+        if: steps.plan.outputs.action == 'retry_upload'
+        shell: bash
+        run: |
+          echo "Queued private upload retry for ${{ steps.plan.outputs.topic_id }} using production run ${{ steps.plan.outputs.source_run_id }}."
+
+      - name: Queue summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Sequential queue orchestrator'
+            echo '- Action: ${{ steps.plan.outputs.action }}'
+            echo '- Topic: ${{ steps.plan.outputs.topic_id }}'
+            echo '- Reason: ${{ steps.plan.outputs.reason }}'
+            echo '- Policy: exactly one production at a time; private upload must finish before the next topic starts.'
+            echo '- Backup cron: every 10 minutes.'
+          } >> "$GITHUB_STEP_SUMMARY"
