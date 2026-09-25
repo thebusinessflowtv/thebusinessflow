@@ -1,0 +1,280 @@
+name: Meta VR Smooth 4K Private Upload
+
+on:
+  push:
+    paths:
+      - 'production/meta-vr-smooth4k-request.json'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: meta-vr-smooth-4k-private-upload
+  cancel-in-progress: false
+
+jobs:
+  smooth-4k-upload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read request
+        id: req
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d=json.load(open('production/meta-vr-smooth4k-request.json', encoding='utf-8'))
+          for k in ('topic_id','artifact_id','visual_url'):
+              print(f"{k}={d[k]}")
+          PY
+
+      - name: Fetch original package metadata and thumbnail
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovered
+          python - <<'PY'
+          import os, struct, zlib, urllib.request, urllib.error, pathlib
+          aid=int('${{ steps.req.outputs.artifact_id }}')
+          api=f"https://api.github.com/repos/thebusinessflowtv/thebusinessflow/actions/artifacts/{aid}/zip"
+          req=urllib.request.Request(api, headers={'Authorization':f"Bearer {os.environ['GH_TOKEN']}",'Accept':'application/vnd.github+json','User-Agent':'tbf-smooth4k'})
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl): return None
+          try:
+              urllib.request.build_opener(NoRedirect).open(req, timeout=30)
+              raise RuntimeError('expected redirect')
+          except urllib.error.HTTPError as e:
+              if e.code not in (301,302,303,307,308): raise
+              url=e.headers['Location']
+          def rg(a,b):
+              q=urllib.request.Request(url, headers={'Range':f'bytes={a}-{b}','User-Agent':'tbf-smooth4k'})
+              with urllib.request.urlopen(q, timeout=60) as r: return r.read(),r.headers
+          _,h=rg(0,0); cr=h.get('Content-Range'); size=int(cr.split('/')[-1]) if cr else int(h['Content-Length'])
+          tail_start=max(0,size-131072); tail,_=rg(tail_start,size-1); p=tail.rfind(b'PK\x05\x06')
+          if p<0: raise RuntimeError('EOCD not found')
+          _,_,_,_,_,cd_size,cd_off,_=struct.unpack('<4s4H2IH',tail[p:p+22])
+          cd,_=rg(cd_off,cd_off+cd_size-1)
+          entries=[]; p=0
+          while p+46<=len(cd) and cd[p:p+4]==b'PK\x01\x02':
+              v=struct.unpack('<4s6H3I5H2I',cd[p:p+46]); method=v[4]; csize=v[8]; usize=v[9]; fnl=v[10]; exl=v[11]; col=v[12]; loff=v[16]
+              name=cd[p+46:p+46+fnl].decode('utf-8','replace'); entries.append((name,method,csize,usize,loff)); p+=46+fnl+exl+col
+          wanted=[]
+          for e in entries:
+              n=e[0]
+              if n.endswith('/episode-package.json') or n=='rendered/metadata.json' or n=='rendered/thumbnail.png': wanted.append(e)
+          if len(wanted)!=3: raise RuntimeError(f'Expected 3 source files, got {[e[0] for e in wanted]}')
+          for name,method,csize,usize,loff in wanted:
+              hdr,_=rg(loff,loff+29); hv=struct.unpack('<4s5H3I2H',hdr); fnl,exl=hv[-2],hv[-1]; start=loff+30+fnl+exl
+              comp,_=rg(start,start+csize-1)
+              raw=comp if method==0 else zlib.decompress(comp,-15) if method==8 else None
+              if raw is None: raise RuntimeError(f'Unsupported zip method {method}')
+              out=pathlib.Path('recovered')/pathlib.Path(name).name; out.write_bytes(raw); print('Recovered',name,'->',out,len(raw))
+          PY
+          test -s recovered/episode-package.json
+          test -s recovered/metadata.json
+          test -s recovered/thumbnail.png
+
+      - name: Set up Python and FFmpeg
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install media dependencies and uploader
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install edge-tts
+          pip install -r youtube-worker/requirements.txt
+          ffmpeg -version | head -1
+
+      - name: Recreate identical narration content and voice settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import asyncio, json, edge_tts
+          p=json.load(open('recovered/episode-package.json', encoding='utf-8'))
+          script=str(p['script']).strip()
+          async def main():
+              c=edge_tts.Communicate(script, voice='en-US-AndrewNeural', rate='-4%')
+              await c.save('recovered/narration.mp3')
+          asyncio.run(main())
+          PY
+          test -s recovered/narration.mp3
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 recovered/narration.mp3 | tee recovered/narration-duration.txt
+
+      - name: Download previous user-image visual track
+        shell: bash
+        env:
+          VISUAL_URL: ${{ steps.req.outputs.visual_url }}
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 --connect-timeout 20 "$VISUAL_URL" -o recovered/source-user-images.mp4
+          test -s recovered/source-user-images.mp4
+          ffprobe -v error -show_entries format=duration -show_entries stream=width,height,r_frame_rate -of json recovered/source-user-images.mp4
+
+      - name: Recover the same 33 user images from the visual track
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovered/frames
+          python - <<'PY'
+          import subprocess, pathlib
+          out=pathlib.Path('recovered/frames')
+          for i in range(33):
+              ts=i*30.0 + 0.10
+              target=out/f'frame_{i+1:02d}.png'
+              subprocess.run([
+                  'ffmpeg','-hide_banner','-loglevel','error','-y','-ss',f'{ts:.2f}',
+                  '-i','recovered/source-user-images.mp4','-frames:v','1',
+                  '-vf','scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1920:1080',
+                  str(target)
+              ],check=True)
+          print('Recovered frames:',len(list(out.glob('*.png'))))
+          PY
+          test "$(find recovered/frames -name 'frame_*.png' | wc -l)" -eq 33
+
+      - name: Render stabilized smooth zoom picture track
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovered/segments
+          python - <<'PY'
+          import pathlib, subprocess, math, json
+          fps=24
+          audio=float(pathlib.Path('recovered/narration-duration.txt').read_text().strip())
+          frames=sorted(pathlib.Path('recovered/frames').glob('frame_*.png'))
+          per=audio/len(frames)
+          concat=[]
+          log=[]
+          for idx,img in enumerate(frames,1):
+              sec=per if idx < len(frames) else audio-per*(len(frames)-1)
+              n=max(2,round(sec*fps))
+              denom=max(1,n-1)
+              # Stable center-locked zoom: pre-scale above output resolution first,
+              # then perform only a gentle 3% zoom. No pan and no moving focal point.
+              z=f"1.0+0.03*on/{denom}"
+              vf=(
+                  "scale=2304:1296:force_original_aspect_ratio=increase:flags=lanczos,"
+                  "crop=2304:1296,"
+                  f"zoompan=z='{z}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:s=1920x1080:fps={fps},"
+                  "format=yuv420p"
+              )
+              seg=pathlib.Path('recovered/segments')/f'scene_{idx:02d}.mp4'
+              subprocess.run([
+                  'ffmpeg','-hide_banner','-loglevel','error','-y','-loop','1','-framerate',str(fps),'-i',str(img),
+                  '-t',f'{sec:.3f}','-vf',vf,'-an','-c:v','libx264','-preset','ultrafast','-crf','19',
+                  '-r',str(fps),'-pix_fmt','yuv420p',str(seg)
+              ],check=True)
+              concat.append(f"file '{seg.name}'")
+              log.append({'scene':idx,'duration_sec':round(sec,3),'zoom':'1.00->1.03','anchor':'center-fixed','pan':False})
+          pathlib.Path('recovered/segments/concat.txt').write_text('\n'.join(concat)+'\n')
+          pathlib.Path('recovered/stabilization.json').write_text(json.dumps(log,indent=2))
+          PY
+          (cd recovered/segments && ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i concat.txt -c copy ../picture-1080-smooth.mp4)
+          ffmpeg -v error -i recovered/picture-1080-smooth.mp4 -f null -
+
+      - name: Master to true 3840x2160 4K and mux narration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADUR=$(cat recovered/narration-duration.txt)
+          ffmpeg -hide_banner -loglevel error -y \
+            -i recovered/picture-1080-smooth.mp4 \
+            -vf "scale=3840:2160:flags=lanczos,format=yuv420p" \
+            -t "$ADUR" -an -c:v libx264 -preset ultrafast -crf 18 -r 24 -pix_fmt yuv420p \
+            recovered/picture-4k-smooth.mp4
+          ffmpeg -hide_banner -loglevel error -y \
+            -i recovered/picture-4k-smooth.mp4 -i recovered/narration.mp3 \
+            -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 \
+            -shortest -movflags +faststart recovered/final-meta-vr-smooth-4k.mp4
+          ffmpeg -v error -i recovered/final-meta-vr-smooth-4k.mp4 -f null -
+          ffmpeg -v error -i recovered/final-meta-vr-smooth-4k.mp4 -map 0:a:0 -f null -
+          python - <<'PY'
+          import json, subprocess
+          raw=subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=width,height,codec_name,r_frame_rate','-of','json','recovered/final-meta-vr-smooth-4k.mp4'],text=True)
+          d=json.loads(raw); s=d['streams'][0]
+          assert (int(s['width']),int(s['height']))==(3840,2160),s
+          print(json.dumps(d,indent=2))
+          PY
+          ffprobe -v error -show_entries format=duration,size -of json recovered/final-meta-vr-smooth-4k.mp4 | tee recovered/final-probe.json
+
+      - name: Force original metadata to PRIVATE only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('recovered/metadata.json', encoding='utf-8'))
+          d.pop('publish_at',None)
+          d['render_resolution']='3840x2160'
+          json.dump(d,open('recovered/private-metadata.json','w',encoding='utf-8'),ensure_ascii=False,indent=2)
+          PY
+          test -n "$YOUTUBE_CLIENT_ID"
+          test -n "$YOUTUBE_CLIENT_SECRET"
+          test -n "$YOUTUBE_REFRESH_TOKEN"
+          test -n "$YOUTUBE_CHANNEL_ID"
+
+      - name: Upload stabilized 4K recut as NEW PRIVATE YouTube video
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f recovered/youtube-upload-private.json
+          python youtube-worker/youtube_private_uploader.py \
+            --video recovered/final-meta-vr-smooth-4k.mp4 \
+            --thumbnail recovered/thumbnail.png \
+            --metadata recovered/private-metadata.json \
+            --checkpoint recovered/youtube-upload-private.json
+
+      - name: Verify and persist private checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('recovered/youtube-upload-private.json',encoding='utf-8'))
+          assert d.get('youtube_video_id'),d
+          assert d.get('privacy_status')=='private',d
+          assert not d.get('scheduled'),d
+          assert not d.get('publish_at'),d
+          print('PRIVATE SMOOTH 4K META VR',d['youtube_video_id'],d['youtube_permalink'])
+          PY
+          TOPIC='custom-meta-vr-glasses-2026-09-recut-user-images-smooth-4k'
+          mkdir -p production/youtube-checkpoints
+          cp recovered/youtube-upload-private.json "production/youtube-checkpoints/${TOPIC}.json"
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add "production/youtube-checkpoints/${TOPIC}.json"
+          git commit -m "Checkpoint private smooth 4K Meta VR recut"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
+
+      - name: Preserve downloadable 4K master and checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meta-vr-smooth-4k-${{ github.run_id }}
+          path: |
+            recovered/final-meta-vr-smooth-4k.mp4
+            recovered/youtube-upload-private.json
+            recovered/private-metadata.json
+            recovered/final-probe.json
+            recovered/stabilization.json
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
