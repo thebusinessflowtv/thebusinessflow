@@ -1,0 +1,206 @@
+name: Meta VR Recut Fast Private Upload
+
+on:
+  push:
+    paths:
+      - 'production/meta-vr-recut-fast-request.json'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: meta-vr-recut-fast-private-upload
+  cancel-in-progress: false
+
+jobs:
+  recut-upload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read request
+        id: req
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d=json.load(open('production/meta-vr-recut-fast-request.json', encoding='utf-8'))
+          for k in ('topic_id','artifact_id','visual_url'):
+              print(f"{k}={d[k]}")
+          PY
+
+      - name: Fetch only original script metadata and thumbnail from production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovered
+          python - <<'PY'
+          import os, struct, zlib, urllib.request, urllib.error, pathlib
+          aid=int('${{ steps.req.outputs.artifact_id }}')
+          api=f"https://api.github.com/repos/thebusinessflowtv/thebusinessflow/actions/artifacts/{aid}/zip"
+          req=urllib.request.Request(api, headers={'Authorization':f"Bearer {os.environ['GH_TOKEN']}",'Accept':'application/vnd.github+json','User-Agent':'tbf-recut'})
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl): return None
+          try:
+              urllib.request.build_opener(NoRedirect).open(req, timeout=30)
+              raise RuntimeError('expected redirect')
+          except urllib.error.HTTPError as e:
+              if e.code not in (301,302,303,307,308): raise
+              url=e.headers['Location']
+          def rg(a,b):
+              q=urllib.request.Request(url, headers={'Range':f'bytes={a}-{b}','User-Agent':'tbf-recut'})
+              with urllib.request.urlopen(q, timeout=60) as r: return r.read(),r.headers
+          _,h=rg(0,0); cr=h.get('Content-Range'); size=int(cr.split('/')[-1]) if cr else int(h['Content-Length'])
+          tail_start=max(0,size-131072); tail,_=rg(tail_start,size-1); p=tail.rfind(b'PK\x05\x06')
+          if p<0: raise RuntimeError('EOCD not found')
+          _,_,_,_,_,cd_size,cd_off,_=struct.unpack('<4s4H2IH',tail[p:p+22])
+          cd,_=rg(cd_off,cd_off+cd_size-1)
+          entries=[]; p=0
+          while p+46<=len(cd) and cd[p:p+4]==b'PK\x01\x02':
+              v=struct.unpack('<4s6H3I5H2I',cd[p:p+46]); method=v[4]; csize=v[8]; usize=v[9]; fnl=v[10]; exl=v[11]; col=v[12]; loff=v[16]
+              name=cd[p+46:p+46+fnl].decode('utf-8','replace'); entries.append((name,method,csize,usize,loff)); p+=46+fnl+exl+col
+          wanted=[]
+          for e in entries:
+              n=e[0]
+              if n.endswith('/episode-package.json') or n=='rendered/metadata.json' or n=='rendered/thumbnail.png': wanted.append(e)
+          if len(wanted)!=3: raise RuntimeError(f'Expected 3 source files, got {[e[0] for e in wanted]}')
+          for name,method,csize,usize,loff in wanted:
+              hdr,_=rg(loff,loff+29); hv=struct.unpack('<4s5H3I2H',hdr); fnl,exl=hv[-2],hv[-1]; start=loff+30+fnl+exl
+              comp,_=rg(start,start+csize-1)
+              raw=comp if method==0 else zlib.decompress(comp,-15) if method==8 else None
+              if raw is None: raise RuntimeError(f'Unsupported zip method {method}')
+              out=pathlib.Path('recovered')/pathlib.Path(name).name; out.write_bytes(raw); print('Recovered',name,'->',out,len(raw))
+          PY
+          test -s recovered/episode-package.json
+          test -s recovered/metadata.json
+          test -s recovered/thumbnail.png
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Recreate the SAME narration settings and install uploader
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip install edge-tts
+          pip install -r youtube-worker/requirements.txt
+          python - <<'PY'
+          import asyncio, json, edge_tts
+          p=json.load(open('recovered/episode-package.json', encoding='utf-8'))
+          script=str(p['script']).strip()
+          async def main():
+              c=edge_tts.Communicate(script, voice='en-US-AndrewNeural', rate='-4%')
+              await c.save('recovered/narration.mp3')
+          asyncio.run(main())
+          PY
+          test -s recovered/narration.mp3
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 recovered/narration.mp3 | tee recovered/narration-duration.txt
+
+      - name: Download new visual track made from user images
+        shell: bash
+        env:
+          VISUAL_URL: ${{ steps.req.outputs.visual_url }}
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 --connect-timeout 20 "$VISUAL_URL" -o recovered/new-visual.mp4
+          test -s recovered/new-visual.mp4
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 recovered/new-visual.mp4 | tee recovered/visual-duration.txt
+
+      - name: Mux new images with same narration only
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADUR=$(cat recovered/narration-duration.txt)
+          VDUR=$(cat recovered/visual-duration.txt)
+          python - <<'PY' > recovered/duration-mode.txt
+          a=float(open('recovered/narration-duration.txt').read().strip()); v=float(open('recovered/visual-duration.txt').read().strip())
+          print('extend' if a > v + 0.05 else 'trim')
+          print(max(0.0,a-v))
+          PY
+          MODE=$(sed -n '1p' recovered/duration-mode.txt)
+          EXTRA=$(sed -n '2p' recovered/duration-mode.txt)
+          if [ "$MODE" = "extend" ]; then
+            ffmpeg -hide_banner -loglevel error -y -i recovered/new-visual.mp4 -vf "tpad=stop_mode=clone:stop_duration=${EXTRA}" -t "$ADUR" -an -c:v libx264 -preset veryfast -crf 22 -r 24 -pix_fmt yuv420p recovered/picture.mp4
+          else
+            ffmpeg -hide_banner -loglevel error -y -i recovered/new-visual.mp4 -t "$ADUR" -an -c:v copy recovered/picture.mp4
+          fi
+          ffmpeg -hide_banner -loglevel error -y -i recovered/picture.mp4 -i recovered/narration.mp3 \
+            -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -shortest -movflags +faststart recovered/final-recut.mp4
+          ffmpeg -v error -i recovered/final-recut.mp4 -f null -
+          ffmpeg -v error -i recovered/final-recut.mp4 -map 0:a:0 -f null -
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height -of json recovered/final-recut.mp4
+
+      - name: Force original metadata to PRIVATE only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('recovered/metadata.json', encoding='utf-8'))
+          d.pop('publish_at',None)
+          json.dump(d,open('recovered/private-metadata.json','w',encoding='utf-8'),ensure_ascii=False,indent=2)
+          PY
+          test -n "$YOUTUBE_CLIENT_ID"
+          test -n "$YOUTUBE_CLIENT_SECRET"
+          test -n "$YOUTUBE_REFRESH_TOKEN"
+          test -n "$YOUTUBE_CHANNEL_ID"
+
+      - name: Upload recut as NEW PRIVATE YouTube video
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f recovered/youtube-upload-private.json
+          python youtube-worker/youtube_private_uploader.py \
+            --video recovered/final-recut.mp4 \
+            --thumbnail recovered/thumbnail.png \
+            --metadata recovered/private-metadata.json \
+            --checkpoint recovered/youtube-upload-private.json
+
+      - name: Verify and persist recut checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('recovered/youtube-upload-private.json',encoding='utf-8'))
+          assert d.get('youtube_video_id'),d
+          assert d.get('privacy_status')=='private',d
+          assert not d.get('scheduled'),d
+          assert not d.get('publish_at'),d
+          print('NEW PRIVATE META VR RECUT',d['youtube_video_id'],d['youtube_permalink'])
+          PY
+          TOPIC='custom-meta-vr-glasses-2026-09-recut-user-images'
+          mkdir -p production/youtube-checkpoints
+          cp recovered/youtube-upload-private.json "production/youtube-checkpoints/${TOPIC}.json"
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add "production/youtube-checkpoints/${TOPIC}.json"
+          git commit -m "Checkpoint private Meta VR recut with user images"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
+
+      - name: Preserve recut checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meta-vr-recut-fast-${{ github.run_id }}
+          path: |
+            recovered/youtube-upload-private.json
+            recovered/narration-duration.txt
+            recovered/visual-duration.txt
+          if-no-files-found: warn
+          retention-days: 14
