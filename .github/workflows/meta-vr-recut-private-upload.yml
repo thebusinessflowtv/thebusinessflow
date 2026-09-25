@@ -1,0 +1,154 @@
+name: Meta VR Recut Private YouTube Upload
+
+on:
+  push:
+    paths:
+      - 'production/meta-vr-recut-upload.json'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: meta-vr-recut-private-upload
+  cancel-in-progress: false
+
+jobs:
+  upload-recut-private:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read recut request
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d=json.load(open('production/meta-vr-recut-upload.json', encoding='utf-8'))
+          print('source_run_id=' + str(int(d['source_run_id'])))
+          print('topic_id=' + d['topic_id'])
+          print('video_url=' + d['video_url'])
+          PY
+
+      - name: Download original Meta artifact for metadata and thumbnail
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tbf-production-*
+          path: original
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.request.outputs.source_run_id }}
+
+      - name: Download new image-only recut
+        shell: bash
+        env:
+          RECUT_URL: ${{ steps.request.outputs.video_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p recut/rendered
+          python - <<'PY'
+          import os, urllib.request
+          url=os.environ['RECUT_URL']
+          out='recut/rendered/final.mp4'
+          req=urllib.request.Request(url, headers={'User-Agent':'Mozilla/5.0'})
+          with urllib.request.urlopen(req, timeout=120) as r, open(out,'wb') as f:
+              while True:
+                  chunk=r.read(1024*1024)
+                  if not chunk: break
+                  f.write(chunk)
+          print('Downloaded', out, os.path.getsize(out))
+          PY
+          test -s recut/rendered/final.mp4
+          ffprobe -v error -show_entries format=duration,size -of json recut/rendered/final.mp4
+
+      - name: Prepare original metadata and thumbnail
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s original/rendered/metadata.json
+          test -s original/rendered/thumbnail.png
+          cp original/rendered/thumbnail.png recut/rendered/thumbnail.png
+          python - <<'PY'
+          import json
+          src='original/rendered/metadata.json'
+          dst='recut/rendered/private-metadata.json'
+          d=json.load(open(src, encoding='utf-8'))
+          d.pop('publish_at', None)
+          json.dump(d, open(dst,'w',encoding='utf-8'), ensure_ascii=False, indent=2)
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install YouTube dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip install -r youtube-worker/requirements.txt
+          test -n "$YOUTUBE_CLIENT_ID"
+          test -n "$YOUTUBE_CLIENT_SECRET"
+          test -n "$YOUTUBE_REFRESH_TOKEN"
+          test -n "$YOUTUBE_CHANNEL_ID"
+
+      - name: Upload recut as NEW PRIVATE video
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f recut/rendered/youtube-upload-private.json
+          python youtube-worker/youtube_private_uploader.py \
+            --video recut/rendered/final.mp4 \
+            --thumbnail recut/rendered/thumbnail.png \
+            --metadata recut/rendered/private-metadata.json \
+            --checkpoint recut/rendered/youtube-upload-private.json
+
+      - name: Verify new private upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('recut/rendered/youtube-upload-private.json', encoding='utf-8'))
+          assert d.get('youtube_video_id'), d
+          assert d.get('privacy_status') == 'private', d
+          assert not d.get('scheduled'), d
+          assert not d.get('publish_at'), d
+          print('NEW PRIVATE recut verified:', d['youtube_video_id'])
+          print('Permalink:', d['youtube_permalink'])
+          PY
+
+      - name: Persist recut checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOPIC='${{ steps.request.outputs.topic_id }}'
+          mkdir -p production/youtube-checkpoints
+          cp recut/rendered/youtube-upload-private.json "production/youtube-checkpoints/${TOPIC}.json"
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add "production/youtube-checkpoints/${TOPIC}.json"
+          git commit -m "Checkpoint private YouTube recut ${TOPIC}"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
+
+      - name: Preserve recut upload checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meta-vr-recut-youtube-${{ github.run_id }}
+          path: recut/rendered/youtube-upload-private.json
+          if-no-files-found: warn
+          retention-days: 14
