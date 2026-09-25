@@ -35,7 +35,7 @@ jobs:
       ANTHROPIC_RESEARCH_MODEL: ${{ vars.ANTHROPIC_RESEARCH_MODEL || 'claude-haiku-4-5-20251001' }}
       ANTHROPIC_SCRIPT_MODEL: ${{ vars.ANTHROPIC_SCRIPT_MODEL || 'claude-sonnet-5' }}
       ANTHROPIC_RESEARCH_MAX_USD: ${{ vars.ANTHROPIC_RESEARCH_MAX_USD || '0.030' }}
-      ANTHROPIC_TOTAL_BUDGET_USD: ${{ vars.ANTHROPIC_TOTAL_BUDGET_USD || '0.080' }}
+      ANTHROPIC_TOTAL_BUDGET_USD: '0.100'
       VISUAL_IMAGE_TARGET: '50'
       VISUAL_IMAGE_MIN: '40'
       VISUAL_MAX_PER_QUERY: '7'
@@ -114,7 +114,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: production/package-cache/${{ steps.setup.outputs.topic_id }}
-          key: tbf-sonnet-package-v2-${{ steps.setup.outputs.topic_id }}
+          key: tbf-sonnet-package-v3-${{ steps.setup.outputs.topic_id }}
 
       - name: Restore visual asset cache
         id: visual-cache
@@ -152,7 +152,7 @@ jobs:
           pip install -r production/requirements.txt
           pip install -r youtube-worker/requirements.txt
           git lfs pull
-          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/recover_paid_episode.py production/collect_visual_assets.py production/render_episode.py
+          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/generate_episode_v3.py production/recover_paid_episode.py production/recover_paid_episode_v3.py production/collect_visual_assets.py production/render_episode.py
           test -s media-library/catalog.json
           ffmpeg -version >/dev/null
 
@@ -247,14 +247,14 @@ jobs:
           print('Topic visuals verified:', len(assets), 'unique 16:9 images; Anthropic visual calls: 0')
           PY
 
-      - name: Sonnet 5 writing — no web, thinking disabled, cache first
+      - name: Sonnet 5 writing — script first, no web, cache first
         id: sonnet
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
           rm -rf production/output
-          python production/generate_episode.py --topic-id "${{ steps.setup.outputs.topic_id }}"
+          python production/generate_episode_v3.py --topic-id "${{ steps.setup.outputs.topic_id }}"
 
       - name: Save Sonnet paid state immediately
         if: always() && steps.package-cache.outputs.cache-hit != 'true'
@@ -264,14 +264,21 @@ jobs:
           key: ${{ steps.package-cache.outputs.cache-primary-key }}
 
       - name: Recover already-paid Sonnet output locally
-        if: steps.sonnet.outcome == 'failure'
+        if: steps.sonnet.outcome == 'failure' && hashFiles(format('production/package-cache/{0}/sonnet-response.json', steps.setup.outputs.topic_id)) != ''
         shell: bash
         env:
           ANTHROPIC_API_KEY: ''
         run: |
           set -euo pipefail
-          echo 'Sonnet output already exists. Repairing locally; Anthropic API is disabled for this step.'
-          python production/recover_paid_episode.py --topic-id "${{ steps.setup.outputs.topic_id }}"
+          echo 'A paid Sonnet snapshot exists. Repairing locally; Anthropic API is disabled for this step.'
+          python production/recover_paid_episode_v3.py --topic-id "${{ steps.setup.outputs.topic_id }}"
+
+      - name: Fail clearly when Sonnet failed before creating a paid snapshot
+        if: steps.sonnet.outcome == 'failure' && hashFiles(format('production/package-cache/{0}/sonnet-response.json', steps.setup.outputs.topic_id)) == ''
+        shell: bash
+        run: |
+          echo 'Sonnet failed before a paid response existed; inspect the preflight error.'
+          exit 1
 
       - name: Verify publication package before render
         shell: bash
@@ -285,9 +292,10 @@ jobs:
           assert p.get('script')
           assert p.get('selected_title')
           assert p.get('tags')
-          assert float((p.get('anthropic_cost') or {}).get('total_usd') or 0) <= 0.080
+          total=float((p.get('anthropic_cost') or {}).get('total_usd') or 0)
+          assert total <= 0.100, total
           print('Package verified:', p['selected_title'])
-          print('Anthropic total:', (p.get('anthropic_cost') or {}).get('total_usd'))
+          print('Anthropic total:', total)
           PY
 
       - name: Render and validate — 40-50 images, 5-8 unique videos, zero loops
