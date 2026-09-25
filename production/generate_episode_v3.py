@@ -15,6 +15,10 @@ except ModuleNotFoundError:
     import generate_episode as core
     from anthropic_budget import safe_response_snapshot, usage_dict
 
+# Keep references to the original core functions before installing V3 overrides.
+# Without this, the wrapper's build_prompt would call itself recursively.
+_original_build_prompt = core.build_prompt
+
 # V3 makes the long narration the first tool field so a max-token stop cannot
 # consume the output budget on packaging metadata before the actual script exists.
 _original_properties = core.EPISODE_TOOL["input_schema"]["properties"]
@@ -90,7 +94,7 @@ def validate_package(data: dict[str, Any], topic: dict[str, Any]) -> None:
 
 
 def build_prompt(topic: dict[str, Any], research: dict[str, Any], editorial: dict[str, Any]) -> str:
-    base = core.build_prompt(topic, research, editorial)
+    base = _original_build_prompt(topic, research, editorial)
     return base + f"""
 
 OUTPUT ORDER — CRITICAL
