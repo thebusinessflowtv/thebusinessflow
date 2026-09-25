@@ -1,0 +1,122 @@
+name: The Business Flow Bulk Topic Production
+
+on:
+  push:
+    paths:
+      - 'production/bulk-topic-request.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: the-business-flow-bulk-topic-launcher
+  cancel-in-progress: false
+
+jobs:
+  register-and-launch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Register ordered topic batch
+        id: batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          request_path = Path('production/bulk-topic-request.json')
+          topics_path = Path('production/topics.json')
+          request = json.loads(request_path.read_text(encoding='utf-8'))
+          data = json.loads(topics_path.read_text(encoding='utf-8'))
+          batch = request.get('topics') or []
+          if not batch:
+              raise SystemExit('bulk-topic-request.json requires a non-empty topics array')
+
+          now = datetime.now(timezone.utc).isoformat()
+          topics = data.get('topics') or []
+          ids = []
+          # Insert in reverse so the user's requested order remains at the front.
+          for raw in reversed(batch):
+              item = dict(raw)
+              topic_id = str(item.get('id') or '').strip()
+              topic_name = str(item.get('topic') or '').strip()
+              if not topic_id or not topic_name:
+                  raise SystemExit('Every bulk topic requires id and topic')
+              item['id'] = topic_id
+              item['topic'] = topic_name
+              item['status'] = 'ready'
+              item.setdefault('category', 'US business documentary')
+              item.setdefault('working_angle', topic_name)
+              item.setdefault('title_seed', item['working_angle'])
+              item.setdefault('thumbnail_text_seed', '')
+              item.setdefault('click_score', 100)
+              item.setdefault('click_reason', 'User-requested high-curiosity business documentary.')
+              item.setdefault('language', 'en-US')
+              item.setdefault('audience', 'United States')
+              item['scored_at'] = now
+
+              existing = next((i for i,t in enumerate(topics) if str(t.get('id')) == topic_id), None)
+              if existing is None:
+                  topics.insert(0, item)
+              else:
+                  previous = topics[existing]
+                  if previous.get('status') in {'uploaded_private', 'used'} and previous.get('youtube_video_id'):
+                      raise SystemExit(f'Topic id {topic_id} already has a durable YouTube upload; use a new id')
+                  topics[existing] = {**previous, **item}
+              ids.append(topic_id)
+
+          ids.reverse()
+          data['topics'] = topics
+          topics_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          Path('/tmp/topic_ids.json').write_text(json.dumps(ids), encoding='utf-8')
+          print(json.dumps({'count': len(ids), 'topic_ids': ids}, indent=2))
+          PY
+          echo "count=$(python -c 'import json; print(len(json.load(open("/tmp/topic_ids.json"))))')" >> "$GITHUB_OUTPUT"
+
+      - name: Commit registered batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/topics.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Register ordered business documentary batch"
+            git pull --rebase --autostash origin main
+            git push origin HEAD:main
+          else
+            echo 'Batch already registered; no queue commit needed.'
+          fi
+
+      - name: Dispatch every topic in requested order
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/topic_ids.txt
+          import json
+          for topic_id in json.load(open('/tmp/topic_ids.json')):
+              print(topic_id)
+          PY
+          while IFS= read -r TOPIC_ID; do
+            test -n "$TOPIC_ID"
+            gh workflow run daily-production.yml \
+              --repo "${{ github.repository }}" \
+              --ref main \
+              -f topic_id="$TOPIC_ID" \
+              -f upload_and_schedule=false
+            echo "Queued: $TOPIC_ID"
+            sleep 2
+          done < /tmp/topic_ids.txt
+          echo "All ${{ steps.batch.outputs.count }} topics dispatched. Daily Production concurrency will process them one at a time; successful runs will trigger PRIVATE YouTube upload automatically."
