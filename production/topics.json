@@ -10,6 +10,222 @@
   },
   "topics": [
     {
+      "id": "custom-10-american-billion-dollar-companies-2026-09",
+      "topic": "10 American Billion-Dollar Companies",
+      "category": "US companies rankings business empires",
+      "working_angle": "Build a factual countdown of ten major American companies with billion-dollar scale. Define the comparison metric clearly, avoid mixing revenue with market value, and use the final #1 company or the unifying money pattern as the central reveal.",
+      "title_seed": "10 American Companies That Quietly Built Billion-Dollar Empires",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Broad US familiarity plus money, ranking and a final reveal.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Use the Tesla packaging logic: familiar entity/category + unexpected mechanism + concrete financial consequence.",
+        "Open with a central mystery and tease the #1 company or surprising common pattern without revealing it.",
+        "Resolve the central mystery only in the final 10-15 percent.",
+        "Open and close smaller curiosity loops every 45-90 seconds.",
+        "Use factual clickbait only; every ranking and number must match the research metric."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-15-us-industries-billions-2026-09",
+      "topic": "15 U.S. Industries Moving Billions",
+      "category": "US industries economy billion dollar sectors",
+      "working_angle": "Create a high-energy countdown of fifteen American industries that move enormous amounts of money. Use one consistent economic metric where possible, explain what makes each industry economically powerful, and save the most surprising sector or cross-industry pattern for the ending.",
+      "title_seed": "15 U.S. Industries That Quietly Move Billions Every Year",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Large-number list with broad economic relevance and a strong #1 payoff.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Avoid encyclopedia pacing; every industry needs one surprising money mechanism or consequence.",
+        "Tease the #1 industry or a surprising pattern in the first 20 seconds and reveal it near the end.",
+        "Use transitions that make viewers want to see the next industry.",
+        "Do not compare incompatible metrics as if they were the same thing."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-top-5-most-valuable-us-companies-2026-09",
+      "topic": "5 Most Valuable U.S. Companies in 2026",
+      "category": "US companies market value ranking 2026",
+      "working_angle": "Rank the five most valuable U.S.-based public companies using a clearly dated and defined market-value metric. More importantly, explain the unexpected business engine behind each valuation and use the #1 company's real money mechanism as the final payoff.",
+      "title_seed": "The 5 Most Valuable U.S. Companies in 2026 — What Actually Makes Them So Big",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Current ranking plus the hidden-engine framing that performed well on Tesla.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Define most valuable by the researched metric and date.",
+        "Do not reveal #1 in the opening unless the title already gives it away.",
+        "Each company section should answer what people think it sells versus what actually drives its power or valuation."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-5-us-market-shaping-companies-2026-09",
+      "topic": "5 U.S. Market-Shaping Companies",
+      "brand": "U.S.",
+      "category": "US market concentration platforms infrastructure",
+      "working_angle": "Identify five U.S. companies with unusually large influence over major markets, platforms, infrastructure, distribution or supply chains. Replace vague claims of control with measurable market position, dependence, reach or concentration, and reveal the least obvious company or strongest chokepoint at the end.",
+      "title_seed": "5 U.S. Companies Behind More of the Market Than You Realize",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Power and market influence without unsupported conspiracy framing.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Never claim secret control unless evidence directly supports it.",
+        "Use concrete market share, platform dependence, distribution, infrastructure or supply-chain evidence.",
+        "Open with a familiar daily-life example and reveal the least obvious company near the end."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-3-american-global-giants-2026-09",
+      "topic": "3 American Companies at the Top of the World in 2026",
+      "category": "global company valuation US 2026",
+      "working_angle": "Identify three U.S. companies that sit near the top of a clearly defined global company ranking in 2026. Explain the less obvious business engine behind each one and save the strongest contrast between what the public sees and what creates value for the final reveal.",
+      "title_seed": "3 American Companies That Sit at the Top of the World in 2026",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Small countdown, enormous stakes and an easy-to-understand global payoff.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Define the ranking metric explicitly and date it.",
+        "Keep the #1 reveal open until late unless it is unavoidable from the title.",
+        "Build each section around a contradiction between public perception and the real economic engine."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-americas-richest-companies-metrics-2026-09",
+      "topic": "America's Richest Companies in 2026",
+      "category": "US companies revenue profit market value comparison",
+      "working_angle": "Turn the ambiguous phrase richest company into the story: compare market value, annual revenue and profit, show why each metric produces a different winner, and hold the most surprising winner or metric reversal for the ending.",
+      "title_seed": "America's Richest Companies in 2026 — The Ranking Changes Depending on One Number",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "A familiar ranking question with a built-in contradiction and late reveal.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Do not pretend richest has one universal definition.",
+        "Use the metric disagreement as the central open loop.",
+        "Reveal which company wins under each metric and explain why the rankings diverge near the end."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-5-companies-behind-global-infrastructure-2026-09",
+      "topic": "5 Companies Behind Global Infrastructure",
+      "category": "global infrastructure technology finance logistics supply chains",
+      "working_angle": "Find five companies whose technology, infrastructure, networks, payment rails, cloud systems, chips, logistics or other bottlenecks sit behind a surprising amount of the modern world. Keep the framing factual: hidden in plain sight, not a conspiracy. Save the least famous but most structurally important company for the final reveal when supported.",
+      "title_seed": "5 Companies Behind More of the World Than You Think",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Secret-feeling curiosity without unsupported secret-control claims.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Never imply a coordinated conspiracy or literal secret control without evidence.",
+        "Translate infrastructure dependence into concrete everyday consequences.",
+        "Tease the least obvious company in the opening and reveal it near the end."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-richest-american-family-2026-09",
+      "topic": "America's Richest Family in 2026",
+      "category": "US family wealth business empire 2026",
+      "working_angle": "Verify which family is the richest in the United States under a reputable 2026-or-latest-available wealth estimate, then tell the business story behind the fortune. Open on the scale of the wealth but hold back the counterintuitive source, structure or compounding mechanism that made the fortune so durable until the ending.",
+      "title_seed": "America's Richest Family Built a Fortune Most People Never See",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Human story, enormous money and a recognizable business empire.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Verify the family and wealth estimate; do not assume the seed answer is correct.",
+        "Distinguish family net-worth estimates from company market value.",
+        "Use the business mechanism behind the fortune as the final reveal."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-nvidia-real-money-engine-2026-09",
+      "topic": "NVIDIA",
+      "brand": "NVIDIA",
+      "category": "AI chips semiconductors market value business model",
+      "working_angle": "Explain why NVIDIA became one of America's most valuable companies by focusing on the business system behind the chips: data-center demand, platform economics, software ecosystem, pricing power or other research-supported drivers. Do not call it the richest company unless the dated metric proves it.",
+      "title_seed": "NVIDIA Isn't Just a Chip Company. Here's What Made It One of America's Most Valuable",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Direct Tesla-style formula: familiar company, unexpected second layer, enormous financial consequence.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Open with the contradiction that NVIDIA looks like a chip company but its durable advantage may be broader.",
+        "Plant one specific final-reveal question about what really makes the business hard to replace.",
+        "Do not reveal the full answer until the final 10-15 percent."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-google-real-money-machine-2026-09",
+      "topic": "Google",
+      "brand": "Google",
+      "category": "advertising search cloud revenue business model",
+      "working_angle": "Break down where Google/Alphabet actually makes its money using the latest reported segment and product revenue data. Start from the paradox that billions of people use Google products for free, then trace the business model and save the most important revenue engine or dependency for the final payoff.",
+      "title_seed": "Google Gives You Search for Free. Here's Where the Billions Really Come From",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Free product versus massive revenue creates a clear and specific curiosity gap.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Use Alphabet filings for revenue claims when available.",
+        "Make the opening question extremely simple: if the product is free, who is actually paying?",
+        "Hold the most important revenue dependency or surprising share until late in the story."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-broadcom-hidden-giant-2026-09",
+      "topic": "Broadcom",
+      "brand": "Broadcom",
+      "category": "semiconductors infrastructure software AI networking",
+      "working_angle": "Explain how Broadcom became one of America's biggest technology companies while remaining far less familiar to consumers than Apple, Google or NVIDIA. Focus on the hidden infrastructure businesses, acquisitions, networking, chips and software that research shows drive its scale, and save the least visible but most important money engine for the final reveal.",
+      "title_seed": "Broadcom Built a Billion-Dollar Machine Most Americans Never See",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Underknown giant plus hidden-infrastructure economics gives a strong curiosity gap.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Do not call Broadcom secret; frame it as underknown or hidden in infrastructure.",
+        "Use current filings and market-value data for scale claims.",
+        "Open with why most consumers barely know the name despite its size, and reveal the key business engine near the end."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
       "id": "custom-amazon-drivers-us-truckers-pay-2026-09",
       "topic": "Amazon Drivers and US Truckers",
       "category": "jobs logistics wages",
