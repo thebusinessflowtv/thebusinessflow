@@ -1,0 +1,69 @@
+name: Meta VR Recut Export Audio
+
+on:
+  push:
+    paths:
+      - 'production/meta-vr-recut-audio-request.json'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  export-audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve source run
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID="$(python - <<'PY'
+          import json
+          d=json.load(open('production/meta-vr-recut-audio-request.json', encoding='utf-8'))
+          print(int(d['source_run_id']))
+          PY
+          )"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download original Meta production artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tbf-production-*
+          path: restored
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.source.outputs.run_id }}
+
+      - name: Extract exact original audio stream
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s restored/rendered/final.mp4
+          mkdir -p exported
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 restored/rendered/final.mp4 > exported/duration.txt
+          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,sample_rate,channels -of json restored/rendered/final.mp4 > exported/audio-info.json
+          CODEC="$(python - <<'PY'
+          import json
+          d=json.load(open('exported/audio-info.json'))
+          print(d['streams'][0]['codec_name'])
+          PY
+          )"
+          if [ "$CODEC" = "aac" ]; then
+            ffmpeg -y -i restored/rendered/final.mp4 -map 0:a:0 -c:a copy exported/meta-vr-original-audio.m4a
+          else
+            ffmpeg -y -i restored/rendered/final.mp4 -map 0:a:0 -c:a copy exported/meta-vr-original-audio.${CODEC}
+          fi
+          ls -lh exported
+
+      - name: Upload exact audio artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meta-vr-original-audio-${{ github.run_id }}
+          path: exported/
+          if-no-files-found: error
+          retention-days: 7
