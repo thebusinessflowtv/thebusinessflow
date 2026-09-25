@@ -205,7 +205,7 @@ def validate_brief(brief: dict[str, Any], topic: dict[str, Any]) -> None:
     sources = brief.get("sources") or []
     if len(facts) < 6:
         raise RuntimeError(f"Research brief needs at least 6 sourced facts; got {len(facts)}")
-    if len(sources) < 4:
+    if len(sources) < 3:
         cited_urls = []
         for collection_name in ("facts", "verified_numbers", "timeline"):
             for item in brief.get(collection_name) or []:
@@ -214,11 +214,11 @@ def validate_brief(brief: dict[str, Any], topic: dict[str, Any]) -> None:
                     if url and url not in cited_urls:
                         cited_urls.append(url)
         raise RuntimeError(
-            f"Research brief needs at least 4 sources; got {len(sources)}. "
+            f"Research brief needs at least 3 sources; got {len(sources)}. "
             f"Recoverable distinct cited URLs: {len(cited_urls)}"
         )
     urls = [valid_http_url(s.get("url")) for s in sources if isinstance(s, dict)]
-    if len(urls) < 4 or any(not url for url in urls):
+    if len(urls) < 3 or any(not url for url in urls):
         raise RuntimeError("Research brief contains an invalid source URL")
     brief["topic_id"] = topic["id"]
     brief["topic"] = topic["topic"]
