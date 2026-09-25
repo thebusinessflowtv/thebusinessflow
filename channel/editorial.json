@@ -23,23 +23,35 @@
     "fact-based"
   ],
   "packaging_strategy": {
-    "goal": "Maximize qualified click-through rate without misleading the viewer.",
+    "goal": "Maximize qualified click-through rate and retention without misleading the viewer.",
+    "proven_reference": "Use the packaging logic that worked on the channel's Tesla second-business video: familiar entity or category + unexpected business mechanism/reversal + concrete financial consequence. Copy the logic, never the exact wording.",
     "title_style": [
-      "familiar brand plus unexpected conflict",
-      "verified large number plus consequence",
-      "why X failed / cannot survive / lost its lead when factually supported",
+      "familiar entity plus an unexpected business or money mechanism plus a concrete payoff",
+      "recognizable company plus a contradiction that creates a specific information gap",
+      "verified large number plus an explanation the viewer does not expect",
       "how X really makes money",
-      "hidden economics / secret business model",
-      "rise-and-fall with a strong reversal"
+      "the business behind a familiar product, company, family or industry",
+      "for list episodes: a strong count plus a surprising unifying pattern or final #1 reveal",
+      "rise-and-fall or hidden-engine framing when directly supported by research"
+    ],
+    "title_avoid": [
+      "finance jargon that requires explanation before curiosity starts",
+      "vague words such as secret, machine or empire unless the title makes the payoff concrete",
+      "unsupported claims that a company controls a market or the world",
+      "declaring a company the richest unless the research defines and supports the metric"
     ],
     "thumbnail": {
-      "text_words_max": 4,
+      "text_words_max": 3,
+      "default_text_words": 0,
       "principles": [
         "one dominant subject",
+        "prefer one recognizable face, logo-free physical object, product or visual symbol when relevant",
         "very high visual contrast",
-        "one clear emotional or financial tension",
+        "one unexpected reveal that visually explains the title's mystery",
         "thumbnail text should complement rather than repeat the title",
-        "prefer a verified number, consequence or contradiction when available"
+        "prefer no text when the image can communicate the premise instantly",
+        "avoid clutter, dense copy, multiple competing focal points and infographic-like layouts",
+        "mobile readability must be obvious at a glance"
       ]
     },
     "title_candidates_per_episode": 10,
@@ -50,14 +62,19 @@
     "Never fabricate quotes, numbers, events, sources, crimes or motives.",
     "Separate verified facts from interpretation.",
     "Use aggressive curiosity gaps and factual clickbait, never false promises.",
+    "Treat words such as secret, hidden and controls as packaging language only when the underlying factual mechanism is explicitly explained and supported; never imply conspiracy without evidence.",
     "Any number used in a title or thumbnail must be supported by a reliable source in the episode research pack.",
     "Any accusation of fraud, crime or illegality must be based on a court record, regulator, official filing or equivalently strong source.",
     "Prefer primary sources, filings, official reports and established journalism for factual claims.",
     "Write naturally for American English narration.",
     "Do not copy competitor titles verbatim, documentary scripts or article wording.",
     "Every episode must add original structure, explanation and storytelling.",
-    "The first 30 seconds must create a clear open loop and explain why the viewer should care.",
-    "Refresh tension or introduce a new question every 45-90 seconds.",
-    "End by resolving the core promise made by the title and opening hook."
+    "The first 20 seconds must establish a contradiction, a concrete reason to care, and one central unresolved question.",
+    "Plant one factual final-reveal loop in the opening. Do not give away its answer in the introduction; reveal and explain it in the final 10-15 percent of the episode.",
+    "For countdown/list episodes, tease the #1 item or the surprising pattern that connects the list, but do not name it early unless the title itself already names it.",
+    "Open smaller curiosity loops before major sections and close them within 45-90 seconds so the viewer receives regular payoffs while the central loop stays open.",
+    "Every 45-90 seconds introduce a new question, reversal, number, comparison or consequence; avoid flat encyclopedia-style narration.",
+    "Use transitions that create forward motion, such as why this matters, but that is not the surprising part, and the answer becomes clearer when we get to the next company or number.",
+    "The ending must resolve the exact promise from the title and opening hook, deliver the central reveal with evidence, and add one concise implication rather than a generic recap."
   ]
 }
