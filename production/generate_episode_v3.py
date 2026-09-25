@@ -38,20 +38,46 @@ core.EPISODE_TOOL["input_schema"]["required"] = [
 ]
 
 GENERIC_TOPIC_WORDS = {
-    "the", "and", "company", "business", "drivers", "driver", "truckers", "trucker",
+    "the", "and", "company", "companies", "business", "drivers", "driver", "truckers", "trucker",
     "trucks", "truck", "glasses", "vr", "us", "usa", "u", "s", "jobs", "pay", "wages",
+    "american", "america", "americas", "richest", "valuable", "industries", "industry", "market",
+    "markets", "world", "global", "family", "families", "infrastructure", "billion", "billions",
+}
+
+NON_BRAND_EXPLICIT = {"u.s.", "u.s", "us", "usa", "united states", "american", "america"}
+GENERAL_TOPIC_MARKERS = {
+    "companies", "industries", "industry", "family", "families", "infrastructure", "markets", "market",
+    "sectors", "sector", "richest", "valuable", "global", "world"
 }
 
 
 def required_brand_token(topic: dict[str, Any]) -> str:
+    """Return a brand token only for genuine single-entity episodes.
+
+    Ranking/list topics used to infer a bogus brand from the first meaningful word
+    (for example "American" in "10 American Billion-Dollar Companies"). That made
+    otherwise valid paid scripts impossible to recover. Explicit company/brand fields
+    still win, but geography labels are not treated as brands. General/list topics do
+    not require a brand token in the selected title.
+    """
     explicit = str(topic.get("brand") or topic.get("company") or "").strip()
-    if explicit:
+    if explicit and explicit.lower() not in NON_BRAND_EXPLICIT:
         return explicit
-    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9&.-]*", str(topic.get("topic") or ""))
+
+    raw = str(topic.get("topic") or "").strip()
+    low = raw.lower()
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9&.-]*", raw)
+    if not words:
+        return ""
+
+    # Numeric/list/ranking/editorial-category topics are not single brands.
+    if re.match(r"^\d+\b", raw) or any(re.search(rf"\b{re.escape(marker)}\b", low) for marker in GENERAL_TOPIC_MARKERS):
+        return ""
+
     for word in words:
         if word.lower() not in GENERIC_TOPIC_WORDS and len(word) >= 3:
             return word
-    return words[0] if words else ""
+    return ""
 
 
 def validate_package(data: dict[str, Any], topic: dict[str, Any]) -> None:
@@ -93,6 +119,15 @@ def validate_package(data: dict[str, Any], topic: dict[str, Any]) -> None:
     data["storyboard"] = storyboard
 
 
+def repair_paid_package(package: dict[str, Any], topic: dict[str, Any], research: dict[str, Any]) -> dict[str, Any]:
+    """Repair non-factual packaging omissions locally without another model call."""
+    try:
+        from production import recover_paid_episode as recovery
+    except ModuleNotFoundError:
+        import recover_paid_episode as recovery
+    return recovery.repair_package(package, topic, research)
+
+
 def build_prompt(topic: dict[str, Any], research: dict[str, Any], editorial: dict[str, Any]) -> str:
     base = _original_build_prompt(topic, research, editorial)
     return base + f"""
@@ -100,7 +135,7 @@ def build_prompt(topic: dict[str, Any], research: dict[str, Any], editorial: dic
 OUTPUT ORDER — CRITICAL
 - In the {core.EPISODE_TOOL_NAME} tool input, write `script` FIRST and finish the full narration before any title, thumbnail, description, tags, hook, or chapter metadata.
 - Keep all non-script fields concise. The narration is the primary deliverable and must never be omitted because packaging used the output budget first.
-- The selected title and all title candidates must contain the core brand/company name, not necessarily the full editorial topic label.
+- For a single-company episode, selected title and title candidates must contain the core brand/company name. For ranking/list/general-market episodes, do not force a fake brand token from the editorial topic label.
 """
 
 
@@ -138,7 +173,9 @@ def main() -> None:
                 "Cached Sonnet package belongs to a different research revision. "
                 "Refusing to spend again automatically; use --force-new-script only after deliberate review."
             )
+        package = repair_paid_package(package, topic, research)
         validate_package(package, topic)
+        package_path.write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
         output_dir = core.write_outputs(package)
         print(json.dumps({
             "topic_id": topic_id,
@@ -153,7 +190,7 @@ def main() -> None:
 
     if snapshot_path.exists():
         snapshot = core.load_json(snapshot_path)
-        package = core.parse_snapshot(snapshot)
+        package = repair_paid_package(core.parse_snapshot(snapshot), topic, research)
         if package.get("script"):
             package = core.finalize_package(package, topic, research, snapshot.get("usage") or {}, model)
             cache_dir.mkdir(parents=True, exist_ok=True)
@@ -196,7 +233,7 @@ def main() -> None:
     snapshot = safe_response_snapshot(response, {core.EPISODE_TOOL_NAME})
     snapshot_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    package = core.parse_snapshot(snapshot)
+    package = repair_paid_package(core.parse_snapshot(snapshot), topic, research)
     package = core.finalize_package(package, topic, research, usage_dict(response), model)
     package_path.write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
     output_dir = core.write_outputs(package)
