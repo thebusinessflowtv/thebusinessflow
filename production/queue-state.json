@@ -13,15 +13,16 @@
     "custom-google-real-money-machine-2026-09",
     "custom-broadcom-hidden-giant-2026-09"
   ],
-  "current_topic": "custom-10-american-billion-dollar-companies-2026-09",
+  "current_topic": "custom-15-us-industries-billions-2026-09",
   "source_run_id": null,
   "production_attempts": {
-    "custom-10-american-billion-dollar-companies-2026-09": 3
+    "custom-10-american-billion-dollar-companies-2026-09": 3,
+    "custom-15-us-industries-billions-2026-09": 1
   },
   "upload_attempts": {},
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
-  "last_action": "initialized",
-  "updated_at": "2026-09-25T23:30:10.726132+00:00",
-  "last_reason": "retrying production attempt 3/3"
+  "last_action": "blocked_production:custom-10-american-billion-dollar-companies-2026-09",
+  "updated_at": "2026-09-25T23:43:51.439844+00:00",
+  "last_reason": "starting next queued topic attempt 1/3"
 }
