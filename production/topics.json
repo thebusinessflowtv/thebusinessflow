@@ -33,7 +33,7 @@
       "working_angle": "Explain Meta's new $1,299.99 lightweight VR glasses, what they do, and the business bet behind them. Use the durable research checkpoint for all facts.",
       "title_seed": "Meta's $1,300 VR Glasses Could Replace Your Screens",
       "thumbnail_text_seed": "THE $1,300 FUTURE",
-      "status": "ready",
+      "status": "rendered_pending_manual_upload",
       "click_score": 100,
       "click_reason": "New Meta hardware with a concrete price and major spatial-computing business angle.",
       "language": "en-US",
@@ -41,7 +41,8 @@
       "editorial_requirements": [],
       "verified_context": [],
       "reference_media": [],
-      "scored_at": "2026-09-25T14:15:09.370884+00:00"
+      "scored_at": "2026-09-25T14:15:09.370884+00:00",
+      "rendered_at": "2026-09-25T15:04:06.919635+00:00"
     },
     {
       "id": "famous-001",
