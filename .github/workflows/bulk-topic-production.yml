@@ -36,6 +36,7 @@ jobs:
 
           request_path = Path('production/bulk-topic-request.json')
           topics_path = Path('production/topics.json')
+          state_path = Path('production/queue-state.json')
           request = json.loads(request_path.read_text(encoding='utf-8'))
           data = json.loads(topics_path.read_text(encoding='utf-8'))
           batch = request.get('topics') or []
@@ -78,18 +79,34 @@ jobs:
           ids.reverse()
           data['topics'] = topics
           topics_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          if state_path.exists():
+              state = json.loads(state_path.read_text(encoding='utf-8'))
+          else:
+              state = {'version': 1}
+          state['batch_ids'] = ids
+          state['current_topic'] = None
+          state['source_run_id'] = None
+          state['production_attempts'] = {}
+          state['upload_attempts'] = {}
+          state.setdefault('max_production_attempts', 3)
+          state.setdefault('max_upload_attempts', 3)
+          state['last_action'] = 'bulk_batch_registered'
+          state['updated_at'] = now
+          state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
           Path('/tmp/topic_ids.json').write_text(json.dumps(ids), encoding='utf-8')
           print(json.dumps({'count': len(ids), 'topic_ids': ids}, indent=2))
           PY
           echo "count=$(python -c 'import json; print(len(json.load(open("/tmp/topic_ids.json"))))')" >> "$GITHUB_OUTPUT"
 
-      - name: Commit registered batch
+      - name: Commit registered batch and queue state
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'The Business Flow Factory'
           git config user.email 'thebusinessflowtv@gmail.com'
-          git add production/topics.json
+          git add production/topics.json production/queue-state.json
           if ! git diff --cached --quiet; then
             git commit -m "Register ordered business documentary batch"
             git pull --rebase --autostash origin main
@@ -98,25 +115,13 @@ jobs:
             echo 'Batch already registered; no queue commit needed.'
           fi
 
-      - name: Dispatch every topic in requested order
+      - name: Start sequential queue orchestrator once
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY' > /tmp/topic_ids.txt
-          import json
-          for topic_id in json.load(open('/tmp/topic_ids.json')):
-              print(topic_id)
-          PY
-          while IFS= read -r TOPIC_ID; do
-            test -n "$TOPIC_ID"
-            gh workflow run daily-production.yml \
-              --repo "${{ github.repository }}" \
-              --ref main \
-              -f topic_id="$TOPIC_ID" \
-              -f upload_and_schedule=false
-            echo "Queued: $TOPIC_ID"
-            sleep 2
-          done < /tmp/topic_ids.txt
-          echo "All ${{ steps.batch.outputs.count }} topics dispatched. Daily Production concurrency will process them one at a time; successful runs will trigger PRIVATE YouTube upload automatically."
+          gh workflow run video-queue-orchestrator.yml \
+            --repo "${{ github.repository }}" \
+            --ref main
+          echo "Registered ${{ steps.batch.outputs.count }} topics. Sequential queue will run exactly one production at a time and wait for PRIVATE upload completion before starting the next."
