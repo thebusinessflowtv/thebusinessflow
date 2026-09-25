@@ -1,8 +1,8 @@
 {
-  "topic_id": "famous-001",
-  "topic": "Amazon",
-  "source_run_id": 35731189051,
-  "artifact_name": "tbf-production-famous-001-35731189051",
+  "topic_id": "custom-meta-vr-glasses-2026-09",
+  "topic": "Meta VR Glasses",
+  "source_run_id": 36146236878,
+  "artifact_name": "tbf-production-custom-meta-vr-glasses-2026-09-36146236878",
   "mode": "private_youtube_upload",
-  "requested_at": "2026-09-22T14:06:00Z"
+  "requested_at": "2026-09-25T15:11:00Z"
 }
