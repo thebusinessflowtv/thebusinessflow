@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "batch_ids": [
+    "custom-10-american-billion-dollar-companies-2026-09",
+    "custom-15-us-industries-billions-2026-09",
+    "custom-top-5-most-valuable-us-companies-2026-09",
+    "custom-5-us-market-shaping-companies-2026-09",
+    "custom-3-american-global-giants-2026-09",
+    "custom-americas-richest-companies-metrics-2026-09",
+    "custom-5-companies-behind-global-infrastructure-2026-09",
+    "custom-richest-american-family-2026-09",
+    "custom-nvidia-real-money-engine-2026-09",
+    "custom-google-real-money-machine-2026-09",
+    "custom-broadcom-hidden-giant-2026-09"
+  ],
+  "current_topic": null,
+  "source_run_id": null,
+  "production_attempts": {},
+  "upload_attempts": {},
+  "max_production_attempts": 3,
+  "max_upload_attempts": 3,
+  "last_action": "initialized",
+  "updated_at": "2026-09-25T23:00:00Z"
+}
