@@ -91,20 +91,36 @@ jobs:
           echo "package=$PACKAGE" >> "$GITHUB_OUTPUT"
           echo "Private upload topic: $TOPIC_ID / $TOPIC_NAME"
 
-      - name: Install YouTube uploader only
+      - name: Install YouTube uploader and 4K validator
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install YouTube dependencies
+      - name: Install YouTube dependencies and FFmpeg
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
           pip install -r youtube-worker/requirements.txt
           test -n "$YOUTUBE_CLIENT_ID"
           test -n "$YOUTUBE_CLIENT_SECRET"
           test -n "$YOUTUBE_REFRESH_TOKEN"
           test -n "$YOUTUBE_CHANNEL_ID"
+          ffprobe -version >/dev/null
+
+      - name: Enforce true 4K master before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIDEO='restored/rendered/final.mp4'
+          read WIDTH HEIGHT < <(ffprobe -v error -select_streams v:0 \
+            -show_entries stream=width,height -of csv=p=0:s=' ' "$VIDEO")
+          echo "Validated master resolution: ${WIDTH}x${HEIGHT}"
+          if [ "$WIDTH" -ne 3840 ] || [ "$HEIGHT" -ne 2160 ]; then
+            echo "Refusing YouTube upload: final master must be exactly 3840x2160 (4K UHD), got ${WIDTH}x${HEIGHT}."
+            exit 1
+          fi
 
       - name: Force private-only metadata
         shell: bash
@@ -215,6 +231,7 @@ jobs:
           print('- Topic: ${{ steps.package.outputs.topic_name }}')
           print(f"- Video ID: {d['youtube_video_id']}")
           print(f"- Privacy: {d['privacy_status']}")
+          print('- Master: 3840x2160 (4K UHD)')
           print('- Scheduled/public: no')
           print('- Anthropic calls in this workflow: 0')
           PY
