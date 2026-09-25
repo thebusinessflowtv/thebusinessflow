@@ -10,6 +10,23 @@
   },
   "topics": [
     {
+      "id": "custom-amazon-drivers-us-truckers-pay-2026-09",
+      "topic": "Amazon Drivers and US Truckers",
+      "category": "jobs logistics wages",
+      "working_angle": "Compare Amazon DSP delivery-driver earnings with US heavy-truck-driver earnings and explain the licensing, schedule and lifestyle trade-offs using only the durable research checkpoint.",
+      "title_seed": "How Much Do Amazon Drivers and U.S. Truckers Really Make?",
+      "thumbnail_text_seed": "WHAT THEY REALLY MAKE",
+      "status": "ready",
+      "click_score": 100,
+      "click_reason": "High-curiosity US income comparison tied to Amazon and trucking.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [],
+      "verified_context": [],
+      "reference_media": [],
+      "scored_at": "2026-09-25T13:48:41.461208+00:00"
+    },
+    {
       "id": "custom-meta-vr-glasses-2026-09",
       "topic": "Meta VR Glasses",
       "category": "technology",
