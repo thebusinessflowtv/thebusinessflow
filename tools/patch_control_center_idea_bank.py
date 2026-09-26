@@ -1,0 +1,119 @@
+from pathlib import Path
+
+p = Path('docs/control-center/app.html')
+text = p.read_text(encoding='utf-8')
+
+# Titles and navigation.
+text = text.replace(
+    "function titleFor(path){if(path==='/')return'Dashboard';if(path==='/create')return'Criar vídeo';if(path==='/productions')return'Produções';if(path.startsWith('/production/'))return'Detalhe da produção';if(path==='/channels')return'Canais';if(path==='/settings')return'Configurações';return'MediaForge'}",
+    "function titleFor(path){if(path==='/')return'Dashboard';if(path==='/create')return'Criar vídeo';if(path==='/ideas'||path.startsWith('/ideas/'))return'Ideias';if(path==='/productions')return'Produções';if(path.startsWith('/production/'))return'Detalhe da produção';if(path==='/channels')return'Canais';if(path==='/settings')return'Configurações';return'MediaForge'}"
+)
+text = text.replace(
+    "const nav=[['/','◫','Dashboard'],['/create','＋','Criar vídeo'],['/productions','▤','Produções'],['/channels','◉','Canais'],['/settings','⚙','Configurações']]",
+    "const nav=[['/','◫','Dashboard'],['/create','＋','Criar vídeo'],['/ideas','✦','Ideias'],['/productions','▤','Produções'],['/channels','◉','Canais'],['/settings','⚙','Configurações']]"
+)
+text = text.replace(
+    "((path===n[0]||(n[0]==='/productions'&&path.startsWith('/production/')))?'active':'')",
+    "((path===n[0]||(n[0]==='/productions'&&path.startsWith('/production/'))||(n[0]==='/ideas'&&path.startsWith('/ideas/')))?'active':'')"
+)
+
+start = text.find("  async function suggestionsView(id){")
+end = text.find("  async function productions(path,params){", start)
+if start < 0 or end < 0:
+    raise SystemExit('Suggestion block not found')
+
+block = r'''  async function suggestionsView(id){
+    clearPoll();
+    app.innerHTML=shell(pageHead('IA buscando ideias…','A Anthropic está preparando 5 temas para você escolher.')+'<div class="card empty"><div class="loader" style="margin:0 auto 14px"></div><h3>Buscando oportunidades</h3><p>Isso pode levar alguns minutos. A página atualiza automaticamente.</p></div>','/create');
+    wireShell();
+    let stopped=false;
+    const attempt=async()=>{
+      if(stopped)return;
+      try{
+        const r=await invoke('mfcc-suggestions',{production_id:id});
+        if(r&&r.ready){stopped=true;clearPoll();go('/ideas/'+id);return}
+      }catch(e){toast('Não foi possível buscar as sugestões',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error');stopped=true;return}
+      if(!stopped)state.pollTimer=setTimeout(attempt,5000)
+    };
+    attempt()
+  }
+
+  function renderSuggestions(id,items){go('/ideas/'+id)}
+
+  async function launchIdea(source,s){
+    if(s.launched_production_id){go('/production/'+s.launched_production_id);return s.launched_production_id}
+    const used=await sb.from('mfcc_topic_suggestions').select('id,launched_production_id').eq('production_id',source.id).eq('selected',true).not('launched_production_id','is',null);
+    if(used.error)throw used.error;
+    let pid=null;
+    if(!(used.data||[]).length&&source.generation_mode==='suggest'&&!source.selected_topic){
+      const meta={...(source.metadata||{}),idea_source_production_id:source.id,idea_suggestion_id:s.id};
+      const p1=await sb.from('mfcc_productions').update({requested_topic:s.topic,selected_topic:s.topic,generation_mode:'manual',status:'draft',progress:0,metadata:meta}).eq('id',source.id);
+      if(p1.error)throw p1.error;
+      pid=source.id;
+    }else{
+      const ins=await sb.from('mfcc_productions').insert({channel_id:source.channel_id,requested_topic:s.topic,selected_topic:s.topic,generation_mode:'manual',objective:source.objective,notes:source.notes||null,upload_requested:!!source.upload_requested,status:'draft',progress:0,metadata:{idea_source_production_id:source.id,idea_suggestion_id:s.id}}).select('id').single();
+      if(ins.error)throw ins.error;
+      pid=ins.data.id;
+    }
+    await invoke('mfcc-dispatch',{production_id:pid});
+    const u=await sb.from('mfcc_topic_suggestions').update({selected:true,excluded:false,launched_production_id:pid}).eq('id',s.id);
+    if(u.error)throw u.error;
+    return pid
+  }
+
+  async function ideasPage(path,batchId){
+    await loadChannels();
+    let q=sb.from('mfcc_topic_suggestions').select('*').eq('excluded',false).order('created_at',{ascending:false});
+    if(batchId)q=q.eq('production_id',batchId);
+    const r=await q;if(r.error)throw r.error;
+    const items=r.data||[];
+    const sourceIds=[...new Set(items.map(x=>x.production_id).filter(Boolean))];
+    let sources=[];
+    if(sourceIds.length){const pr=await sb.from('mfcc_productions').select('*').in('id',sourceIds);if(pr.error)throw pr.error;sources=pr.data||[]}
+    const sourceMap=Object.fromEntries(sources.map(x=>[x.id,x]));
+    const channelMap=Object.fromEntries((state.channels||[]).map(x=>[x.id,x]));
+    const drafts=items.filter(x=>!x.selected).length, selected=items.filter(x=>x.selected).length;
+    const cards=items.map(s=>{
+      const src=sourceMap[s.production_id]||{},ch=channelMap[src.channel_id]||{};
+      const badge=s.selected?'<span class="pill p-success">Selecionada</span>':'<span class="pill p-warning">Rascunho</span>';
+      const actions=s.selected&&s.launched_production_id
+        ? '<button class="btn primary openIdeaProduction" data-id="'+esc(s.id)+'">▶ Acompanhar produção</button>'
+        : '<div class="row"><button class="btn primary chooseIdea" style="flex:1" data-id="'+esc(s.id)+'">▶ Produzir esta ideia</button><button class="btn danger excludeIdea" data-id="'+esc(s.id)+'">✕ Excluir</button></div>';
+      return '<div class="card suggestion"><div class="row between" style="align-items:flex-start;gap:10px"><div>'+badge+'</div>'+(s.score!=null?'<span class="pill p-violet">'+esc(s.score)+'</span>':'')+'</div><h3 style="margin-top:12px">'+esc(s.title_idea||s.topic)+'</h3><p><b style="color:#d5d8e0">Tema:</b> '+esc(s.topic)+'</p>'+(s.hook?'<p><b style="color:#d5d8e0">Gancho:</b> '+esc(s.hook)+'</p>':'')+(s.reason?'<p>'+esc(s.reason)+'</p>':'')+'<div class="tiny muted" style="margin:4px 0 12px">'+esc(ch.name||'Canal')+' · '+fmt(s.created_at)+'</div>'+actions+'</div>'
+    }).join('');
+    const action=batchId?'<a class="btn" href="#/ideas">Ver todas as ideias</a>':'';
+    let html=pageHead(batchId?'Ideias desta pesquisa':'Banco de ideias',items.length?(drafts+' rascunho'+(drafts===1?'':'s')+' · '+selected+' selecionada'+(selected===1?'':'s')+'. Produza quantas quiser; as demais ficam salvas como rascunho.'):'Nenhuma ideia salva ainda.',action);
+    html+=items.length?'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">'+cards+'</div>':empty('Nenhuma ideia disponível','As ideias geradas pela IA aparecerão aqui e permanecerão como rascunho até você produzir ou excluir.','<a class="btn primary" href="#/create">Criar novas ideias</a>');
+    app.innerHTML=shell(html,path);wireShell();
+    const byId=Object.fromEntries(items.map(x=>[x.id,x]));
+    document.querySelectorAll('.openIdeaProduction').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id];if(s&&s.launched_production_id)go('/production/'+s.launched_production_id)});
+    document.querySelectorAll('.chooseIdea').forEach(b=>b.onclick=async()=>{const s=byId[b.dataset.id],source=s&&sourceMap[s.production_id];if(!s||!source)return;b.disabled=true;b.textContent='Iniciando…';try{await launchIdea(source,s);toast('Ideia selecionada','A produção foi iniciada e as demais continuam salvas como rascunho.','success');await ideasPage(path,batchId)}catch(e){toast('Não foi possível iniciar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error');b.disabled=false;b.textContent='▶ Produzir esta ideia'}});
+    document.querySelectorAll('.excludeIdea').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id];if(!s)return;modal('Excluir ideia?','<b>'+esc(s.title_idea||s.topic)+'</b><br><br>Ela sairá do banco de ideias. As outras continuarão salvas como rascunho.','Excluir',async()=>{const u=await sb.from('mfcc_topic_suggestions').update({excluded:true}).eq('id',s.id);if(u.error)throw u.error;toast('Ideia excluída','','success');await ideasPage(path,batchId)})})
+  }
+'''
+text = text[:start] + block + text[end:]
+
+# Suggestion-ready production detail should open the persistent bank.
+text = text.replace("clearPoll();renderSuggestions(id,(sr.suggestions||[]).slice(0,5));return", "clearPoll();go('/ideas/'+id);return")
+
+# Show a return-to-ideas button on productions launched from an idea batch.
+text = text.replace(
+    "const p=pR.data,events=eR.data||[];const allPhases=",
+    "const p=pR.data,events=eR.data||[];const ideaSourceId=p.metadata&&p.metadata.idea_source_production_id||null;const allPhases=",
+    1
+)
+text = text.replace(
+    "<div class=\"row\">'+statusPill(p.status)+",
+    "<div class=\"row\">'+(ideaSourceId?'<a class=\"btn\" href=\"#/ideas/'+esc(ideaSourceId)+'\">✦ Ideias</a>':'')+statusPill(p.status)+",
+    1
+)
+
+# Routes.
+old_route = "else if(path==='/productions')await productions(path,params);else if(path.startsWith('/production/'))await productionDetail(path,path.split('/')[2]);"
+new_route = "else if(path==='/ideas')await ideasPage(path,null);else if(path.startsWith('/ideas/'))await ideasPage(path,path.split('/')[2]);else if(path==='/productions')await productions(path,params);else if(path.startsWith('/production/'))await productionDetail(path,path.split('/')[2]);"
+if old_route not in text:
+    raise SystemExit('Route anchor not found')
+text = text.replace(old_route, new_route, 1)
+
+p.write_text(text, encoding='utf-8')
+print('Control Center idea bank patched')
