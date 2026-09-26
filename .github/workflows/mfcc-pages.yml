@@ -32,26 +32,48 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import re
-          html = Path('control-center/index.html').read_text(encoding='utf-8')
-          required = [
+
+          app = Path('control-center/index.html').read_text(encoding='utf-8')
+          gate = Path('control-center/secure.html').read_text(encoding='utf-8')
+
+          required_app = [
             '<title>MediaForge Control Center</title>',
             'mfcc-dispatch', 'mfcc-suggestions', 'mfcc-status', 'mfcc-artifact-link',
             'repo_full_name', 'youtube_connected', 'allow_youtube_upload',
             'The Business Flow', 'NBA Stars'
           ]
-          missing = [item for item in required if item not in html]
-          assert not missing, f'Missing required frontend contract: {missing}'
-          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, re.S)
-          assert scripts, 'No inline JavaScript found'
-          Path('/tmp/mfcc.js').write_text(scripts[-1], encoding='utf-8')
+          missing = [item for item in required_app if item not in app]
+          assert not missing, f'Missing app contract: {missing}'
+
+          required_gate = [
+            'ACESSO PRIVADO', 'user_roles', "eq('role','admin')",
+            'shouldCreateUser:false', "location.replace('./app.html'"
+          ]
+          missing_gate = [item for item in required_gate if item not in gate]
+          assert not missing_gate, f'Missing secure gate contract: {missing_gate}'
+
+          for name, html in [('app', app), ('gate', gate)]:
+            scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, re.S)
+            assert scripts, f'No inline JavaScript found in {name}'
+            Path(f'/tmp/mfcc-{name}.js').write_text(scripts[-1], encoding='utf-8')
           PY
-          node --check /tmp/mfcc.js
-      - name: Prepare static site
-        run: touch control-center/.nojekyll
+          node --check /tmp/mfcc-app.js
+          node --check /tmp/mfcc-gate.js
+
+      - name: Prepare private-entry static site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site
+          cp control-center/secure.html _site/index.html
+          cp control-center/index.html _site/app.html
+          touch _site/.nojekyll
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: control-center
+          path: _site
 
   deploy:
     environment:
