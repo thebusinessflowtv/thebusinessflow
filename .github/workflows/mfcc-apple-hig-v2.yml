@@ -1,0 +1,31 @@
+name: MFCC Apple HIG v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/patch_control_center_apple_hig_v2.py'
+      - '.github/workflows/mfcc-apple-hig-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Apple HIG v2, mobile fixes, timeline disclosure and Auto Heal UI
+        run: python tools/patch_control_center_apple_hig_v2.py
+      - name: Commit Control Center changes
+        run: |
+          if git diff --quiet -- docs/control-center/app.html; then
+            echo 'No changes required.'
+            exit 0
+          fi
+          git config user.name 'MediaForge Bot'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add docs/control-center/app.html
+          git commit -m 'Refine Control Center with Apple HIG v2 and Auto Heal'
+          git push
