@@ -1,0 +1,48 @@
+name: Install failed production retry button
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/install-failed-retry-button.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject retry helper into Control Center
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/control-center/app.html')
+          text = path.read_text(encoding='utf-8')
+          tag = '<script src="./retry-failed-production.js?v=20260926"></script>'
+
+          if tag not in text:
+              if '</body>' not in text:
+                  raise SystemExit('Closing </body> tag not found in app.html')
+              text = text.replace('</body>', f'{tag}\n</body>', 1)
+              path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit Control Center patch
+        shell: bash
+        run: |
+          if git diff --quiet -- docs/control-center/app.html; then
+            echo "Retry helper already installed."
+            exit 0
+          fi
+          git config user.name "MediaForge Control Center"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/control-center/app.html
+          git commit -m "feat(control-center): show retry button for failed productions"
+          git push
