@@ -1,8 +1,7 @@
 {
-  "topic_id": "custom-amazon-drivers-us-truckers-pay-2026-09",
-  "topic": "Amazon Drivers vs U.S. Truckers Pay",
-  "source_run_id": 36146260171,
-  "artifact_name": "tbf-production-custom-amazon-drivers-us-truckers-pay-2026-09-36146260171",
-  "mode": "private_youtube_upload",
-  "requested_at": "2026-09-25T16:05:00Z"
+  "topic_id": "custom-10-american-billion-dollar-companies-2026-09",
+  "topic": "10 American Billion-Dollar Companies",
+  "source_run_id": 36202531229,
+  "mode": "private_youtube_upload_retry",
+  "requested_at": "2026-09-26T00:40:28.471672+00:00"
 }

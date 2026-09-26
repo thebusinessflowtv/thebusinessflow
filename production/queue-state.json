@@ -14,15 +14,17 @@
     "custom-broadcom-hidden-giant-2026-09"
   ],
   "current_topic": "custom-10-american-billion-dollar-companies-2026-09",
-  "source_run_id": null,
+  "source_run_id": 36202531229,
   "production_attempts": {
     "custom-10-american-billion-dollar-companies-2026-09": 1,
     "custom-15-us-industries-billions-2026-09": 0
   },
-  "upload_attempts": {},
+  "upload_attempts": {
+    "custom-10-american-billion-dollar-companies-2026-09": 1
+  },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "pipeline_repaired",
-  "updated_at": "2026-09-26T00:19:56.909295+00:00",
-  "last_reason": "worker already active"
+  "updated_at": "2026-09-26T00:40:28.471672+00:00",
+  "last_reason": "retrying private upload attempt 1/3"
 }
