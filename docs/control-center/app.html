@@ -8,6 +8,7 @@
   <meta name="description" content="Central de controle das fábricas de vídeo The Business Flow e NBA Stars.">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
   <style>
     :root{--bg:#090a0f;--panel:#11131a;--panel2:#151821;--line:#252938;--line2:#323747;--txt:#f3f5f8;--muted:#8d93a3;--blue:#68a8ff;--violet:#9a7cff;--green:#5fd3a0;--amber:#e7b965;--red:#ef7b83;--shadow:0 22px 70px rgba(0,0,0,.32);--r:14px}
@@ -296,31 +297,44 @@
   async function openVideoPlayer(id,title){
   clearPoll();
   const back=document.createElement('div');back.className='player-overlay';
-  back.innerHTML='<div class="player-window"><div class="player-head"><div class="glass-icon"><i data-lucide="play"></i></div><div class="player-head-text"><b>'+esc(title||'Vídeo final')+'</b><span>Player do MediaForge · streaming privado</span></div><button class="btn player-close" id="playerClose" aria-label="Fechar"><i data-lucide="x"></i></button></div><div class="player-stage" id="playerStage"><div class="player-loading"><div class="loader"></div><b id="playerLoadTitle">Abrindo vídeo…</b><span id="playerLoadText">Criando uma conexão segura com o arquivo final.</span></div></div></div>';
+  back.innerHTML='<div class="player-window"><div class="player-head"><div class="glass-icon"><i data-lucide="play"></i></div><div class="player-head-text"><b>'+esc(title||'Vídeo final')+'</b><span>Player do MediaForge · streaming privado</span></div><button class="btn player-close" id="playerClose" aria-label="Fechar"><i data-lucide="x"></i></button></div><div class="player-stage" id="playerStage"><div class="player-loading"><div class="loader"></div><b>Abrindo vídeo…</b><span>Conectando ao streaming privado.</span></div></div></div>';
   document.body.appendChild(back);document.body.style.overflow='hidden';if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
-  const stage=back.querySelector('#playerStage');
-  const close=()=>{back.remove();document.body.style.overflow=''};
+  const stage=back.querySelector('#playerStage');let hls=null;
+  const close=()=>{try{if(hls)hls.destroy()}catch{}back.remove();document.body.style.overflow=''};
   back.querySelector('#playerClose').onclick=close;back.onclick=e=>{if(e.target===back)close()};
   const escClose=e=>{if(e.key==='Escape'){document.removeEventListener('keydown',escClose);close()}};document.addEventListener('keydown',escClose);
+  const showError=(message)=>{
+    stage.innerHTML='<div class="player-error"><b>Não foi possível reproduzir o vídeo</b><p>'+esc(message||'Tente novamente em alguns instantes.')+'</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
+    if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
+    stage.querySelector('#playerRetry').onclick=()=>{close();openVideoPlayer(id,title)};
+  };
   try{
     const stream=await invoke('mfcc-video-stream',{production_id:id});
-    if(!stream||!stream.signed_url)throw new Error('O vídeo ainda não está disponível para streaming.');
-    stage.innerHTML='<video controls playsinline preload="metadata" id="mfccVideo"></video>';
+    const src=stream&&stream.hls_url||stream&&stream.signed_url;
+    if(!src)throw new Error('O vídeo ainda está sendo preparado para streaming.');
+    stage.innerHTML='<video controls playsinline webkit-playsinline preload="metadata" id="mfccVideo"></video>';
     const video=stage.querySelector('#mfccVideo');
-    video.src=stream.signed_url;
-    video.setAttribute('playsinline','');
-    video.addEventListener('loadedmetadata',()=>{video.play().catch(()=>{})},{once:true});
-    video.addEventListener('error',()=>{
-      if(stage.querySelector('video')){
-        stage.innerHTML='<div class="player-error"><b>Não foi possível reproduzir o vídeo</b><p>O arquivo foi encontrado, mas o navegador não conseguiu iniciar a reprodução. Tente novamente.</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
-        if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
-        stage.querySelector('#playerRetry').onclick=()=>{close();openVideoPlayer(id,title)};
+    if(stream.stream_type==='hls'||stream.hls_url){
+      if(video.canPlayType('application/vnd.apple.mpegurl')){
+        video.src=src;
+        video.addEventListener('loadedmetadata',()=>video.play().catch(()=>{}),{once:true});
+      }else if(window.Hls&&Hls.isSupported()){
+        hls=new Hls({enableWorker:true,lowLatencyMode:false,backBufferLength:90,maxBufferLength:30});
+        hls.loadSource(src);hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));
+        hls.on(Hls.Events.ERROR,(_,data)=>{if(data&&data.fatal)showError('O streaming encontrou um erro fatal. Tente abrir novamente.')});
+      }else{
+        showError('Este navegador não oferece suporte ao streaming HLS deste vídeo.');
       }
-    },{once:true});
+    }else{
+      video.src=src;
+      video.addEventListener('loadedmetadata',()=>video.play().catch(()=>{}),{once:true});
+    }
+    video.addEventListener('error',()=>{if(stage.querySelector('video'))showError('O arquivo foi encontrado, mas o navegador não conseguiu iniciar a reprodução.')},{once:true});
   }catch(e){
     const msg=errMsg(e);
     const preparing=/stream_not_ready|preparad|ainda não está disponível/i.test(msg);
-    stage.innerHTML='<div class="player-error"><b>'+(preparing?'Preparando streaming…':'Não foi possível abrir o player')+'</b><p>'+(preparing?'O vídeo 4K já está concluído. O MediaForge está movendo o arquivo para o armazenamento privado otimizado para reprodução no iPhone e no navegador. Tente novamente em alguns instantes.':esc(msg))+'</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
+    stage.innerHTML='<div class="player-error"><b>'+(preparing?'Preparando streaming…':'Não foi possível abrir o player')+'</b><p>'+(preparing?'O vídeo já está concluído. O MediaForge está preparando a versão otimizada para reprodução no iPhone e no navegador. Tente novamente em alguns instantes.':esc(msg))+'</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
     if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
     stage.querySelector('#playerRetry').onclick=()=>{close();openVideoPlayer(id,title)};
   }
