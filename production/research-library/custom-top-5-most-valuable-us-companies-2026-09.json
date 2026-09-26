@@ -1,0 +1,108 @@
+{
+  "thesis": "NVIDIA is the #1 most valuable U.S. company in September 2026 with ~$5.5 trillion market cap, followed by Apple, Alphabet, Microsoft, and Amazon—all tech-driven, with NVIDIA's valuation driven by GPU dominance in AI infrastructure rather than consumer sales.",
+  "facts": [
+    {
+      "claim": "NVIDIA holds top position as world's largest company by market cap at $5.58 trillion as of September 2026.",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Apple ranks second with $4.70 trillion market cap, followed by Alphabet at $4.10 trillion and Microsoft at $3.71 trillion.",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Amazon rounds out top five with $2.78 trillion market cap as of September 2026.",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "NVIDIA's GPUs are in high demand from AI companies for training and operating large language models, driving valuation beyond original PC graphics purpose.",
+      "source_url": "https://www.fool.com/research/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Top 5 U.S. companies represent over $20 trillion in combined value as of mid-2026, with concentration in technology sector.",
+      "source_url": "https://www.bleap.finance/en-us/blog/largest-american-companies-by-market-cap",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "All top 10 market cap companies are from technology industry, with AI impact evident throughout rankings.",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$5.58 trillion",
+      "context": "NVIDIA market capitalization as of September 2026",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/"
+    },
+    {
+      "value": "$4.70 trillion",
+      "context": "Apple market capitalization as of September 2026",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/"
+    },
+    {
+      "value": "$20 trillion",
+      "context": "Combined market value of top 5 U.S. companies as of mid-2026",
+      "source_url": "https://www.bleap.finance/en-us/blog/largest-american-companies-by-market-cap"
+    },
+    {
+      "value": "$3.71 trillion",
+      "context": "Microsoft market capitalization as of September 2026",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "September 24, 2026",
+      "event": "Market capitalization data for top 5 companies finalized; NVIDIA confirmed as #1",
+      "source_url": "https://www.fool.com/research/largest-companies-by-market-cap/"
+    },
+    {
+      "date": "September 2026",
+      "event": "AI boom maintains NVIDIA at world's largest company, displacing Apple from historic top position",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Largest Companies by Market Cap in 2026 | AlphaSense",
+      "url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "source_type": "Financial data platform"
+    },
+    {
+      "title": "Largest Companies by Market Cap in 2026 | The Motley Fool",
+      "url": "https://www.fool.com/research/largest-companies-by-market-cap/",
+      "source_type": "Financial journalism/research"
+    },
+    {
+      "title": "The Largest American Companies by Market Cap in 2026 | Bleap Finance",
+      "url": "https://www.bleap.finance/en-us/blog/largest-american-companies-by-market-cap",
+      "source_type": "Financial data/analysis"
+    },
+    {
+      "title": "Largest Companies by Market Cap — September 2026 | StockTitan",
+      "url": "https://www.stocktitan.net/rankings/companies-market-cap",
+      "source_type": "Market data platform"
+    }
+  ],
+  "risk_flags": [
+    "NVIDIA GPU demand dependency on sustained AI investment cycle; market concentration in five tech giants represents historic valuation concentration risk.",
+    "Multiple sources cite different precise market cap figures ($5.23T-$5.58T for NVIDIA) reflecting real-time volatility; use 'approximately' framing for all numbers."
+  ],
+  "topic_id": "custom-top-5-most-valuable-us-companies-2026-09",
+  "topic": "5 Most Valuable U.S. Companies in 2026",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 12436,
+    "output_tokens": 1398,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.029426,
+  "source_index_repaired": false,
+  "researched_at": "2026-09-26T03:04:15.605910+00:00"
+}

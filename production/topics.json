@@ -76,8 +76,9 @@
         "Do not reveal #1 in the opening unless the title already gives it away.",
         "Each company section should answer what people think it sells versus what actually drives its power or valuation."
       ],
-      "status": "ready",
-      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+      "status": "rendered_pending_manual_upload",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00",
+      "rendered_at": "2026-09-26T03:44:42.568435+00:00"
     },
     {
       "id": "custom-5-us-market-shaping-companies-2026-09",
