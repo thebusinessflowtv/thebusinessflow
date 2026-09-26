@@ -126,8 +126,9 @@
         "Keep the #1 reveal open until late unless it is unavoidable from the title.",
         "Build each section around a contradiction between public perception and the real economic engine."
       ],
-      "status": "ready",
-      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+      "status": "rendered_pending_manual_upload",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00",
+      "rendered_at": "2026-09-26T06:40:09.850112+00:00"
     },
     {
       "id": "custom-americas-richest-companies-metrics-2026-09",

@@ -1,0 +1,109 @@
+{
+  "thesis": "The three largest U.S. companies by market capitalization in September 2026—NVIDIA ($5.54T), Apple ($4.70T), and Alphabet ($4.10T)—dominate global rankings despite their divergent core economic engines operating invisibly to most consumers.",
+  "facts": [
+    {
+      "claim": "NVIDIA is the largest company in the world with a market cap of $5.54 trillion as of September 2026, ranked by market capitalization on NYSE/NASDAQ.",
+      "source_url": "https://tickerplace.com/markets/usa/biggest-us-companies-list-by-market-cap",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Apple holds the second position with $4.70 trillion market cap, followed by Alphabet at $4.10 trillion.",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The top 5 US companies alone represent over $20 trillion in combined value as of mid-2026.",
+      "source_url": "https://www.bleap.finance/en-us/blog/largest-american-companies-by-market-cap",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Technology companies hold top market cap positions because of scalable business models, global reach, and high profit margins.",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The S&P 500's top 10 stocks account for about 42% of the index's total value, a historic high surpassing the previous dot-com bubble record of 29%.",
+      "source_url": "https://www.bleap.finance/en-us/blog/largest-american-companies-by-market-cap",
+      "safe_for_packaging": false
+    },
+    {
+      "claim": "Most of the top 10 largest companies are investing in AI or involved in AI infrastructure, evidencing AI's impact on valuations.",
+      "source_url": "https://www.fool.com/research/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$5.54 trillion",
+      "context": "NVIDIA market capitalization, September 2026",
+      "source_url": "https://tickerplace.com/markets/usa/biggest-us-companies-list-by-market-cap"
+    },
+    {
+      "value": "$4.70 trillion",
+      "context": "Apple market capitalization, September 2026",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/"
+    },
+    {
+      "value": "$4.10 trillion",
+      "context": "Alphabet market capitalization, September 2026",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/"
+    },
+    {
+      "value": "42%",
+      "context": "Percentage of S&P 500 total value held by top 10 stocks as of 2026",
+      "source_url": "https://www.bleap.finance/en-us/blog/largest-american-companies-by-market-cap"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "February 2026",
+      "event": "SpaceX acquired xAI, another Musk-owned company that includes X (formerly Twitter)",
+      "source_url": "https://www.fool.com/research/largest-companies-by-market-cap/"
+    },
+    {
+      "date": "June 2026",
+      "event": "SpaceX went public with the largest IPO in history",
+      "source_url": "https://www.fool.com/research/largest-companies-by-market-cap/"
+    },
+    {
+      "date": "September 2026",
+      "event": "Current market cap rankings show NVIDIA, Apple, and Alphabet as top three US companies",
+      "source_url": "https://tickerplace.com/markets/usa/biggest-us-companies-list-by-market-cap"
+    }
+  ],
+  "sources": [
+    {
+      "title": "tickerplace.com",
+      "url": "https://tickerplace.com/markets/usa/biggest-us-companies-list-by-market-cap",
+      "source_type": "web"
+    },
+    {
+      "title": "alpha-sense.com",
+      "url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "source_type": "web"
+    },
+    {
+      "title": "bleap.finance",
+      "url": "https://www.bleap.finance/en-us/blog/largest-american-companies-by-market-cap",
+      "source_type": "web"
+    },
+    {
+      "title": "fool.com",
+      "url": "https://www.fool.com/research/largest-companies-by-market-cap/",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-3-american-global-giants-2026-09",
+  "topic": "3 American Companies at the Top of the World in 2026",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 12546,
+    "output_tokens": 1592,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.030506,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-26T05:58:43.501840+00:00"
+}
