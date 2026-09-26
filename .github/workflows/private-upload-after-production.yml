@@ -114,8 +114,10 @@ jobs:
         run: |
           set -euo pipefail
           VIDEO='restored/rendered/final.mp4'
-          read WIDTH HEIGHT < <(ffprobe -v error -select_streams v:0 \
-            -show_entries stream=width,height -of csv=p=0:s=' ' "$VIDEO")
+          WIDTH="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$VIDEO" | head -n 1 | tr -d '\r\n')"
+          HEIGHT="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$VIDEO" | head -n 1 | tr -d '\r\n')"
+          test -n "$WIDTH"
+          test -n "$HEIGHT"
           echo "Validated master resolution: ${WIDTH}x${HEIGHT}"
           if [ "$WIDTH" -ne 3840 ] || [ "$HEIGHT" -ne 2160 ]; then
             echo "Refusing YouTube upload: final master must be exactly 3840x2160 (4K UHD), got ${WIDTH}x${HEIGHT}."
