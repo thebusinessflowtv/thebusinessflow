@@ -20,11 +20,11 @@
     "custom-15-us-industries-billions-2026-09": 0
   },
   "upload_attempts": {
-    "custom-10-american-billion-dollar-companies-2026-09": 2
+    "custom-10-american-billion-dollar-companies-2026-09": 3
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "pipeline_repaired",
-  "updated_at": "2026-09-26T00:58:19.474241+00:00",
-  "last_reason": "retrying private upload attempt 2/3"
+  "updated_at": "2026-09-26T01:15:58.752215+00:00",
+  "last_reason": "retrying private upload attempt 3/3"
 }
