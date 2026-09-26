@@ -27,11 +27,11 @@
     "custom-15-us-industries-billions-2026-09": 3,
     "custom-top-5-most-valuable-us-companies-2026-09": 2,
     "custom-5-us-market-shaping-companies-2026-09": 2,
-    "custom-3-american-global-giants-2026-09": 2
+    "custom-3-american-global-giants-2026-09": 3
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "completed:custom-5-us-market-shaping-companies-2026-09",
-  "updated_at": "2026-09-26T07:11:58.286400+00:00",
-  "last_reason": "retrying private upload attempt 2/3"
+  "updated_at": "2026-09-26T07:30:48.178469+00:00",
+  "last_reason": "retrying private upload attempt 3/3"
 }
