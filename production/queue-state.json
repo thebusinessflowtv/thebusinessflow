@@ -29,11 +29,11 @@
     "custom-top-5-most-valuable-us-companies-2026-09": 2,
     "custom-5-us-market-shaping-companies-2026-09": 2,
     "custom-3-american-global-giants-2026-09": 3,
-    "custom-americas-richest-companies-metrics-2026-09": 1
+    "custom-americas-richest-companies-metrics-2026-09": 2
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_upload:custom-3-american-global-giants-2026-09",
-  "updated_at": "2026-09-26T08:49:45.810285+00:00",
-  "last_reason": "retrying private upload attempt 1/3"
+  "updated_at": "2026-09-26T09:00:52.159698+00:00",
+  "last_reason": "retrying private upload attempt 2/3"
 }
