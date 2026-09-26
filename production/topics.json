@@ -148,9 +148,11 @@
         "Use the metric disagreement as the central open loop.",
         "Reveal which company wins under each metric and explain why the rankings diverge near the end."
       ],
-      "status": "rendered_pending_manual_upload",
+      "status": "queue_blocked",
       "scored_at": "2026-09-25T20:54:58.615763+00:00",
-      "rendered_at": "2026-09-26T08:39:48.665345+00:00"
+      "rendered_at": "2026-09-26T08:39:48.665345+00:00",
+      "queue_block_reason": "private upload failed after maximum retries",
+      "queue_blocked_at": "2026-09-26T09:40:00.596155+00:00"
     },
     {
       "id": "custom-5-companies-behind-global-infrastructure-2026-09",
