@@ -20,41 +20,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('docs/control-center/apple-liquidglass-v3.css')
-          s=p.read_text(encoding='utf-8')
-          marker='/* Dashboard KPI neutral colors v1 */'
-          if marker not in s:
-              s += r'''
+          FILE='docs/control-center/apple-liquidglass-v3.css'
+          MARKER='Dashboard KPI neutral colors v1'
+          if ! grep -q "$MARKER" "$FILE"; then
+            cat >> "$FILE" <<'EOF'
 
-/* Dashboard KPI neutral colors v1 */
-.kpi{
-  color:#fff!important;
-}
-.kpi .label,
-.kpi .num{
-  background:transparent!important;
-  box-shadow:none!important;
-}
-.kpi .label{
-  color:rgba(255,255,255,.62)!important;
-}
-.kpi .num,
-.kpi .num.p-info,
-.kpi .num.p-success,
-.kpi .num.p-violet,
-.kpi .num.p-warning{
-  color:#fff!important;
-  background:transparent!important;
-}
-.kpi .num.p-danger{
-  color:#ff453a!important;
-  background:transparent!important;
-}
-'''
-              p.write_text(s,encoding='utf-8')
-          PY
+          /* Dashboard KPI neutral colors v1 */
+          .kpi{
+            color:#fff!important;
+          }
+          .kpi .label,
+          .kpi .num{
+            background:transparent!important;
+            box-shadow:none!important;
+          }
+          .kpi .label{
+            color:rgba(255,255,255,.62)!important;
+          }
+          .kpi .num,
+          .kpi .num.p-info,
+          .kpi .num.p-success,
+          .kpi .num.p-violet,
+          .kpi .num.p-warning{
+            color:#fff!important;
+            background:transparent!important;
+          }
+          .kpi .num.p-danger{
+            color:#ff453a!important;
+            background:transparent!important;
+          }
+          EOF
+          fi
       - name: Commit dashboard fix
         shell: bash
         run: |
