@@ -37,6 +37,6 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_upload:custom-5-companies-behind-global-infrastructure-2026-09",
-  "updated_at": "2026-09-26T17:13:53.642785+00:00",
-  "last_reason": "starting next queued topic attempt 1/3"
+  "updated_at": "2026-09-26T17:31:16.765526+00:00",
+  "last_reason": "worker already active"
 }
