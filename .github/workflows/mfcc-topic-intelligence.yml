@@ -1,0 +1,142 @@
+name: MFCC Topic Intelligence
+
+on:
+  push:
+    paths:
+      - 'production/mfcc-topic-request.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: mfcc-topic-intelligence
+  cancel-in-progress: false
+
+jobs:
+  ideate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_RESEARCH_MODEL: ${{ vars.ANTHROPIC_RESEARCH_MODEL || 'claude-haiku-4-5-20251001' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Anthropic client
+        run: pip install 'anthropic>=0.75,<1'
+      - name: Generate five channel-specific ideas
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          from anthropic import Anthropic
+
+          req=json.loads(Path('production/mfcc-topic-request.json').read_text(encoding='utf-8'))
+          cfg=json.loads(Path('channel/config.json').read_text(encoding='utf-8'))
+          request_id=str(req.get('request_id') or req.get('production_id') or '').strip()
+          mode=str(req.get('mode') or 'suggest').strip()
+          objective=str(req.get('objective') or 'viral_ctr').strip()
+          notes=str(req.get('notes') or '').strip()
+          if not request_id:
+              raise SystemExit('Missing request_id')
+
+          objective_map={
+            'viral_ctr':'maximum viral potential and very high CTR without fabricating facts',
+            'current':'a timely current story with strong relevance now',
+            'evergreen':'an evergreen topic with long shelf life',
+            'documentary':'a compelling documentary/history narrative',
+            'curiosity':'a surprising curiosity-driven story with a strong knowledge gap',
+          }
+          channel=cfg.get('channel_name') or req.get('channel_name') or 'The Business Flow'
+          niche=req.get('niche') or cfg.get('niche') or 'business, companies, technology and money'
+          prompt=f'''You are the editorial strategist for the English-language YouTube channel {channel}.
+Channel niche: {niche}.
+Goal: {objective_map.get(objective, objective)}.
+Additional notes: {notes or 'none'}.
+
+Generate exactly 5 factual YouTube story ideas for a US audience. Focus on companies, products, technology, business models, hidden systems, corporate stories and major industry shifts. Prioritize recognizable subjects, curiosity gaps, emotional stakes, a clear narrative arc, and a title that can drive exceptional thumbnail/title CTR. Do not invent events, numbers or allegations. Avoid near-duplicate ideas. Order ideas from strongest to weakest.
+
+Return ONLY a JSON array with exactly 5 objects. Each object must have:
+- topic: concise research topic
+- title_idea: English high-CTR YouTube title
+- hook: one-sentence opening hook
+- reason: why the idea can perform
+- score: integer from 1 to 100
+'''
+          client=Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
+          response=client.messages.create(
+            model=os.environ['ANTHROPIC_RESEARCH_MODEL'],
+            max_tokens=2200,
+            temperature=0.7,
+            messages=[{'role':'user','content':prompt}],
+          )
+          raw=''.join(getattr(block,'text','') for block in response.content).strip()
+          raw=re.sub(r'^```(?:json)?\s*|\s*```$','',raw,flags=re.I|re.S).strip()
+          ideas=json.loads(raw)
+          if not isinstance(ideas,list) or len(ideas)!=5:
+              raise SystemExit('Anthropic did not return exactly five ideas')
+          cleaned=[]
+          for i,item in enumerate(ideas):
+              cleaned.append({
+                'topic':str(item.get('topic') or '').strip(),
+                'title_idea':str(item.get('title_idea') or '').strip(),
+                'hook':str(item.get('hook') or '').strip(),
+                'reason':str(item.get('reason') or '').strip(),
+                'score':max(1,min(100,int(item.get('score') or (100-i)))),
+              })
+          cleaned.sort(key=lambda x:x['score'],reverse=True)
+          out={'request_id':request_id,'mode':mode,'objective':objective,'selected_index':0 if mode=='auto' else None,'suggestions':cleaned}
+          dest=Path('production/mfcc-topic-suggestions')/f'{request_id}.json'
+          dest.parent.mkdir(parents=True,exist_ok=True)
+          dest.write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          if mode=='auto':
+              best=cleaned[0]
+              custom={
+                'id':request_id,
+                'topic':best['topic'],
+                'category':'timely business/technology',
+                'working_angle':best['title_idea'],
+                'title_seed':best['title_idea'],
+                'thumbnail_text_seed':'MUST SEE',
+                'click_score':best['score'],
+                'click_reason':best['reason'],
+                'objective':objective,
+                'upload_requested':bool(req.get('upload_requested')),
+                'mfcc_production_id':request_id,
+                'mfcc_auto_selected':True,
+              }
+              Path('production/custom-topic-request.json').write_text(json.dumps(custom,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+      - name: Commit intelligence result
+        shell: bash
+        run: |
+          set -euo pipefail
+          REQUEST_ID="$(python -c "import json; print(json.load(open('production/mfcc-topic-request.json'))['request_id'])")"
+          git config user.name 'MediaForge Control Center'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/mfcc-topic-suggestions/ production/custom-topic-request.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "MFCC intelligence ${REQUEST_ID}"
+            git pull --rebase --autostash origin main
+            git push origin HEAD:main
+          fi
+      - name: Launch auto-selected production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODE="$(python -c "import json; print(json.load(open('production/mfcc-topic-request.json')).get('mode','suggest'))")"
+          if [ "$MODE" = "auto" ]; then
+            gh workflow run custom-topic-production.yml --repo "${{ github.repository }}" --ref main
+          fi
