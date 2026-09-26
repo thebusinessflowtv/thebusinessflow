@@ -1,0 +1,83 @@
+name: Fix Control Center Desktop Scroll
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-control-center-desktop-scroll.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Repair desktop page scroll and stale player lock
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          css_path = Path('docs/control-center/apple-liquidglass-v3.css')
+          css = css_path.read_text(encoding='utf-8')
+          marker = '/* Desktop document scroll recovery v1 */'
+          if marker not in css:
+              css += r'''
+
+/* Desktop document scroll recovery v1 */
+@media (min-width:901px){
+  html{
+    min-height:100%!important;
+    height:auto!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+  }
+  body{
+    min-height:100vh!important;
+    height:auto!important;
+    overflow-x:hidden!important;
+  }
+  body:not(:has(.player-overlay)){
+    overflow-y:auto!important;
+  }
+  body:has(.player-overlay){
+    overflow:hidden!important;
+  }
+  .shell,.main{
+    min-height:100vh!important;
+    height:auto!important;
+  }
+}
+'''
+              css_path.write_text(css, encoding='utf-8')
+
+          app_path = Path('docs/control-center/app.html')
+          app = app_path.read_text(encoding='utf-8')
+          app = app.replace('./apple-liquidglass-v3.css?v=20260926-3', './apple-liquidglass-v3.css?v=20260926-4')
+          if 'unlockStalePageScroll' not in app:
+              needle = '(function(){\n'
+              patch = '''(function(){\n  const unlockStalePageScroll=()=>{\n    if(!document.querySelector('.player-overlay')){\n      document.body.style.removeProperty('overflow');\n      document.documentElement.style.removeProperty('overflow');\n    }\n  };\n  window.addEventListener('pageshow',unlockStalePageScroll);\n  window.addEventListener('hashchange',()=>setTimeout(unlockStalePageScroll,0));\n  document.addEventListener('visibilitychange',()=>{if(!document.hidden)unlockStalePageScroll()});\n  unlockStalePageScroll();\n'''
+              if needle not in app:
+                  raise SystemExit('Control Center bootstrap marker not found')
+              app = app.replace(needle, patch, 1)
+          app_path.write_text(app, encoding='utf-8')
+          PY
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MediaForge UI"
+          git config user.email "thebusinessflowtv@gmail.com"
+          git add docs/control-center/app.html docs/control-center/apple-liquidglass-v3.css
+          if git diff --cached --quiet; then
+            echo "Desktop scroll repair already applied."
+            exit 0
+          fi
+          git commit -m "Fix Control Center desktop scrolling"
+          git push origin HEAD:main
