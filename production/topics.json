@@ -1055,6 +1055,106 @@
       "youtube_video_id": "S8kMgUG46KU",
       "youtube_privacy_status": "private",
       "youtube_uploaded_at": "2026-09-24T10:09:46.997280+00:00"
+    },
+    {
+      "id": "custom-5-companies-behind-global-infrastructure-2026-09",
+      "topic": "5 Companies Behind Global Infrastructure",
+      "category": "global infrastructure technology finance logistics supply chains",
+      "working_angle": "Find five companies whose technology, infrastructure, networks, payment rails, cloud systems, chips, logistics or other bottlenecks sit behind a surprising amount of the modern world. Keep the framing factual: hidden in plain sight, not a conspiracy. Save the least famous but most structurally important company for the final reveal when supported.",
+      "title_seed": "5 Companies Behind More of the World Than You Think",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Secret-feeling curiosity without unsupported secret-control claims.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Never imply a coordinated conspiracy or literal secret control without evidence.",
+        "Translate infrastructure dependence into concrete everyday consequences.",
+        "Tease the least obvious company in the opening and reveal it near the end."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00",
+      "requeued_at": "2026-09-26T15:09:29.366751+00:00",
+      "requeue_reason": "Requeued after strict zero-cross-video-image-reuse policy"
+    },
+    {
+      "id": "custom-richest-american-family-2026-09",
+      "topic": "America's Richest Family in 2026",
+      "category": "US family wealth business empire 2026",
+      "working_angle": "Verify which family is the richest in the United States under a reputable 2026-or-latest-available wealth estimate, then tell the business story behind the fortune. Open on the scale of the wealth but hold back the counterintuitive source, structure or compounding mechanism that made the fortune so durable until the ending.",
+      "title_seed": "America's Richest Family Built a Fortune Most People Never See",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Human story, enormous money and a recognizable business empire.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Verify the family and wealth estimate; do not assume the seed answer is correct.",
+        "Distinguish family net-worth estimates from company market value.",
+        "Use the business mechanism behind the fortune as the final reveal."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-nvidia-real-money-engine-2026-09",
+      "topic": "NVIDIA",
+      "brand": "NVIDIA",
+      "category": "AI chips semiconductors market value business model",
+      "working_angle": "Explain why NVIDIA became one of America's most valuable companies by focusing on the business system behind the chips: data-center demand, platform economics, software ecosystem, pricing power or other research-supported drivers. Do not call it the richest company unless the dated metric proves it.",
+      "title_seed": "NVIDIA Isn't Just a Chip Company. Here's What Made It One of America's Most Valuable",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Direct Tesla-style formula: familiar company, unexpected second layer, enormous financial consequence.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Open with the contradiction that NVIDIA looks like a chip company but its durable advantage may be broader.",
+        "Plant one specific final-reveal question about what really makes the business hard to replace.",
+        "Do not reveal the full answer until the final 10-15 percent."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-google-real-money-machine-2026-09",
+      "topic": "Google",
+      "brand": "Google",
+      "category": "advertising search cloud revenue business model",
+      "working_angle": "Break down where Google/Alphabet actually makes its money using the latest reported segment and product revenue data. Start from the paradox that billions of people use Google products for free, then trace the business model and save the most important revenue engine or dependency for the final payoff.",
+      "title_seed": "Google Gives You Search for Free. Here's Where the Billions Really Come From",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Free product versus massive revenue creates a clear and specific curiosity gap.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Use Alphabet filings for revenue claims when available.",
+        "Make the opening question extremely simple: if the product is free, who is actually paying?",
+        "Hold the most important revenue dependency or surprising share until late in the story."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+    },
+    {
+      "id": "custom-broadcom-hidden-giant-2026-09",
+      "topic": "Broadcom",
+      "brand": "Broadcom",
+      "category": "semiconductors infrastructure software AI networking",
+      "working_angle": "Explain how Broadcom became one of America's biggest technology companies while remaining far less familiar to consumers than Apple, Google or NVIDIA. Focus on the hidden infrastructure businesses, acquisitions, networking, chips and software that research shows drive its scale, and save the least visible but most important money engine for the final reveal.",
+      "title_seed": "Broadcom Built a Billion-Dollar Machine Most Americans Never See",
+      "thumbnail_text_seed": "",
+      "click_score": 100,
+      "click_reason": "Underknown giant plus hidden-infrastructure economics gives a strong curiosity gap.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Do not call Broadcom secret; frame it as underknown or hidden in infrastructure.",
+        "Use current filings and market-value data for scale claims.",
+        "Open with why most consumers barely know the name despite its size, and reveal the key business engine near the end."
+      ],
+      "status": "ready",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00"
     }
   ],
   "reservoir": {

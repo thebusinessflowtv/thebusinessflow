@@ -13,7 +13,7 @@
     "custom-google-real-money-machine-2026-09",
     "custom-broadcom-hidden-giant-2026-09"
   ],
-  "current_topic": "custom-richest-american-family-2026-09",
+  "current_topic": "custom-5-companies-behind-global-infrastructure-2026-09",
   "source_run_id": null,
   "production_attempts": {
     "custom-10-american-billion-dollar-companies-2026-09": 1,
@@ -22,8 +22,8 @@
     "custom-5-us-market-shaping-companies-2026-09": 1,
     "custom-3-american-global-giants-2026-09": 1,
     "custom-americas-richest-companies-metrics-2026-09": 1,
-    "custom-5-companies-behind-global-infrastructure-2026-09": 3,
-    "custom-richest-american-family-2026-09": 1
+    "custom-5-companies-behind-global-infrastructure-2026-09": 0,
+    "custom-richest-american-family-2026-09": 0
   },
   "upload_attempts": {
     "custom-10-american-billion-dollar-companies-2026-09": 3,
@@ -35,7 +35,7 @@
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
-  "last_action": "production_failure:custom-richest-american-family-2026-09",
-  "updated_at": "2026-09-26T14:59:51.727690+00:00",
-  "last_reason": "current topic status is unknown; waiting"
+  "last_action": "visual_policy_hotfix_requeued",
+  "updated_at": "2026-09-26T15:09:29.366751+00:00",
+  "last_reason": "Global Infrastructure is first under strict zero-reuse visual policy"
 }
