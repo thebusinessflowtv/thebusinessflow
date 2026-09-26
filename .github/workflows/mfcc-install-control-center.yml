@@ -1,0 +1,276 @@
+name: Install MediaForge Control Center
+
+on:
+  push:
+    paths:
+      - '.github/workflows/mfcc-install-control-center.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install control-center hooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          daily = Path('.github/workflows/daily-production.yml')
+          text = daily.read_text(encoding='utf-8')
+          if 'run-name: "MFCC Production' not in text:
+              text = text.replace('name: The Business Flow Daily Production\n', 'name: The Business Flow Daily Production\nrun-name: "MFCC Production ${{ inputs.topic_id || github.event_name }}"\n', 1)
+
+          marker = '      - name: Preserve completed production artifact\n'
+          if 'name: Prepare Control Center downloadable script' not in text:
+              insert = '''      - name: Prepare Control Center downloadable script
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY2'
+          import json
+          from pathlib import Path
+          topic='${{ steps.setup.outputs.topic_id }}'
+          package=Path(f'production/output/{topic}/episode-package.json')
+          data=json.loads(package.read_text(encoding='utf-8'))
+          script=str(data.get('script') or '')
+          if not script.strip():
+              raise SystemExit('Episode package has no script')
+          Path('production/rendered/script.txt').write_text(script + '\\n', encoding='utf-8')
+          PY2
+
+'''
+              if marker not in text:
+                  raise SystemExit('Daily production artifact marker not found')
+              text = text.replace(marker, insert + marker, 1)
+
+          if 'production/rendered/script.txt' not in text:
+              text = text.replace('            production/rendered/metadata.json\n', '            production/rendered/metadata.json\n            production/rendered/script.txt\n', 1)
+
+          if 'name: Publish Control Center video artifact' not in text:
+              anchor = '      - name: Commit durable checkpoints safely\n'
+              extra = '''      - name: Publish Control Center video artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mfcc-video-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
+          path: production/rendered/final.mp4
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Publish Control Center thumbnail artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mfcc-thumbnail-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
+          path: production/rendered/thumbnail.png
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish Control Center script artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mfcc-script-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
+          path: production/rendered/script.txt
+          if-no-files-found: error
+          retention-days: 7
+
+'''
+              if anchor not in text:
+                  raise SystemExit('Commit checkpoint marker not found')
+              text = text.replace(anchor, extra + anchor, 1)
+          daily.write_text(text, encoding='utf-8')
+
+          private = Path('.github/workflows/private-upload-after-production.yml')
+          p = private.read_text(encoding='utf-8')
+          old = '''on:
+  workflow_run:
+    workflows: ["The Business Flow Daily Production"]
+    types: [completed]
+  push:
+    paths:
+      - 'production/private-upload-now.json'
+'''
+          new = '''on:
+  push:
+    paths:
+      - 'production/private-upload-now.json'
+  workflow_dispatch:
+'''
+          if old in p:
+              p = p.replace(old, new, 1)
+          p = p.replace("    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'\n", "    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'\n", 1)
+          private.write_text(p, encoding='utf-8')
+          PY
+
+          cat > .github/workflows/mfcc-topic-intelligence.yml <<'YAML'
+          name: MFCC Topic Intelligence
+          run-name: "MFCC Intelligence ${{ github.event_name == 'push' && github.event.head_commit.message || github.run_id }}"
+
+          on:
+            push:
+              paths:
+                - 'production/mfcc-topic-request.json'
+            workflow_dispatch:
+
+          permissions:
+            contents: write
+            actions: write
+
+          concurrency:
+            group: mfcc-topic-intelligence
+            cancel-in-progress: false
+
+          jobs:
+            ideate:
+              runs-on: ubuntu-24.04
+              timeout-minutes: 15
+              env:
+                ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    fetch-depth: 0
+                - uses: actions/setup-python@v5
+                  with:
+                    python-version: '3.11'
+                - name: Install Anthropic client
+                  run: pip install 'anthropic>=0.75,<1'
+                - name: Generate five channel-specific ideas
+                  id: ideas
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    test -n "$ANTHROPIC_API_KEY" || { echo 'Missing ANTHROPIC_API_KEY'; exit 1; }
+                    python - <<'PY'
+                    import json, os, re
+                    from pathlib import Path
+                    from anthropic import Anthropic
+
+                    req=json.loads(Path('production/mfcc-topic-request.json').read_text(encoding='utf-8'))
+                    cfg=json.loads(Path('channel/config.json').read_text(encoding='utf-8'))
+                    request_id=str(req.get('request_id') or req.get('production_id') or '').strip()
+                    mode=str(req.get('mode') or 'suggest').strip()
+                    objective=str(req.get('objective') or 'viral_ctr').strip()
+                    notes=str(req.get('notes') or '').strip()
+                    if not request_id:
+                        raise SystemExit('Missing request_id')
+                    objective_map={
+                      'viral_ctr':'maximum viral potential and very high CTR without fabricating facts',
+                      'current':'a timely current story with strong relevance now',
+                      'evergreen':'an evergreen topic with long shelf life',
+                      'documentary':'a compelling documentary/history narrative',
+                      'curiosity':'a surprising curiosity-driven story with a strong knowledge gap',
+                    }
+                    channel=cfg.get('channel_name') or req.get('channel_name') or 'The Business Flow'
+                    niche=req.get('niche') or cfg.get('niche') or 'business, companies and technology'
+                    prompt=f'''You are the editorial strategist for the English-language YouTube channel {channel}.
+                    Channel niche: {niche}.
+                    Goal: {objective_map.get(objective, objective)}.
+                    Additional notes: {notes or 'none'}.
+
+                    Generate exactly 5 factual YouTube story ideas for a US audience. Prioritize recognizable subjects, curiosity gaps, emotional stakes, clear narratives, and titles that can produce exceptional thumbnail/title CTR. Do not invent events, numbers or allegations. Avoid near-duplicate ideas. Order the ideas from strongest to weakest.
+
+                    Return ONLY a JSON array with exactly 5 objects. Each object must have:
+                    topic: concise research topic
+                    title_idea: English high-CTR YouTube title
+                    hook: one-sentence opening hook
+                    reason: why the idea can perform
+                    score: integer from 1 to 100
+                    '''
+                    client=Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
+                    response=client.messages.create(
+                      model=os.getenv('ANTHROPIC_RESEARCH_MODEL','claude-haiku-4-5-20251001'),
+                      max_tokens=2200,
+                      temperature=0.7,
+                      messages=[{'role':'user','content':prompt}],
+                    )
+                    raw=''.join(getattr(block,'text','') for block in response.content).strip()
+                    raw=re.sub(r'^```(?:json)?\s*|\s*```$','',raw,flags=re.I|re.S).strip()
+                    ideas=json.loads(raw)
+                    if not isinstance(ideas,list) or len(ideas)!=5:
+                        raise SystemExit(f'Expected exactly 5 ideas, got {type(ideas).__name__}/{len(ideas) if isinstance(ideas,list) else "?"}')
+                    cleaned=[]
+                    for i,item in enumerate(ideas):
+                        if not isinstance(item,dict): raise SystemExit('Idea is not an object')
+                        cleaned.append({
+                          'topic':str(item.get('topic') or '').strip(),
+                          'title_idea':str(item.get('title_idea') or '').strip(),
+                          'hook':str(item.get('hook') or '').strip(),
+                          'reason':str(item.get('reason') or '').strip(),
+                          'score':max(1,min(100,int(item.get('score') or (100-i)))),
+                        })
+                    cleaned.sort(key=lambda x:x['score'],reverse=True)
+                    out={'request_id':request_id,'mode':mode,'objective':objective,'selected_index':0 if mode=='auto' else None,'suggestions':cleaned}
+                    dest=Path('production/mfcc-topic-suggestions')/f'{request_id}.json'
+                    dest.parent.mkdir(parents=True,exist_ok=True)
+                    dest.write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+                    if mode=='auto':
+                        best=cleaned[0]
+                        custom={
+                          'id':request_id,
+                          'topic':best['topic'],
+                          'category':'timely business/technology',
+                          'working_angle':best['title_idea'],
+                          'title_seed':best['title_idea'],
+                          'thumbnail_text_seed':'MUST SEE',
+                          'click_score':best['score'],
+                          'click_reason':best['reason'],
+                          'objective':objective,
+                          'upload_requested':bool(req.get('upload_requested')),
+                          'mfcc_production_id':request_id,
+                          'mfcc_auto_selected':True,
+                        }
+                        Path('production/custom-topic-request.json').write_text(json.dumps(custom,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+                    print(json.dumps(out,indent=2))
+                    PY
+                - name: Commit intelligence result
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    git config user.name 'MediaForge Control Center'
+                    git config user.email 'thebusinessflowtv@gmail.com'
+                    git add production/mfcc-topic-suggestions/ production/custom-topic-request.json || true
+                    if git diff --cached --quiet; then
+                      echo 'No intelligence result changes.'
+                    else
+                      git commit -m "MFCC intelligence $(python -c \"import json;print(json.load(open('production/mfcc-topic-request.json'))['request_id'])\")"
+                      git pull --rebase --autostash origin main
+                      git push origin HEAD:main
+                    fi
+                - name: Launch auto-selected production
+                  if: success()
+                  env:
+                    GH_TOKEN: ${{ github.token }}
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    MODE="$(python -c "import json;print(json.load(open('production/mfcc-topic-request.json')).get('mode','suggest'))")"
+                    if [ "$MODE" = "auto" ]; then
+                      gh workflow run custom-topic-production.yml --repo "${{ github.repository }}" --ref main
+                    fi
+          YAML
+
+          rm -f .github/workflows/mfcc-install-control-center.yml
+
+      - name: Commit installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MediaForge Control Center'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add -A
+          git commit -m 'Activate MediaForge Control Center integration'
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
