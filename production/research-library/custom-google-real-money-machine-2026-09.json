@@ -1,0 +1,109 @@
+{
+  "thesis": "Google's $350+ billion revenue engine is built almost entirely on advertising, with search dominance and YouTube generating the core cash while cloud and subscription products emerge as future growth drivers.",
+  "facts": [
+    {
+      "claim": "Google advertising generated $264.6 billion in 2024 revenue, comprising 76% of Alphabet's total $350 billion, driven primarily by search.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/Financial_Report.xlsx",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Google Search & other contributed $198.1 billion in 2024, making it the single largest revenue source, while YouTube ads generated $36.1 billion.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/Financial_Report.xlsx",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Google Cloud revenues surged 82% year-over-year to $24.8 billion in Q2 2026, driven by enterprise AI infrastructure and solutions.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000066/googexhibit991q22026.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Google Services also includes subscriptions, platforms, and devices which generated $40.3 billion in 2024, reflecting growing paid consumer products beyond free search.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/Financial_Report.xlsx",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Alphabet reported 12 consecutive quarters of double-digit revenue growth through Q2 2026, with consolidated revenues reaching $119.8 billion.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000066/googexhibit991q22026.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Google Cloud had $462.3 billion in remaining performance obligations as of March 2026, representing future contracted revenue that has not yet been recognized.",
+      "source_url": "https://s206.q4cdn.com/479360582/files/doc_financials/2026/q1/GOOG-10-Q-Q1-2026.pdf",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$264.6 billion",
+      "context": "Google advertising revenue in 2024, representing 76% of Alphabet total revenue",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/Financial_Report.xlsx"
+    },
+    {
+      "value": "$198.1 billion",
+      "context": "Google Search & other revenue in 2024, the largest single product revenue",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/Financial_Report.xlsx"
+    },
+    {
+      "value": "$24.8 billion",
+      "context": "Google Cloud revenue in Q2 2026, up 82% year-over-year",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000066/googexhibit991q22026.htm"
+    },
+    {
+      "value": "$175-185 billion",
+      "context": "Alphabet's anticipated 2026 CapEx investment range, primarily for AI and infrastructure",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000012/googexhibit991q42025.htm"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2024-12-31",
+      "event": "Google Services revenue reached $304.9 billion; Google advertising hit $264.6 billion, establishing search as dominant revenue engine",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/Financial_Report.xlsx"
+    },
+    {
+      "date": "2026-03-31",
+      "event": "Google Cloud accumulated $462.3 billion in remaining performance obligations, signaling enterprise shift to cloud and AI services",
+      "source_url": "https://s206.q4cdn.com/479360582/files/doc_financials/2026/q1/GOOG-10-Q-Q1-2026.pdf"
+    },
+    {
+      "date": "2026-06-30",
+      "event": "Google Cloud revenue accelerated to $24.8 billion in Q2 with 82% growth, marking fastest growth segment and inflection point in revenue mix",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000066/googexhibit991q22026.htm"
+    }
+  ],
+  "sources": [
+    {
+      "title": "sec.gov",
+      "url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/Financial_Report.xlsx",
+      "source_type": "web"
+    },
+    {
+      "title": "sec.gov",
+      "url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000066/googexhibit991q22026.htm",
+      "source_type": "web"
+    },
+    {
+      "title": "s206.q4cdn.com",
+      "url": "https://s206.q4cdn.com/479360582/files/doc_financials/2026/q1/GOOG-10-Q-Q1-2026.pdf",
+      "source_type": "web"
+    },
+    {
+      "title": "sec.gov",
+      "url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000012/googexhibit991q42025.htm",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-google-real-money-machine-2026-09",
+  "topic": "Google",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 12759,
+    "output_tokens": 1589,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.030704,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-26T19:43:15.988811+00:00"
+}
