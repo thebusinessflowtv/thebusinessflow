@@ -1,0 +1,46 @@
+name: Apply Control Center Apple v3
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-control-center-apple-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch Control Center shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('docs/control-center/app.html')
+          s=p.read_text(encoding='utf-8')
+          link='  <link rel="stylesheet" href="./apple-liquidglass-v3.css?v=20260926-3">\n'
+          if 'apple-liquidglass-v3.css' not in s:
+              s=s.replace('</head>', link+'</head>', 1)
+          s=s.replace("pageHead('Produções','Acompanhe cada vídeo do pedido ao upload.')", "pageHead('Produções','Seus vídeos ficam organizados aqui. Quando concluídos, você pode assistir e baixar os arquivos diretamente pela produção.')")
+          s=s.replace('Downloads entregues em .zip', 'Vídeo, thumbnail e roteiro salvos nesta produção · disponíveis para download')
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit UI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MediaForge UI'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add docs/control-center/app.html
+          if git diff --cached --quiet; then
+            echo 'Control Center already patched.'
+            exit 0
+          fi
+          git commit -m 'Apply Apple Liquid Glass v3 to Control Center'
+          git push origin HEAD:main
