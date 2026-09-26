@@ -1,0 +1,36 @@
+name: MFCC UI Validation
+
+on:
+  push:
+    paths:
+      - 'docs/control-center/app.html'
+      - '.github/workflows/mfcc-ui-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate required UI features
+        run: |
+          grep -q 'MediaForge Apple Glass Design System v1' docs/control-center/app.html
+          grep -q 'async function openVideoPlayer' docs/control-center/app.html
+          grep -q 'class="mobile-dock"' docs/control-center/app.html
+          grep -q 'id="watchVideo"' docs/control-center/app.html
+      - name: Validate inline JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('docs/control-center/app.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',text,re.S)
+          inline=[s for s in scripts if s.strip()]
+          if not inline:
+              raise SystemExit('No inline script found')
+          Path('/tmp/mfcc-inline.js').write_text(inline[-1],encoding='utf-8')
+          PY
+          node --check /tmp/mfcc-inline.js
