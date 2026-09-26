@@ -13,12 +13,13 @@
     "custom-google-real-money-machine-2026-09",
     "custom-broadcom-hidden-giant-2026-09"
   ],
-  "current_topic": "custom-top-5-most-valuable-us-companies-2026-09",
-  "source_run_id": 36213594579,
+  "current_topic": "custom-5-us-market-shaping-companies-2026-09",
+  "source_run_id": null,
   "production_attempts": {
     "custom-10-american-billion-dollar-companies-2026-09": 1,
     "custom-15-us-industries-billions-2026-09": 1,
-    "custom-top-5-most-valuable-us-companies-2026-09": 1
+    "custom-top-5-most-valuable-us-companies-2026-09": 1,
+    "custom-5-us-market-shaping-companies-2026-09": 1
   },
   "upload_attempts": {
     "custom-10-american-billion-dollar-companies-2026-09": 3,
@@ -27,7 +28,7 @@
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
-  "last_action": "blocked_upload:custom-15-us-industries-billions-2026-09",
-  "updated_at": "2026-09-26T04:20:26.964419+00:00",
-  "last_reason": "worker already active"
+  "last_action": "completed:custom-top-5-most-valuable-us-companies-2026-09",
+  "updated_at": "2026-09-26T04:21:39.504157+00:00",
+  "last_reason": "starting next queued topic attempt 1/3"
 }
