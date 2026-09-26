@@ -11,11 +11,11 @@ if 'progressLight 1.45s' not in text:
         raise SystemExit('statusbar CSS anchor not found')
     text = text.replace(old_css, new_css, 1)
 
-old_html = '<div class="bigprogress">\'+progress(p.progress)+\'<div class="percent">'
-new_html = '<div class="bigprogress \'+(!terminal.includes(p.status)?\'live\':\'\')+\'">\'+progress(p.progress)+\'<div class="percent">'
+old_html = """<div class=\"bigprogress\">'+progress(p.progress)+'<div class=\"percent\">"""
+new_html = """<div class=\"bigprogress '+(!terminal.includes(p.status)?'live':'')+'\">'+progress(p.progress)+'<div class=\"percent\">"""
 if old_html in text:
     text = text.replace(old_html, new_html, 1)
-elif 'bigprogress \'+(!terminal.includes(p.status)?\'live\':\'\')+\'' not in text:
+elif "bigprogress '+(!terminal.includes(p.status)?'live':'')+'" not in text:
     raise SystemExit('bigprogress HTML anchor not found')
 
 p.write_text(text, encoding='utf-8')
