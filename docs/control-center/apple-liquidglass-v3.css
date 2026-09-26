@@ -239,3 +239,28 @@ body{background-image:none!important}
   .detail-head>.row:first-child>div:last-child .btn{font-size:12.5px!important;padding:0 12px!important}
   .mobile-dock{left:6px!important;right:6px!important}
 }
+
+/* Dashboard KPI neutral colors v1 */
+.kpi{
+  color:#fff!important;
+}
+.kpi .label,
+.kpi .num{
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.kpi .label{
+  color:rgba(255,255,255,.62)!important;
+}
+.kpi .num,
+.kpi .num.p-info,
+.kpi .num.p-success,
+.kpi .num.p-violet,
+.kpi .num.p-warning{
+  color:#fff!important;
+  background:transparent!important;
+}
+.kpi .num.p-danger{
+  color:#ff453a!important;
+  background:transparent!important;
+}
