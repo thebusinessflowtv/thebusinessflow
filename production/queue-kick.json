@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-09-26T15:11:00Z",
-  "reason": "Restart custom batch with Global Infrastructure first under strict zero-reuse visual policy"
+  "requested_at": "2026-09-26T15:18:00Z",
+  "reason": "Retry Global Infrastructure after invalidating stale Haiku research cache; strict zero-reuse visuals active"
 }
