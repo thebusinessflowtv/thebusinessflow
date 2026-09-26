@@ -36,6 +36,6 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "verified_research_checkpoint_requeued",
-  "updated_at": "2026-09-26T15:20:59.450502+00:00",
-  "last_reason": "retrying production attempt 1/3"
+  "updated_at": "2026-09-26T15:34:30.381142+00:00",
+  "last_reason": "worker already active"
 }
