@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from render_episode_hq import main
+from render_episode_smooth import main
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "production" / "used-visual-assets.json"
