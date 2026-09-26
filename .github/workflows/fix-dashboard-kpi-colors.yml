@@ -1,0 +1,70 @@
+name: Fix Dashboard KPI Colors
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-dashboard-kpi-colors.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply neutral KPI colors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('docs/control-center/apple-liquidglass-v3.css')
+          s=p.read_text(encoding='utf-8')
+          marker='/* Dashboard KPI neutral colors v1 */'
+          if marker not in s:
+              s += r'''
+
+/* Dashboard KPI neutral colors v1 */
+.kpi{
+  color:#fff!important;
+}
+.kpi .label,
+.kpi .num{
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.kpi .label{
+  color:rgba(255,255,255,.62)!important;
+}
+.kpi .num,
+.kpi .num.p-info,
+.kpi .num.p-success,
+.kpi .num.p-violet,
+.kpi .num.p-warning{
+  color:#fff!important;
+  background:transparent!important;
+}
+.kpi .num.p-danger{
+  color:#ff453a!important;
+  background:transparent!important;
+}
+'''
+              p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit dashboard fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MediaForge UI'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add docs/control-center/apple-liquidglass-v3.css
+          if git diff --cached --quiet; then
+            echo 'Dashboard KPI colors already fixed.'
+            exit 0
+          fi
+          git commit -m 'Fix dashboard KPI colors'
+          git push origin HEAD:main
