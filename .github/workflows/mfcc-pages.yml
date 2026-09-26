@@ -1,0 +1,65 @@
+name: Deploy MediaForge Control Center
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'control-center/**'
+      - '.github/workflows/mfcc-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: mediaforge-control-center-pages
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Control Center
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('control-center/index.html').read_text(encoding='utf-8')
+          required = [
+            '<title>MediaForge Control Center</title>',
+            'mfcc-dispatch', 'mfcc-suggestions', 'mfcc-status', 'mfcc-artifact-link',
+            'repo_full_name', 'youtube_connected', 'allow_youtube_upload',
+            'The Business Flow', 'NBA Stars'
+          ]
+          missing = [item for item in required if item not in html]
+          assert not missing, f'Missing required frontend contract: {missing}'
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, re.S)
+          assert scripts, 'No inline JavaScript found'
+          Path('/tmp/mfcc.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/mfcc.js
+      - name: Prepare static site
+        run: touch control-center/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: control-center
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
