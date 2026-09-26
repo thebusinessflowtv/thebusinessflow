@@ -67,6 +67,10 @@ jobs:
           path: restored/rendered/script.txt
           if-no-files-found: error
           retention-days: 90
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
       - name: Build private HLS stream
         shell: bash
         run: |
