@@ -12,11 +12,9 @@ permissions:
 
 jobs:
   publish:
-    # Publish whenever the parent run finished and left a valid production artifact.
-    # This also preserves a finished render if a later non-render step failed.
     if: github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Download production package
@@ -39,14 +37,11 @@ jobs:
           python - "$PACKAGE" <<'PY' >> "$GITHUB_OUTPUT"
           import json, sys
           from pathlib import Path
-          p=Path(sys.argv[1])
-          d=json.loads(p.read_text(encoding='utf-8'))
+          d=json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
           production_id=str(d.get('mfcc_production_id') or d.get('production_id') or d.get('topic_id') or '').strip()
-          if not production_id:
-              raise SystemExit('Missing production id')
+          if not production_id: raise SystemExit('Missing production id')
           script=str(d.get('script') or '').strip()
-          if not script:
-              raise SystemExit('Missing script')
+          if not script: raise SystemExit('Missing script')
           Path('restored/rendered/script.txt').write_text(script+'\n',encoding='utf-8')
           print(f'production_id={production_id}')
           PY
@@ -72,21 +67,31 @@ jobs:
           path: restored/rendered/script.txt
           if-no-files-found: error
           retention-days: 90
-      - name: Install resumable uploader
-        run: npm install --no-save tus-js-client@4
-      - name: Save final video in private MediaForge storage
+      - name: Build private HLS stream
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf restored/rendered/hls
+          mkdir -p restored/rendered/hls
+          ffmpeg -hide_banner -loglevel error -y \
+            -i restored/rendered/final.mp4 \
+            -map 0:v:0 -map 0:a:0? -c copy \
+            -f hls -hls_time 10 -hls_list_size 0 -hls_segment_type mpegts \
+            -hls_segment_filename 'restored/rendered/hls/seg-%05d.ts' \
+            restored/rendered/hls/index.m3u8
+          test -s restored/rendered/hls/index.m3u8
+      - name: Store private HLS stream
         env:
           MFCC_PRODUCTION_ID: ${{ steps.output.outputs.production_id }}
-          MFCC_OUTPUT_KIND: video
-          MFCC_OUTPUT_FILE: restored/rendered/final.mp4
-        run: node tools/mfcc_upload_output.mjs
-      - name: Save thumbnail in private MediaForge storage
+          MFCC_HLS_DIR: restored/rendered/hls
+        run: node tools/mfcc_upload_hls.mjs
+      - name: Store thumbnail privately
         env:
           MFCC_PRODUCTION_ID: ${{ steps.output.outputs.production_id }}
           MFCC_OUTPUT_KIND: thumbnail
           MFCC_OUTPUT_FILE: restored/rendered/thumbnail.png
         run: node tools/mfcc_upload_output.mjs
-      - name: Save script in private MediaForge storage
+      - name: Store script privately
         env:
           MFCC_PRODUCTION_ID: ${{ steps.output.outputs.production_id }}
           MFCC_OUTPUT_KIND: script
