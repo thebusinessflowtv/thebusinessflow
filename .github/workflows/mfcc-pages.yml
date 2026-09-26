@@ -60,15 +60,24 @@ jobs:
           node --check /tmp/mfcc-app.js
           node --check /tmp/mfcc-gate.js
 
-      - name: Prepare private-entry static site
+      - name: Prepare Control Center subpath
         shell: bash
         run: |
           set -euo pipefail
           rm -rf _site
-          mkdir -p _site
-          cp control-center/secure.html _site/index.html
-          cp control-center/index.html _site/app.html
+          mkdir -p _site/control-center
+          cp control-center/secure.html _site/control-center/index.html
+          cp control-center/index.html _site/control-center/app.html
           touch _site/.nojekyll
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="pt-BR">
+          <head><meta charset="utf-8"><meta name="robots" content="noindex"><title>MediaForge</title></head>
+          <body style="margin:0;background:#090a0f;color:#fff;font-family:system-ui;display:grid;place-items:center;min-height:100vh">
+            <a href="./control-center/" style="color:#fff;text-decoration:none;border:1px solid #333;padding:14px 20px;border-radius:10px;background:#151821">Abrir MediaForge Control Center</a>
+          </body>
+          </html>
+          HTML
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -78,7 +87,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}control-center/
     runs-on: ubuntu-latest
     needs: validate
     steps:
