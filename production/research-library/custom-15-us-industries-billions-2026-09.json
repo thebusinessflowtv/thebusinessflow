@@ -1,0 +1,105 @@
+{
+  "thesis": "The U.S. economy is dominated by financial services, real estate, and insurance sectors that collectively generate nearly $6.8 trillion in output, but the industry-by-industry revenue ranking reveals deeper structural drivers: banking ($1.57T), real estate ($1.54T), and insurance ($1.53T+) compete at scale with healthcare, energy, and retail.",
+  "facts": [
+    {
+      "claim": "Finance, real estate, insurance, rental and leasing account for $6.8 trillion in economic output, more than one-fifth of entire U.S. economy.",
+      "source_url": "https://www.visualcapitalist.com/americas-biggest-industries-by-economic-output/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Commercial banking generated $1,571.4 billion in revenue for 2026, the largest single industry by revenue.",
+      "source_url": "https://www.ibisworld.com/united-states/industry-trends/biggest-industries-by-revenue",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Commercial real estate produced $1,536.2 billion in 2026 revenue despite office vacancy reaching 20.7% in Q2 2025.",
+      "source_url": "https://www.ibisworld.com/united-states/industry-trends/biggest-industries-by-revenue",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Health and medical insurance generated $1,531.2 billion in 2026 revenue, driven by medical cost inflation and declining uninsured rates.",
+      "source_url": "https://www.ibisworld.com/united-states/industry-trends/biggest-industries-by-revenue",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Professional and business services added $4.1 trillion to GDP, the second-largest sector after combined FIRES industries.",
+      "source_url": "https://www.visualcapitalist.com/americas-biggest-industries-by-economic-output/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Oil and gas extraction remains a top revenue producer at $576.9 billion, with solar power generation as the 4th fastest-growing sub-sector at 19% revenue growth.",
+      "source_url": "https://theusaleaders.com/blog/top-industries-in-the-usa/",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$6.8 trillion",
+      "context": "Finance, real estate, insurance, rental and leasing combined economic output",
+      "source_url": "https://www.visualcapitalist.com/americas-biggest-industries-by-economic-output/"
+    },
+    {
+      "value": "$1,571.4 billion",
+      "context": "Commercial banking industry revenue 2026",
+      "source_url": "https://www.ibisworld.com/united-states/industry-trends/biggest-industries-by-revenue"
+    },
+    {
+      "value": "20.7%",
+      "context": "Office vacancy rate Q2 2025 in commercial real estate",
+      "source_url": "https://www.ibisworld.com/united-states/industry-trends/biggest-industries-by-revenue"
+    },
+    {
+      "value": "$4.1 trillion",
+      "context": "Professional and business services GDP contribution",
+      "source_url": "https://www.visualcapitalist.com/americas-biggest-industries-by-economic-output/"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2015",
+      "event": "Lifting of crude oil export restrictions opened U.S. shale oil to overseas markets",
+      "source_url": "https://www.visualcapitalist.com/americas-biggest-industries-by-economic-output/"
+    },
+    {
+      "date": "Q2 2025",
+      "event": "Office vacancy rate peaked at 20.7% as remote and hybrid work adoption persisted",
+      "source_url": "https://www.ibisworld.com/united-states/industry-trends/biggest-industries-by-revenue"
+    },
+    {
+      "date": "Late 2025",
+      "event": "Nonfarm business productivity surged 4.9%, enabling economic expansion without inflation pressure",
+      "source_url": "https://theusaleaders.com/blog/top-industries-in-the-usa/"
+    }
+  ],
+  "sources": [
+    {
+      "title": "visualcapitalist.com",
+      "url": "https://www.visualcapitalist.com/americas-biggest-industries-by-economic-output/",
+      "source_type": "web"
+    },
+    {
+      "title": "ibisworld.com",
+      "url": "https://www.ibisworld.com/united-states/industry-trends/biggest-industries-by-revenue",
+      "source_type": "web"
+    },
+    {
+      "title": "theusaleaders.com",
+      "url": "https://theusaleaders.com/blog/top-industries-in-the-usa/",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-15-us-industries-billions-2026-09",
+  "topic": "15 U.S. Industries Moving Billions",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 12491,
+    "output_tokens": 1586,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.030421,
+  "recovered_from_paid_response": true,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-26T01:32:08.292045+00:00"
+}
