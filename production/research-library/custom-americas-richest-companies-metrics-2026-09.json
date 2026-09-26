@@ -1,0 +1,114 @@
+{
+  "thesis": "America's richest companies in 2026 rank differently by metric: Amazon leads by revenue, Nvidia dominates by market value, and Alphabet by profit, revealing that \"richest\" has no universal definition and metrics diverge dramatically.",
+  "facts": [
+    {
+      "claim": "<cite index=\"1-5\">Amazon leads US companies by revenue with $715 billion in 2025, a 12% jump from prior year</cite>, ending Walmart's 13-year reign.",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "<cite index=\"4-1,4-2\">Nvidia is the largest by market cap at $5.58 trillion, followed by Apple ($4.70T), Alphabet ($4.10T), Microsoft ($3.71T), and Amazon ($2.78T)</cite>.",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "<cite index=\"6-1\">Alphabet is the most profitable US company with $244.119 billion net income over past 12 months, followed by Nvidia and Amazon</cite>.",
+      "source_url": "https://www.financecharts.com/screener/most-profitable-country-us",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "<cite index=\"1-15\">Nvidia ranks 16th by revenue but surpasses Apple to become the most valuable company with market value exceeding $4 trillion</cite>.",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "<cite index=\"9-2\">High market value signals investor expectations; it does not prove highest revenue, highest profit, largest workforce or lowest risk</cite>.",
+      "source_url": "https://statranker.org/economy/investments/top-100-companies-by-market-capitalization-2026/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "<cite index=\"1-14\">The top four profit-earning companies each eclipsed $100 billion in profits and combined for more than 20% of total Fortune 500 earnings</cite>.",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$715 billion",
+      "context": "Amazon 2025 revenue, 12% year-over-year growth",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html"
+    },
+    {
+      "value": "$5.58 trillion",
+      "context": "Nvidia market capitalization as largest company by market cap",
+      "source_url": "https://www.alpha-sense.com/largest-companies-by-market-cap/"
+    },
+    {
+      "value": "$244.119 billion",
+      "context": "Alphabet net income over past 12 months, most profitable US company",
+      "source_url": "https://www.financecharts.com/screener/most-profitable-country-us"
+    },
+    {
+      "value": "13 years",
+      "context": "Length of Walmart's run at Fortune 500 No. 1 before Amazon's 2026 takeover",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2012",
+      "event": "Walmart began its 13-year consecutive run as #1 on Fortune 500 by revenue",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html"
+    },
+    {
+      "date": "2026-06-03",
+      "event": "Fortune 500 2026 rankings announced; Amazon dethroned Walmart after 13-year reign",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html"
+    },
+    {
+      "date": "2026-09-04",
+      "event": "Nvidia's market cap peak at $5.56 trillion as of September 2026 market snapshot",
+      "source_url": "https://www.fool.com/research/largest-companies-by-market-cap/"
+    },
+    {
+      "date": "2026-09-18",
+      "event": "Alphabet confirmed as most profitable US company with $244B+ net income",
+      "source_url": "https://www.financecharts.com/screener/most-profitable-country-us"
+    }
+  ],
+  "sources": [
+    {
+      "title": "finance.yahoo.com",
+      "url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html",
+      "source_type": "web"
+    },
+    {
+      "title": "alpha-sense.com",
+      "url": "https://www.alpha-sense.com/largest-companies-by-market-cap/",
+      "source_type": "web"
+    },
+    {
+      "title": "financecharts.com",
+      "url": "https://www.financecharts.com/screener/most-profitable-country-us",
+      "source_type": "web"
+    },
+    {
+      "title": "statranker.org",
+      "url": "https://statranker.org/economy/investments/top-100-companies-by-market-capitalization-2026/",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-americas-richest-companies-metrics-2026-09",
+  "topic": "America's Richest Companies in 2026",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 12861,
+    "output_tokens": 1587,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.030796,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-26T07:49:10.977059+00:00"
+}
