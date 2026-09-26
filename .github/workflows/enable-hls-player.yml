@@ -1,0 +1,93 @@
+name: Enable HLS Video Player
+
+on:
+  push:
+    paths:
+      - '.github/workflows/enable-hls-player.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add HLS.js and patch player
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('docs/control-center/app.html')
+          s=p.read_text(encoding='utf-8')
+          hls='<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>'
+          if 'hls.js@1' not in s:
+              anchor='<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>'
+              s=s.replace(anchor,anchor+'\n  '+hls,1)
+          start=s.index('  async function openVideoPlayer(id,title){')
+          end=s.index('\n\n  async function productionDetail',start)
+          fn=r'''  async function openVideoPlayer(id,title){
+            clearPoll();
+            const back=document.createElement('div');back.className='player-overlay';
+            back.innerHTML='<div class="player-window"><div class="player-head"><div class="glass-icon"><i data-lucide="play"></i></div><div class="player-head-text"><b>'+esc(title||'Vídeo final')+'</b><span>Player do MediaForge · streaming privado</span></div><button class="btn player-close" id="playerClose" aria-label="Fechar"><i data-lucide="x"></i></button></div><div class="player-stage" id="playerStage"><div class="player-loading"><div class="loader"></div><b>Abrindo vídeo…</b><span>Conectando ao streaming privado.</span></div></div></div>';
+            document.body.appendChild(back);document.body.style.overflow='hidden';if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
+            const stage=back.querySelector('#playerStage');let hls=null;
+            const close=()=>{try{if(hls)hls.destroy()}catch{}back.remove();document.body.style.overflow=''};
+            back.querySelector('#playerClose').onclick=close;back.onclick=e=>{if(e.target===back)close()};
+            const escClose=e=>{if(e.key==='Escape'){document.removeEventListener('keydown',escClose);close()}};document.addEventListener('keydown',escClose);
+            const showError=(message)=>{
+              stage.innerHTML='<div class="player-error"><b>Não foi possível reproduzir o vídeo</b><p>'+esc(message||'Tente novamente em alguns instantes.')+'</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
+              if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
+              stage.querySelector('#playerRetry').onclick=()=>{close();openVideoPlayer(id,title)};
+            };
+            try{
+              const stream=await invoke('mfcc-video-stream',{production_id:id});
+              const src=stream&&stream.hls_url||stream&&stream.signed_url;
+              if(!src)throw new Error('O vídeo ainda está sendo preparado para streaming.');
+              stage.innerHTML='<video controls playsinline webkit-playsinline preload="metadata" id="mfccVideo"></video>';
+              const video=stage.querySelector('#mfccVideo');
+              if(stream.stream_type==='hls'||stream.hls_url){
+                if(video.canPlayType('application/vnd.apple.mpegurl')){
+                  video.src=src;
+                  video.addEventListener('loadedmetadata',()=>video.play().catch(()=>{}),{once:true});
+                }else if(window.Hls&&Hls.isSupported()){
+                  hls=new Hls({enableWorker:true,lowLatencyMode:false,backBufferLength:90,maxBufferLength:30});
+                  hls.loadSource(src);hls.attachMedia(video);
+                  hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));
+                  hls.on(Hls.Events.ERROR,(_,data)=>{if(data&&data.fatal)showError('O streaming encontrou um erro fatal. Tente abrir novamente.')});
+                }else{
+                  showError('Este navegador não oferece suporte ao streaming HLS deste vídeo.');
+                }
+              }else{
+                video.src=src;
+                video.addEventListener('loadedmetadata',()=>video.play().catch(()=>{}),{once:true});
+              }
+              video.addEventListener('error',()=>{if(stage.querySelector('video'))showError('O arquivo foi encontrado, mas o navegador não conseguiu iniciar a reprodução.')},{once:true});
+            }catch(e){
+              const msg=errMsg(e);
+              const preparing=/stream_not_ready|preparad|ainda não está disponível/i.test(msg);
+              stage.innerHTML='<div class="player-error"><b>'+(preparing?'Preparando streaming…':'Não foi possível abrir o player')+'</b><p>'+(preparing?'O vídeo já está concluído. O MediaForge está preparando a versão otimizada para reprodução no iPhone e no navegador. Tente novamente em alguns instantes.':esc(msg))+'</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
+              if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
+              stage.querySelector('#playerRetry').onclick=()=>{close();openVideoPlayer(id,title)};
+            }
+          }'''
+          s=s[:start]+fn+s[end:]
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit HLS player
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MediaForge UI'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add docs/control-center/app.html
+          if git diff --cached --quiet; then
+            echo 'HLS player already enabled.'
+            exit 0
+          fi
+          git commit -m 'Enable private HLS video playback on mobile'
+          git push origin HEAD:main
