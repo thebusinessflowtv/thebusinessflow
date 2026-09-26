@@ -1,0 +1,51 @@
+name: Apply The Business Flow Visual Policy
+
+on:
+  push:
+    paths:
+      - 'production/apply-visual-policy-now.json'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply deterministic patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/apply_visual_policy_patch.py
+          python -m py_compile production/collect_visual_assets_unique.py production/register_used_visual_assets.py production/apply_visual_policy_patch.py
+
+      - name: Validate zero-reuse policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'fresh only, zero cross-video reuse' .github/workflows/daily-production.yml
+          grep -q 'collect_visual_assets_unique.py' .github/workflows/daily-production.yml
+          grep -q 'Permanently reserve images used by this video' .github/workflows/daily-production.yml
+          grep -q 'production/used-visual-assets.json' .github/workflows/daily-production.yml
+          ! grep -q 'Restore visual asset cache' .github/workflows/daily-production.yml
+          ! grep -q 'Save visual work immediately' .github/workflows/daily-production.yml
+
+      - name: Commit correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add .github/workflows/daily-production.yml production/topics.json production/queue-state.json
+          if git diff --cached --quiet; then
+            echo 'Patch already applied.'
+            exit 0
+          fi
+          git commit -m 'Enforce zero cross-video image reuse'
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
