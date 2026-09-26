@@ -1,0 +1,30 @@
+name: MFCC Idea Bank UI
+
+on:
+  push:
+    paths:
+      - 'tools/patch_control_center_idea_bank.py'
+      - '.github/workflows/mfcc-idea-bank-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch Control Center
+        run: python3 tools/patch_control_center_idea_bank.py
+      - name: Commit Control Center changes
+        run: |
+          git config user.name "MediaForge Bot"
+          git config user.email "thebusinessflowtv@gmail.com"
+          git add docs/control-center/app.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Add persistent idea bank to Control Center"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
