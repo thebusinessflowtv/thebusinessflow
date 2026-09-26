@@ -1,0 +1,59 @@
+name: MFCC Control Center Validation
+
+on:
+  push:
+    paths:
+      - 'control-center/index.html'
+      - '.github/workflows/mfcc-control-center-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate HTML contract and JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('control-center/index.html')
+          html=p.read_text(encoding='utf-8')
+          assert '<title>MediaForge Control Center</title>' in html
+          required=[
+            'repo_full_name','youtube_connected','allow_youtube_upload','integration_type','last_checked_at',
+            'mfcc-dispatch','mfcc-suggestions','mfcc-status','mfcc-artifact-link',
+            'The Business Flow','NBA Stars'
+          ]
+          missing=[x for x in required if x not in html]
+          assert not missing, missing
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',html,re.S)
+          assert scripts, 'No inline JavaScript found'
+          Path('/tmp/mfcc-app.js').write_text(scripts[-1],encoding='utf-8')
+          print('HTML contract OK; inline app JavaScript extracted.')
+          PY
+          node --check /tmp/mfcc-app.js
+      - name: Smoke test deployed Control Center
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://fykwalznmcrjgnyveagy.supabase.co/functions/v1/mfcc-app'
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --location --max-time 20 "$URL" -o /tmp/live.html; then
+              break
+            fi
+            sleep 3
+          done
+          test -s /tmp/live.html
+          grep -q '<title>MediaForge Control Center</title>' /tmp/live.html
+          grep -q 'mfcc-dispatch' /tmp/live.html
+          echo 'Live Control Center smoke test passed.'
