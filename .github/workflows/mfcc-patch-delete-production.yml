@@ -15,53 +15,61 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Update production detail controls
+      - name: Add persistent idea bank
         run: |
           python3 <<'PY'
           from pathlib import Path
+
           p = Path('docs/control-center/app.html')
           text = p.read_text(encoding='utf-8')
 
-          # Keep the delete action available while a production is active.
-          needle = '<button class="btn" id="refreshStatus">↻ Atualizar agora</button>'
-          if 'id="deleteProduction"' not in text:
-              pos = text.find(needle)
-              if pos < 0:
-                  raise SystemExit('refresh button not found')
-              pos += len(needle)
-              insert = "'+(!terminal.includes(p.status)?'<button class=\"btn danger\" id=\"deleteProduction\">✕ Excluir execução</button>':'')+'"
-              text = text[:pos] + insert + text[pos:]
+          # Navigation + title.
+          text = text.replace(
+              "function titleFor(path){if(path==='/')return'Dashboard';if(path==='/create')return'Criar vídeo';if(path==='/productions')return'Produções';if(path.startsWith('/production/'))return'Detalhe da produção';if(path==='/channels')return'Canais';if(path==='/settings')return'Configurações';return'MediaForge'}",
+              "function titleFor(path){if(path==='/')return'Dashboard';if(path==='/create')return'Criar vídeo';if(path==='/ideas'||path.startsWith('/ideas/'))return'Ideias';if(path==='/productions')return'Produções';if(path.startsWith('/production/'))return'Detalhe da produção';if(path==='/channels')return'Canais';if(path==='/settings')return'Configurações';return'MediaForge'}"
+          )
+          text = text.replace(
+              "const nav=[['/','◫','Dashboard'],['/create','＋','Criar vídeo'],['/productions','▤','Produções'],['/channels','◉','Canais'],['/settings','⚙','Configurações']]",
+              "const nav=[['/','◫','Dashboard'],['/create','＋','Criar vídeo'],['/ideas','✦','Ideias'],['/productions','▤','Produções'],['/channels','◉','Canais'],['/settings','⚙','Configurações']]"
+          )
+          text = text.replace(
+              "((path===n[0]||(n[0]==='/productions'&&path.startsWith('/production/')))?'active':'')",
+              "((path===n[0]||(n[0]==='/productions'&&path.startsWith('/production/'))||(n[0]==='/ideas'&&path.startsWith('/ideas/')))?'active':'')"
+          )
 
-          marker = "document.querySelectorAll('.downloadBtn').forEach"
-          if "mfcc-delete-production" not in text:
-              pos = text.find(marker)
-              if pos < 0:
-                  raise SystemExit('download marker not found')
-              wiring = "const deleteBtn=document.getElementById('deleteProduction');if(deleteBtn)deleteBtn.onclick=()=>modal('Excluir execução?','A produção <b>'+esc(topic(p))+'</b> será removida do painel. Se houver uma execução ativa no GitHub, o sistema tentará cancelá-la antes.<br><br><b>Esta ação não pode ser desfeita.</b>','Excluir execução',async()=>{clearPoll();const r=await invoke('mfcc-delete-production',{production_id:id});toast('Execução excluída',r&&r.cancelled?'A execução do GitHub também foi cancelada.':'A produção foi removida do painel.','success');go('/productions')});"
-              text = text[:pos] + wiring + text[pos:]
+          start = text.find("  async function suggestionsView(id){")
+          end = text.find("  async function productions(path,params){", start)
+          if start < 0 or end < 0:
+              raise SystemExit('suggestion function block not found')
 
-          # Suggest mode needs to poll the suggestions endpoint, not only generic status.
-          old_poll = "state.pollTimer=setInterval(async()=>{try{await invoke('mfcc-status',{production_id:id});if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},5000)"
-          new_poll = "state.pollTimer=setInterval(async()=>{try{if(p.generation_mode==='suggest'&&!p.selected_topic){const sr=await invoke('mfcc-suggestions',{production_id:id});if(sr&&sr.ready){clearPoll();renderSuggestions(id,(sr.suggestions||[]).slice(0,5));return}}else{await invoke('mfcc-status',{production_id:id})}if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},5000)"
-          if old_poll in text:
-              text = text.replace(old_poll, new_poll, 1)
+          block = r'''  async function suggestionsView(id){clearPoll();app.innerHTML=shell(pageHead('IA buscando ideias…','A Anthropic está preparando 5 temas para você escolher.')+'<div class="card empty"><div class="loader" style="margin:0 auto 14px"></div><h3>Buscando oportunidades</h3><p>Isso pode levar alguns minutos. A página atualiza automaticamente.</p></div>','/create');wireShell();let stopped=false;const attempt=async()=>{if(stopped)return;try{const r=await invoke('mfcc-suggestions',{production_id:id});if(r&&r.ready){stopped=true;clearPoll();go('/ideas/'+id);return}}catch(e){toast('Não foi possível buscar as sugestões',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error');stopped=true;return}if(!stopped)state.pollTimer=setTimeout(attempt,5000)};attempt()}
+  function renderSuggestions(id,items){go('/ideas/'+id)}
+  async function launchIdea(source,s){if(s.launched_production_id){go('/production/'+s.launched_production_id);return s.launched_production_id}const q=await sb.from('mfcc_topic_suggestions').select('id,launched_production_id').eq('production_id',source.id).eq('selected',true).not('launched_production_id','is',null);if(q.error)throw q.error;let pid=null;if(!(q.data||[]).length&&source.generation_mode==='suggest'&&!source.selected_topic){const meta={...(source.metadata||{}),idea_source_production_id:source.id,idea_suggestion_id:s.id};const p1=await sb.from('mfcc_productions').update({requested_topic:s.topic,selected_topic:s.topic,generation_mode:'manual',status:'draft',progress:0,metadata:meta}).eq('id',source.id);if(p1.error)throw p1.error;pid=source.id}else{const ins=await sb.from('mfcc_productions').insert({channel_id:source.channel_id,requested_topic:s.topic,selected_topic:s.topic,generation_mode:'manual',objective:source.objective,notes:source.notes||null,upload_requested:!!source.upload_requested,status:'draft',progress:0,metadata:{idea_source_production_id:source.id,idea_suggestion_id:s.id}}).select('id').single();if(ins.error)throw ins.error;pid=ins.data.id}await invoke('mfcc-dispatch',{production_id:pid});const u=await sb.from('mfcc_topic_suggestions').update({selected:true,excluded:false,launched_production_id:pid}).eq('id',s.id);if(u.error)throw u.error;return pid}
+  async function ideasPage(path,batchId){await loadChannels();let q=sb.from('mfcc_topic_suggestions').select('*').eq('excluded',false).order('created_at',{ascending:false});if(batchId)q=q.eq('production_id',batchId);const r=await q;if(r.error)throw r.error;const items=r.data||[],sourceIds=[...new Set(items.map(x=>x.production_id).filter(Boolean))];let sources=[];if(sourceIds.length){const pr=await sb.from('mfcc_productions').select('*').in('id',sourceIds);if(pr.error)throw pr.error;sources=pr.data||[]}const sourceMap=Object.fromEntries(sources.map(x=>[x.id,x]));const channelMap=Object.fromEntries((state.channels||[]).map(x=>[x.id,x]));const drafts=items.filter(x=>!x.selected).length,selected=items.filter(x=>x.selected).length;const cards=items.map(s=>{const src=sourceMap[s.production_id]||{},ch=channelMap[src.channel_id]||{};const stateBadge=s.selected?'<span class="pill p-success">Selecionada</span>':'<span class="pill p-warning">Rascunho</span>';const actions=s.selected&&s.launched_production_id?'<button class="btn primary openIdeaProduction" data-id="'+esc(s.id)+'">▶ Acompanhar produção</button>':'<div class="row"><button class="btn primary chooseIdea" style="flex:1" data-id="'+esc(s.id)+'">▶ Produzir esta ideia</button><button class="btn danger excludeIdea" data-id="'+esc(s.id)+'">✕ Excluir</button></div>';return'<div class="card suggestion"><div class="row between" style="align-items:flex-start;gap:10px"><div>'+stateBadge+'</div>'+(s.score!=null?'<span class="pill p-violet">'+esc(s.score)+'</span>':'')+'</div><h3 style="margin-top:12px">'+esc(s.title_idea||s.topic)+'</h3><p><b style="color:#d5d8e0">Tema:</b> '+esc(s.topic)+'</p>'+(s.hook?'<p><b style="color:#d5d8e0">Gancho:</b> '+esc(s.hook)+'</p>':'')+(s.reason?'<p>'+esc(s.reason)+'</p>':'')+'<div class="tiny muted" style="margin:4px 0 12px">'+esc(ch.name||'Canal')+' · '+fmt(s.created_at)+'</div>'+actions+'</div>'}).join('');const action=batchId?'<a class="btn" href="#/ideas">Ver todas as ideias</a>':'';let html=pageHead(batchId?'Ideias desta pesquisa':'Banco de ideias',items.length?(drafts+' rascunho'+(drafts===1?'':'s')+' · '+selected+' selecionada'+(selected===1?'':'s')+'. Você pode produzir várias ideias e excluir apenas as que não quiser manter.'):'Nenhuma ideia salva ainda.',action);html+=items.length?'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">'+cards+'</div>':empty('Nenhuma ideia disponível','As ideias geradas pela IA aparecerão aqui e permanecerão como rascunho até você produzir ou excluir.','<a class="btn primary" href="#/create">Criar novas ideias</a>');app.innerHTML=shell(html,path);wireShell();const byId=Object.fromEntries(items.map(x=>[x.id,x]));document.querySelectorAll('.openIdeaProduction').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id];if(s&&s.launched_production_id)go('/production/'+s.launched_production_id)});document.querySelectorAll('.chooseIdea').forEach(b=>b.onclick=async()=>{const s=byId[b.dataset.id],source=s&&sourceMap[s.production_id];if(!s||!source)return;b.disabled=true;b.textContent='Iniciando…';try{const pid=await launchIdea(source,s);toast('Ideia selecionada','A produção foi iniciada e as demais continuam salvas como rascunho.','success');await ideasPage(path,batchId);const open=document.querySelector('.openIdeaProduction[data-id="'+s.id+'"]');if(open)open.title='Produção '+pid}catch(e){toast('Não foi possível iniciar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error');b.disabled=false;b.textContent='▶ Produzir esta ideia'}});document.querySelectorAll('.excludeIdea').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id];if(!s)return;modal('Excluir ideia?','<b>'+esc(s.title_idea||s.topic)+'</b><br><br>Ela sairá do banco de ideias. As outras continuarão salvas como rascunho.','Excluir',async()=>{const u=await sb.from('mfcc_topic_suggestions').update({excluded:true}).eq('id',s.id);if(u.error)throw u.error;toast('Ideia excluída','','success');await ideasPage(path,batchId)})})}
+'''
+          text = text[:start] + block + text[end:]
 
-          # Manual refresh follows the same logic so suggestion-mode productions never look stuck.
-          old_manual = "try{await invoke('mfcc-status',{production_id:id});toast('Status atualizado','','success')}catch(e){toast('Falha ao atualizar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error')}route()"
-          new_manual = "try{if(p.generation_mode==='suggest'&&!p.selected_topic){const sr=await invoke('mfcc-suggestions',{production_id:id});if(sr&&sr.ready){clearPoll();renderSuggestions(id,(sr.suggestions||[]).slice(0,5));return}}else{await invoke('mfcc-status',{production_id:id})}toast('Status atualizado','','success')}catch(e){toast('Falha ao atualizar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error')}route()"
-          if old_manual in text:
-              text = text.replace(old_manual, new_manual, 1)
+          # Link each generated production back to its source idea bank.
+          text = text.replace(
+              "const p=pR.data,events=eR.data||[];const allPhases=",
+              "const p=pR.data,events=eR.data||[];const ideaSourceId=p.metadata&&p.metadata.idea_source_production_id||null;const allPhases=",
+              1
+          )
+          text = text.replace(
+              "<div class=\"row\">'+statusPill(p.status)+",
+              "<div class=\"row\">'+(ideaSourceId?'<a class=\"btn\" href=\"#/ideas/'+esc(ideaSourceId)+'\">✦ Ideias</a>':'')+statusPill(p.status)+",
+              1
+          )
 
-          # Keep automatic refresh at 5 seconds.
-          old_poll_12 = "state.pollTimer=setInterval(async()=>{try{await invoke('mfcc-status',{production_id:id});if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},12000)"
-          if old_poll_12 in text:
-              text = text.replace(old_poll_12, new_poll, 1)
+          # Suggestion-ready screens now go to the persistent bank instead of a one-shot picker.
+          text = text.replace("clearPoll();renderSuggestions(id,(sr.suggestions||[]).slice(0,5));return", "clearPoll();go('/ideas/'+id);return")
 
-          # Show the user that this screen is live while the production is active.
-          auto_anchor = "statusPill(p.status)+'<button class=\"btn\" id=\"refreshStatus\">↻ Atualizar agora</button>'"
-          auto_repl = "statusPill(p.status)+(!terminal.includes(p.status)?'<span class=\"pill p-success\" id=\"autoRefreshIndicator\">● Auto · 5s</span>':'')+'<button class=\"btn\" id=\"refreshStatus\">↻ Atualizar agora</button>'"
-          if 'id="autoRefreshIndicator"' not in text and auto_anchor in text:
-              text = text.replace(auto_anchor, auto_repl, 1)
+          # Routes.
+          old_route = "else if(path==='/productions')await productions(path,params);else if(path.startsWith('/production/'))await productionDetail(path,path.split('/')[2]);"
+          new_route = "else if(path==='/ideas')await ideasPage(path,null);else if(path.startsWith('/ideas/'))await ideasPage(path,path.split('/')[2]);else if(path==='/productions')await productions(path,params);else if(path.startsWith('/production/'))await productionDetail(path,path.split('/')[2]);"
+          if old_route not in text:
+              raise SystemExit('route anchor not found')
+          text = text.replace(old_route, new_route, 1)
 
           p.write_text(text, encoding='utf-8')
           PY
@@ -71,5 +79,6 @@ jobs:
           git config user.email "thebusinessflowtv@gmail.com"
           git add docs/control-center/app.html
           git diff --cached --quiet && exit 0
-          git commit -m "Fix live suggestion refresh in Control Center"
-          git push
+          git commit -m "Add persistent multi-select idea bank"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
