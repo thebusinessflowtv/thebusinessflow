@@ -1,0 +1,76 @@
+name: Fix Video Player Streaming
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-video-player-streaming.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace memory-heavy ZIP player with direct streaming player
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('docs/control-center/app.html')
+          s=p.read_text(encoding='utf-8')
+          start=s.index('  async function openVideoPlayer(id,title){')
+          end=s.index('\n\n  async function productionDetail',start)
+          fn=r'''  async function openVideoPlayer(id,title){
+            clearPoll();
+            const back=document.createElement('div');back.className='player-overlay';
+            back.innerHTML='<div class="player-window"><div class="player-head"><div class="glass-icon"><i data-lucide="play"></i></div><div class="player-head-text"><b>'+esc(title||'Vídeo final')+'</b><span>Player do MediaForge · streaming privado</span></div><button class="btn player-close" id="playerClose" aria-label="Fechar"><i data-lucide="x"></i></button></div><div class="player-stage" id="playerStage"><div class="player-loading"><div class="loader"></div><b id="playerLoadTitle">Abrindo vídeo…</b><span id="playerLoadText">Criando uma conexão segura com o arquivo final.</span></div></div></div>';
+            document.body.appendChild(back);document.body.style.overflow='hidden';if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
+            const stage=back.querySelector('#playerStage');
+            const close=()=>{back.remove();document.body.style.overflow=''};
+            back.querySelector('#playerClose').onclick=close;back.onclick=e=>{if(e.target===back)close()};
+            const escClose=e=>{if(e.key==='Escape'){document.removeEventListener('keydown',escClose);close()}};document.addEventListener('keydown',escClose);
+            try{
+              const stream=await invoke('mfcc-video-stream',{production_id:id});
+              if(!stream||!stream.signed_url)throw new Error('O vídeo ainda não está disponível para streaming.');
+              stage.innerHTML='<video controls playsinline preload="metadata" id="mfccVideo"></video>';
+              const video=stage.querySelector('#mfccVideo');
+              video.src=stream.signed_url;
+              video.setAttribute('playsinline','');
+              video.addEventListener('loadedmetadata',()=>{video.play().catch(()=>{})},{once:true});
+              video.addEventListener('error',()=>{
+                if(stage.querySelector('video')){
+                  stage.innerHTML='<div class="player-error"><b>Não foi possível reproduzir o vídeo</b><p>O arquivo foi encontrado, mas o navegador não conseguiu iniciar a reprodução. Tente novamente.</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
+                  if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
+                  stage.querySelector('#playerRetry').onclick=()=>{close();openVideoPlayer(id,title)};
+                }
+              },{once:true});
+            }catch(e){
+              const msg=errMsg(e);
+              const preparing=/stream_not_ready|preparad|ainda não está disponível/i.test(msg);
+              stage.innerHTML='<div class="player-error"><b>'+(preparing?'Preparando streaming…':'Não foi possível abrir o player')+'</b><p>'+(preparing?'O vídeo 4K já está concluído. O MediaForge está movendo o arquivo para o armazenamento privado otimizado para reprodução no iPhone e no navegador. Tente novamente em alguns instantes.':esc(msg))+'</p><button class="btn" id="playerRetry"><i data-lucide="rotate-cw"></i> Tentar novamente</button></div>';
+              if(window.lucide)lucide.createIcons({attrs:{'stroke-width':1.8}});
+              stage.querySelector('#playerRetry').onclick=()=>{close();openVideoPlayer(id,title)};
+            }
+          }'''
+          s=s[:start]+fn+s[end:]
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit streaming player fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MediaForge UI'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add docs/control-center/app.html
+          if git diff --cached --quiet; then
+            echo 'Streaming player already applied.'
+            exit 0
+          fi
+          git commit -m 'Stream final videos instead of unzipping in browser'
+          git push origin HEAD:main
