@@ -1,0 +1,114 @@
+{
+  "thesis": "Five U.S. companies—Amazon, Alphabet, Microsoft, Meta, and Micron—shape critical markets through concentrated infrastructure spend, platform dependence, and supply-chain chokepoints, with Micron's memory bottleneck emerging as the least-obvious leverage point.",
+  "facts": [
+    {
+      "claim": "Five largest U.S. cloud and AI infrastructure providers collectively committed to $660–$690 billion capex in 2026, nearly doubling 2025 levels.",
+      "source_url": "https://futurumgroup.com/insights/ai-capex-2026-the-690b-infrastructure-sprint/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Amazon projects $200 billion 2026 capex, Alphabet $175–$190 billion, Meta $125–$145 billion, Microsoft ~$120 billion, Oracle $50 billion.",
+      "source_url": "https://smartailab.org/ai-infrastructure-companies-usa/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Digital Realty holds 15% of U.S. leased data center power share, largest among operators, followed by Equinix at 4.9%.",
+      "source_url": "https://www.globaldatacenterhub.com/p/us-data-center-infrastructure-the",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Micron supplies high-bandwidth memory that functions as working memory inside GPU accelerators; memory pricing bottleneck cited in hyperscaler earnings guidance.",
+      "source_url": "https://smartailab.org/ai-infrastructure-companies-usa/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "North America dominates global hyperscale data center market, driven by world's largest cloud providers AWS, Azure, and Google Cloud.",
+      "source_url": "https://www.intellectualmarketinsights.com/blogs/top-companies-hyperscale-data-center-market",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Digital infrastructure market reached $438.89 billion in 2025, projected to grow to $1.38 trillion by 2030 at 25.7% CAGR.",
+      "source_url": "https://www.thebusinessresearchcompany.com/report/digital-infrastructure-global-market-report",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$660–$690 billion",
+      "context": "Combined 2026 capex commitment by five largest U.S. cloud/AI infrastructure providers",
+      "source_url": "https://futurumgroup.com/insights/ai-capex-2026-the-690b-infrastructure-sprint/"
+    },
+    {
+      "value": "$200 billion",
+      "context": "Amazon projected 2026 capex, majority directed at data centers",
+      "source_url": "https://smartailab.org/ai-infrastructure-companies-usa/"
+    },
+    {
+      "value": "15%",
+      "context": "Digital Realty's share of U.S. leased data center power capacity",
+      "source_url": "https://www.globaldatacenterhub.com/p/us-data-center-infrastructure-the"
+    },
+    {
+      "value": "$1.38 trillion",
+      "context": "Digital infrastructure market projected size by 2030",
+      "source_url": "https://www.thebusinessresearchcompany.com/report/digital-infrastructure-global-market-report"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2025",
+      "event": "Five largest U.S. hyperscalers spend approximately $330–$345 billion combined on infrastructure capex",
+      "source_url": "https://futurumgroup.com/insights/ai-capex-2026-the-690b-infrastructure-sprint/"
+    },
+    {
+      "date": "2026",
+      "event": "Five largest U.S. hyperscalers commit to $660–$690 billion combined capex, nearly doubling prior year",
+      "source_url": "https://futurumgroup.com/insights/ai-capex-2026-the-690b-infrastructure-sprint/"
+    },
+    {
+      "date": "2026",
+      "event": "Micron's high-bandwidth memory constraints cited as direct bottleneck by hyperscalers in earnings guidance",
+      "source_url": "https://smartailab.org/ai-infrastructure-companies-usa/"
+    },
+    {
+      "date": "2030",
+      "event": "Digital infrastructure market projected to reach $1.38 trillion, growing from $438.89 billion in 2025",
+      "source_url": "https://www.thebusinessresearchcompany.com/report/digital-infrastructure-global-market-report"
+    }
+  ],
+  "sources": [
+    {
+      "title": "futurumgroup.com",
+      "url": "https://futurumgroup.com/insights/ai-capex-2026-the-690b-infrastructure-sprint/",
+      "source_type": "web"
+    },
+    {
+      "title": "smartailab.org",
+      "url": "https://smartailab.org/ai-infrastructure-companies-usa/",
+      "source_type": "web"
+    },
+    {
+      "title": "globaldatacenterhub.com",
+      "url": "https://www.globaldatacenterhub.com/p/us-data-center-infrastructure-the",
+      "source_type": "web"
+    },
+    {
+      "title": "intellectualmarketinsights.com",
+      "url": "https://www.intellectualmarketinsights.com/blogs/top-companies-hyperscale-data-center-market",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-5-us-market-shaping-companies-2026-09",
+  "topic": "5 U.S. Market-Shaping Companies",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 12031,
+    "output_tokens": 1589,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.029976,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-26T04:23:13.023145+00:00"
+}
