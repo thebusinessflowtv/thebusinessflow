@@ -1,4 +1,4 @@
 {
-  "requested_at": "2026-09-26T15:18:00Z",
-  "reason": "Retry Global Infrastructure after invalidating stale Haiku research cache; strict zero-reuse visuals active"
+  "requested_at": "2026-09-26T15:24:30Z",
+  "reason": "Start Global Infrastructure from verified research checkpoint under strict zero-reuse visual policy"
 }
