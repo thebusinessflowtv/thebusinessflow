@@ -1,0 +1,30 @@
+name: MFCC Progress Shimmer
+
+on:
+  push:
+    paths:
+      - 'tools/patch_control_center_progress_shimmer.py'
+      - '.github/workflows/mfcc-progress-shimmer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply progress shimmer
+        run: python3 tools/patch_control_center_progress_shimmer.py
+      - name: Commit Control Center changes
+        run: |
+          git config user.name "MediaForge Bot"
+          git config user.email "thebusinessflowtv@gmail.com"
+          git add docs/control-center/app.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Add animated progress light effect"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
