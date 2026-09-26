@@ -32,11 +32,11 @@
     "custom-5-us-market-shaping-companies-2026-09": 2,
     "custom-3-american-global-giants-2026-09": 3,
     "custom-americas-richest-companies-metrics-2026-09": 3,
-    "custom-5-companies-behind-global-infrastructure-2026-09": 2
+    "custom-5-companies-behind-global-infrastructure-2026-09": 3
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "verified_research_checkpoint_requeued",
-  "updated_at": "2026-09-26T16:41:15.297557+00:00",
-  "last_reason": "retrying private upload attempt 2/3"
+  "updated_at": "2026-09-26T16:56:36.477273+00:00",
+  "last_reason": "retrying private upload attempt 3/3"
 }
