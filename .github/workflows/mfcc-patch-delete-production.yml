@@ -40,11 +40,22 @@ jobs:
               wiring = "const deleteBtn=document.getElementById('deleteProduction');if(deleteBtn)deleteBtn.onclick=()=>modal('Excluir execução?','A produção <b>'+esc(topic(p))+'</b> será removida do painel. Se houver uma execução ativa no GitHub, o sistema tentará cancelá-la antes.<br><br><b>Esta ação não pode ser desfeita.</b>','Excluir execução',async()=>{clearPoll();const r=await invoke('mfcc-delete-production',{production_id:id});toast('Execução excluída',r&&r.cancelled?'A execução do GitHub também foi cancelada.':'A produção foi removida do painel.','success');go('/productions')});"
               text = text[:pos] + wiring + text[pos:]
 
-          # Make production progress/status refresh automatically every 5 seconds.
-          old_poll = "state.pollTimer=setInterval(async()=>{try{await invoke('mfcc-status',{production_id:id});if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},12000)"
-          new_poll = "state.pollTimer=setInterval(async()=>{try{await invoke('mfcc-status',{production_id:id});if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},5000)"
+          # Suggest mode needs to poll the suggestions endpoint, not only generic status.
+          old_poll = "state.pollTimer=setInterval(async()=>{try{await invoke('mfcc-status',{production_id:id});if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},5000)"
+          new_poll = "state.pollTimer=setInterval(async()=>{try{if(p.generation_mode==='suggest'&&!p.selected_topic){const sr=await invoke('mfcc-suggestions',{production_id:id});if(sr&&sr.ready){clearPoll();renderSuggestions(id,(sr.suggestions||[]).slice(0,5));return}}else{await invoke('mfcc-status',{production_id:id})}if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},5000)"
           if old_poll in text:
               text = text.replace(old_poll, new_poll, 1)
+
+          # Manual refresh follows the same logic so suggestion-mode productions never look stuck.
+          old_manual = "try{await invoke('mfcc-status',{production_id:id});toast('Status atualizado','','success')}catch(e){toast('Falha ao atualizar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error')}route()"
+          new_manual = "try{if(p.generation_mode==='suggest'&&!p.selected_topic){const sr=await invoke('mfcc-suggestions',{production_id:id});if(sr&&sr.ready){clearPoll();renderSuggestions(id,(sr.suggestions||[]).slice(0,5));return}}else{await invoke('mfcc-status',{production_id:id})}toast('Status atualizado','','success')}catch(e){toast('Falha ao atualizar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error')}route()"
+          if old_manual in text:
+              text = text.replace(old_manual, new_manual, 1)
+
+          # Keep automatic refresh at 5 seconds.
+          old_poll_12 = "state.pollTimer=setInterval(async()=>{try{await invoke('mfcc-status',{production_id:id});if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},12000)"
+          if old_poll_12 in text:
+              text = text.replace(old_poll_12, new_poll, 1)
 
           # Show the user that this screen is live while the production is active.
           auto_anchor = "statusPill(p.status)+'<button class=\"btn\" id=\"refreshStatus\">↻ Atualizar agora</button>'"
@@ -60,5 +71,5 @@ jobs:
           git config user.email "thebusinessflowtv@gmail.com"
           git add docs/control-center/app.html
           git diff --cached --quiet && exit 0
-          git commit -m "Enable automatic production status refresh"
+          git commit -m "Fix live suggestion refresh in Control Center"
           git push
