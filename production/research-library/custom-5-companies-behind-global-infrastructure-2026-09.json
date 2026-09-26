@@ -1,0 +1,113 @@
+{
+  "thesis": "Modern digital infrastructure is unusually concentrated at two layers: cloud computing and advanced semiconductor production. AWS, Microsoft and Google dominate cloud infrastructure spending, while ASML and TSMC occupy critical positions in the equipment and manufacturing chain behind advanced chips.",
+  "facts": [
+    {
+      "claim": "In Q2 2026, AWS held 28% of worldwide cloud infrastructure services revenue, Microsoft 20%, and Google 15%.",
+      "source_url": "https://www.srgresearch.com/articles/q2-cloud-market-passes-143-billion-highest-growth-rate-in-eight-years",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "AWS, Microsoft and Google together represented 63% of worldwide cloud infrastructure services revenue in Q2 2026.",
+      "source_url": "https://www.srgresearch.com/articles/q2-cloud-market-passes-143-billion-highest-growth-rate-in-eight-years",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "ASML describes itself as a leading innovator in the global semiconductor ecosystem whose lithography portfolio enables microchip scaling.",
+      "source_url": "https://www.asml.com/investors/annual-report/2025",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "ASML says DUV lithography systems are industry workhorses that produce the majority of layers in microchips.",
+      "source_url": "https://ourbrand.asml.com/m/8ab959d4926657b/original/asml-2025-annual-report-strategic-report-section.pdf",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "TSMC manufactured 12,682 products using 305 technologies for 534 customers in 2025 across HPC, smartphones, IoT, automotive and consumer electronics.",
+      "source_url": "https://investor.tsmc.com/static/annualReports/2025/english/index.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "TSMC reported that it accounted for 40% of its expanded Foundry 2.0 industry definition in 2025, up from 34% in 2024.",
+      "source_url": "https://investor.tsmc.com/sites/ir/annual-report/2025/2025%20TSMC%20Annual%20Report.E.pdf",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "28% / 20% / 15%",
+      "context": "Q2 2026 worldwide cloud infrastructure shares for AWS, Microsoft and Google respectively.",
+      "source_url": "https://www.srgresearch.com/articles/q2-cloud-market-passes-143-billion-highest-growth-rate-in-eight-years"
+    },
+    {
+      "value": "$143 billion",
+      "context": "Q2 2026 enterprise spending on cloud infrastructure services reported by Synergy Research Group.",
+      "source_url": "https://www.srgresearch.com/articles/q2-cloud-market-passes-143-billion-highest-growth-rate-in-eight-years"
+    },
+    {
+      "value": "535 systems",
+      "context": "ASML 2025 system sales: 48 EUV, 279 DUV, and 208 metrology and inspection systems.",
+      "source_url": "https://www.asml.com/investors/annual-report/2025"
+    },
+    {
+      "value": "40%",
+      "context": "TSMC share of its Foundry 2.0 industry definition in 2025.",
+      "source_url": "https://investor.tsmc.com/sites/ir/annual-report/2025/2025%20TSMC%20Annual%20Report.E.pdf"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2025",
+      "event": "TSMC manufactured 12,682 products for 534 customers and reported 40% of its Foundry 2.0 industry definition.",
+      "source_url": "https://investor.tsmc.com/sites/ir/annual-report/2025/2025%20TSMC%20Annual%20Report.E.pdf"
+    },
+    {
+      "date": "2025",
+      "event": "ASML reported 535 system sales across EUV, DUV, metrology and inspection systems.",
+      "source_url": "https://www.asml.com/investors/annual-report/2025"
+    },
+    {
+      "date": "Q2 2026",
+      "event": "Worldwide cloud infrastructure spending reached $143 billion; AWS, Microsoft and Google held 28%, 20% and 15% shares.",
+      "source_url": "https://www.srgresearch.com/articles/q2-cloud-market-passes-143-billion-highest-growth-rate-in-eight-years"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Q2 Cloud Market Passes $143 Billion; Highest Growth Rate in Eight Years",
+      "url": "https://www.srgresearch.com/articles/q2-cloud-market-passes-143-billion-highest-growth-rate-in-eight-years",
+      "source_type": "industry research"
+    },
+    {
+      "title": "ASML 2025 Annual Report",
+      "url": "https://www.asml.com/investors/annual-report/2025",
+      "source_type": "company annual report"
+    },
+    {
+      "title": "ASML 2025 Annual Report - Strategic Report",
+      "url": "https://ourbrand.asml.com/m/8ab959d4926657b/original/asml-2025-annual-report-strategic-report-section.pdf",
+      "source_type": "company annual report"
+    },
+    {
+      "title": "TSMC 2025 Annual Report",
+      "url": "https://investor.tsmc.com/sites/ir/annual-report/2025/2025%20TSMC%20Annual%20Report.E.pdf",
+      "source_type": "company annual report"
+    }
+  ],
+  "risk_flags": [
+    "Frame these companies as critical infrastructure layers, not as secretly controlling the world.",
+    "Cloud market share and TSMC Foundry 2.0 share use different metrics and must not be compared directly."
+  ],
+  "topic_id": "custom-5-companies-behind-global-infrastructure-2026-09",
+  "topic": "5 Companies Behind Global Infrastructure",
+  "research_model": "verified_manual_checkpoint",
+  "anthropic_usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 0
+  },
+  "estimated_cost_usd": 0,
+  "source_index_repaired": false,
+  "researched_at": "2026-09-26T15:22:00Z"
+}
