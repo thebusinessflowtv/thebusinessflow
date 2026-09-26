@@ -1,0 +1,241 @@
+/* MediaForge Control Center — Apple-inspired Liquid Glass v3
+   Focus: iPhone-like glass cards, proportional pill controls, mobile-safe layout. */
+:root{
+  --mf-black:#000000;
+  --mf-surface:#1c1c1e;
+  --mf-surface-2:#242426;
+  --mf-surface-3:#2c2c2e;
+  --mf-blue:#0a84ff;
+  --mf-blue-hi:#36a3ff;
+  --mf-green:#30d158;
+  --mf-red:#ff453a;
+  --mf-orange:#ff9f0a;
+  --mf-purple:#bf5af2;
+  --mf-label:#ffffff;
+  --mf-secondary:rgba(235,235,245,.62);
+  --mf-tertiary:rgba(235,235,245,.32);
+  --mf-rim:rgba(255,255,255,.16);
+  --mf-rim-hi:rgba(255,255,255,.30);
+  --mf-rim-low:rgba(255,255,255,.055);
+  --mf-shadow:0 22px 60px rgba(0,0,0,.38);
+}
+
+html,body{
+  background:#000!important;
+  color:var(--mf-label)!important;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif!important;
+}
+body{background-image:none!important}
+.main{background:#000!important}
+
+/* Glass surfaces — border lighting modeled after iPhone sheets/cards */
+.card,.disclosure,.settings-list,.mobile-dock,.more-sheet,.modal,.player-window,.toast,.userbox{
+  position:relative;
+  isolation:isolate;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.045) 0%,rgba(255,255,255,.012) 18%,rgba(255,255,255,0) 44%),
+    linear-gradient(145deg,rgba(38,38,40,.92),rgba(25,25,27,.94))!important;
+  border:1px solid var(--mf-rim)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.23),
+    inset 1px 0 0 rgba(255,255,255,.06),
+    inset 0 -1px 0 rgba(0,0,0,.48),
+    0 18px 48px rgba(0,0,0,.28)!important;
+  -webkit-backdrop-filter:blur(28px) saturate(170%)!important;
+  backdrop-filter:blur(28px) saturate(170%)!important;
+}
+.card,.disclosure,.settings-list{border-radius:28px!important}
+.card:before,.disclosure:before,.settings-list:before,.mobile-dock:before,.more-sheet:before,.modal:before,.player-window:before{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  pointer-events:none;
+  inset:0;
+  border-radius:inherit;
+  background:
+    radial-gradient(120% 55% at 50% -12%,rgba(255,255,255,.16),transparent 58%),
+    linear-gradient(105deg,rgba(255,255,255,.075),transparent 28%,transparent 72%,rgba(255,255,255,.035));
+}
+
+/* Grouped content surfaces */
+.metricbox,.latest,.input,.textarea,.select,.choice,.objective,.phase .dot,.glass-icon{
+  background:rgba(118,118,128,.16)!important;
+  border:1px solid rgba(255,255,255,.075)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)!important;
+}
+.metricbox,.latest{border-radius:18px!important}
+
+/* iPhone pill buttons — proportions based on native prominent controls */
+.btn{
+  min-height:46px!important;
+  height:46px;
+  padding:0 20px!important;
+  border-radius:999px!important;
+  border:1px solid rgba(255,255,255,.13)!important;
+  color:#fff!important;
+  background:
+    linear-gradient(180deg,rgba(92,92,98,.78),rgba(48,48,52,.84))!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.20),
+    inset 0 -1px 0 rgba(0,0,0,.30),
+    0 8px 22px rgba(0,0,0,.20)!important;
+  font-size:15px!important;
+  line-height:1!important;
+  font-weight:600!important;
+  letter-spacing:-.012em!important;
+  white-space:nowrap;
+  gap:8px!important;
+  -webkit-backdrop-filter:blur(18px) saturate(170%)!important;
+  backdrop-filter:blur(18px) saturate(170%)!important;
+}
+.btn:hover{transform:none!important;filter:brightness(1.06)!important}
+.btn:active{transform:scale(.965)!important;filter:brightness(.96)!important}
+.btn.primary{
+  background:linear-gradient(180deg,var(--mf-blue-hi) 0%,var(--mf-blue) 48%,#0076e8 100%)!important;
+  border-color:rgba(126,205,255,.52)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.42),
+    inset 0 -1px 0 rgba(0,55,125,.55),
+    0 9px 24px rgba(10,132,255,.24)!important;
+}
+.btn.primary:hover{background:linear-gradient(180deg,#49adff 0%,#168cff 48%,#087be8 100%)!important}
+.btn.danger{
+  color:#ff6961!important;
+  background:linear-gradient(180deg,rgba(95,42,42,.80),rgba(57,29,30,.86))!important;
+  border-color:rgba(255,69,58,.20)!important;
+}
+.btn.block{width:100%!important}
+.btn svg{width:18px!important;height:18px!important;stroke-width:2!important}
+
+/* Status chips remain chips, not oversized buttons */
+.pill{
+  min-height:36px!important;
+  padding:0 13px!important;
+  border-radius:999px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  font-size:13px!important;
+  font-weight:600!important;
+  letter-spacing:-.01em!important;
+  background:rgba(118,118,128,.20)!important;
+  border:1px solid rgba(255,255,255,.09)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.075)!important;
+}
+.pill:before{width:7px!important;height:7px!important}
+
+/* Detail action area: balanced, never stretched */
+.detail-head>.row:first-child{gap:18px!important}
+.detail-head>.row:first-child>div:last-child{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:10px!important;
+  flex-wrap:wrap!important;
+}
+.detail-head>.row:first-child>div:last-child .btn{flex:0 0 auto!important}
+
+/* Progress bar */
+.statusbar{height:11px!important;background:rgba(118,118,128,.28)!important;box-shadow:inset 0 1px 2px rgba(0,0,0,.42)!important}
+.statusbar>span{background:linear-gradient(90deg,#0a84ff,#138cff 65%,#32a5ff)!important;box-shadow:0 0 14px rgba(10,132,255,.30)!important}
+.bigprogress.live .statusbar>span:after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),rgba(255,255,255,.95),rgba(255,255,255,.16),transparent)!important;filter:blur(.2px)!important}
+
+/* Timeline disclosure */
+.disclosure summary{min-height:84px!important;padding:16px 20px!important}
+.disclosure .glass-icon{width:48px!important;height:48px!important;border-radius:16px!important}
+.disclosure-title b{font-size:17px!important;letter-spacing:-.018em!important}
+.disclosure-title small{font-size:12px!important;margin-top:3px!important}
+
+/* Dashboard / cards */
+.kpi,.channel-card,.detail-head,.watch-card{overflow:hidden}
+.kpi{min-width:0!important}
+.channel-card{min-width:0!important}
+.page,.grid,.grid2,.grid4,.detailgrid,.create-layout{min-width:0!important}
+.pagehead h1{overflow-wrap:anywhere}
+
+/* Player / saved outputs */
+.watch-card{background:linear-gradient(145deg,rgba(10,132,255,.14),rgba(36,36,38,.92) 55%,rgba(28,28,30,.96))!important}
+.player-stage{border:1px solid rgba(255,255,255,.08)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)!important}
+
+@media(max-width:900px){
+  .page{
+    width:100%!important;
+    max-width:100vw!important;
+    padding:18px 14px calc(108px + env(safe-area-inset-bottom))!important;
+    overflow-x:hidden!important;
+  }
+  .pagehead{margin-bottom:18px!important}
+  .pagehead h1{font-size:30px!important;line-height:1.06!important}
+  .grid4{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+  .grid2,.detailgrid,.create-layout{grid-template-columns:minmax(0,1fr)!important}
+  .card,.disclosure,.settings-list{border-radius:30px!important}
+  .detail-head{padding:24px 20px!important}
+  .detail-head h1{font-size:25px!important;line-height:1.12!important;margin-top:8px!important}
+  .detail-head>.row:first-child{display:block!important}
+  .detail-head>.row:first-child>div:last-child{
+    width:100%!important;
+    justify-content:flex-start!important;
+    margin-top:16px!important;
+    gap:9px!important;
+  }
+  .detail-head>.row:first-child>div:last-child .btn{
+    min-height:44px!important;
+    height:44px!important;
+    padding:0 16px!important;
+    font-size:14px!important;
+  }
+  .detail-head>.row:first-child>div:last-child .pill{
+    min-height:36px!important;
+    height:36px!important;
+    padding:0 12px!important;
+    font-size:12px!important;
+  }
+  .bigprogress{margin-top:24px!important;gap:14px!important}
+  .percent{font-size:44px!important;line-height:1!important;font-weight:700!important;letter-spacing:-.055em!important}
+  .stepper{gap:14px!important;padding-top:4px!important}
+  .phase{min-width:72px!important;font-size:11px!important}
+  .phase .dot{width:42px!important;height:42px!important;font-size:16px!important;margin-bottom:8px!important}
+  .channel-card{padding:20px!important}
+  .channel-actions{display:flex!important;flex-wrap:wrap!important;gap:10px!important}
+  .channel-actions .btn{width:auto!important;flex:1 1 145px!important}
+  .mobile-dock{
+    height:76px!important;
+    left:10px!important;right:10px!important;
+    bottom:max(8px,env(safe-area-inset-bottom))!important;
+    border-radius:28px!important;
+    padding:7px 8px!important;
+  }
+  .mobile-dock a,.mobile-dock button{font-size:10px!important}
+  .mobile-dock svg{width:24px!important;height:24px!important}
+  .more-sheet{border-radius:28px!important}
+}
+
+@media(max-width:520px){
+  .page{padding-left:12px!important;padding-right:12px!important}
+  .grid4{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .kpi{padding:16px!important}
+  .kpi .num{font-size:31px!important}
+  .detail-head{padding:22px 18px!important}
+  .detail-head h1{font-size:24px!important}
+  .detail-head>.row:first-child>div:last-child{gap:8px!important}
+  .detail-head>.row:first-child>div:last-child .btn{
+    flex:0 0 auto!important;
+    width:auto!important;
+    min-height:42px!important;height:42px!important;
+    padding:0 14px!important;font-size:13px!important;
+  }
+  .detail-head>.row:first-child>div:last-child .pill{
+    min-height:34px!important;height:34px!important;padding:0 11px!important;font-size:11.5px!important;
+  }
+  .percent{font-size:42px!important}
+  .disclosure summary{min-height:78px!important;padding:14px 16px!important}
+  .disclosure .glass-icon{width:46px!important;height:46px!important}
+  .btn{min-height:48px!important;height:48px!important;padding:0 18px!important;font-size:15px!important}
+  .btn.primary{min-height:50px!important;height:50px!important}
+  .player-window,.modal{border-radius:30px 30px 0 0!important}
+}
+
+@media(max-width:380px){
+  .grid4{grid-template-columns:1fr!important}
+  .detail-head>.row:first-child>div:last-child .btn{font-size:12.5px!important;padding:0 12px!important}
+  .mobile-dock{left:6px!important;right:6px!important}
+}
