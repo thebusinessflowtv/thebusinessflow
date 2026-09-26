@@ -1,6 +1,16 @@
 name: The Business Flow Private YouTube Upload
 
 on:
+  workflow_run:
+    workflows:
+      - 'The Business Flow Daily Production'
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: 'Completed Daily Production run id to upload.'
+        required: true
+        type: string
   push:
     paths:
       - 'production/private-upload-now.json'
@@ -15,6 +25,7 @@ concurrency:
 
 jobs:
   upload-private:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -29,13 +40,34 @@ jobs:
           fetch-depth: 0
       - name: Resolve requested production run
         id: source
+        env:
+          INPUT_SOURCE_RUN_ID: ${{ inputs.source_run_id }}
         shell: bash
         run: |
           set -euo pipefail
           RUN_ID="$(python - <<'PY'
-          import json
-          d=json.load(open('production/private-upload-now.json',encoding='utf-8'))
-          print(int(d['source_run_id']))
+          import json, os
+          from pathlib import Path
+
+          event_name = os.environ.get('GITHUB_EVENT_NAME') or ''
+          event = json.load(open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8'))
+
+          if event_name == 'workflow_run':
+              wr = event.get('workflow_run') or {}
+              if str(wr.get('conclusion') or '') != 'success':
+                  raise SystemExit('Production workflow did not finish successfully')
+              print(int(wr['id']))
+          elif event_name == 'workflow_dispatch':
+              raw = (os.environ.get('INPUT_SOURCE_RUN_ID') or '').strip()
+              if not raw:
+                  raise SystemExit('Missing source_run_id input')
+              print(int(raw))
+          else:
+              trigger = Path('production/private-upload-now.json')
+              if not trigger.exists():
+                  raise SystemExit('Missing production/private-upload-now.json')
+              d = json.loads(trigger.read_text(encoding='utf-8'))
+              print(int(d['source_run_id']))
           PY
           )"
           test -n "$RUN_ID"
