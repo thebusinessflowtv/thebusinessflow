@@ -1,0 +1,71 @@
+name: MFCC Downloadable Artifacts
+
+on:
+  workflow_run:
+    workflows: ["The Business Flow Daily Production"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download production package
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tbf-production-*
+          path: restored
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Prepare standalone script and topic id
+        id: output
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE="$(find restored/output -type f -name episode-package.json | head -n 1)"
+          test -s "$PACKAGE"
+          test -s restored/rendered/final.mp4
+          test -s restored/rendered/thumbnail.png
+          python - "$PACKAGE" <<'PY' >> "$GITHUB_OUTPUT"
+          import json, sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          d=json.loads(p.read_text(encoding='utf-8'))
+          topic=str(d.get('topic_id') or '').strip()
+          if not topic:
+              raise SystemExit('Missing topic_id')
+          script=str(d.get('script') or '').strip()
+          if not script:
+              raise SystemExit('Missing script')
+          Path('restored/rendered/script.txt').write_text(script+'\n',encoding='utf-8')
+          print(f'topic_id={topic}')
+          PY
+      - name: Upload standalone MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: mfcc-video-${{ steps.output.outputs.topic_id }}-${{ github.event.workflow_run.id }}
+          path: restored/rendered/final.mp4
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Upload standalone thumbnail
+        uses: actions/upload-artifact@v4
+        with:
+          name: mfcc-thumbnail-${{ steps.output.outputs.topic_id }}-${{ github.event.workflow_run.id }}
+          path: restored/rendered/thumbnail.png
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload standalone script
+        uses: actions/upload-artifact@v4
+        with:
+          name: mfcc-script-${{ steps.output.outputs.topic_id }}-${{ github.event.workflow_run.id }}
+          path: restored/rendered/script.txt
+          if-no-files-found: error
+          retention-days: 7
