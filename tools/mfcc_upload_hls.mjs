@@ -4,6 +4,7 @@ import path from 'node:path';
 const projectRef=process.env.MFCC_SUPABASE_PROJECT_REF||'fykwalznmcrjgnyveagy';
 const productionId=process.env.MFCC_PRODUCTION_ID;
 const hlsDir=process.env.MFCC_HLS_DIR;
+const streamResolution=process.env.MFCC_STREAM_RESOLUTION||'1920x1080';
 if(!productionId||!hlsDir) throw new Error('MFCC_PRODUCTION_ID and MFCC_HLS_DIR are required');
 
 async function oidc(){
@@ -56,5 +57,5 @@ for(const name of entries){
 }
 
 const segmentCount=entries.filter(f=>f.endsWith('.ts')).length;
-await edge({production_id:productionId,action:'hls_manifest',segment_count:segmentCount,resolution:'3840x2160'});
-console.log(`HLS streaming package stored successfully: ${segmentCount} segments.`);
+await edge({production_id:productionId,action:'hls_manifest',segment_count:segmentCount,resolution:streamResolution});
+console.log(`HLS streaming package stored successfully: ${segmentCount} segments at ${streamResolution}.`);
