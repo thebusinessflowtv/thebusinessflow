@@ -1,0 +1,44 @@
+name: MFCC Patch Delete Production
+
+on:
+  push:
+    paths:
+      - '.github/workflows/mfcc-patch-delete-production.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add delete action to Control Center
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('docs/control-center/app.html')
+          text = p.read_text(encoding='utf-8')
+
+          old_header = "'<div class=\"row\">'+statusPill(p.status)+'<button class=\"btn\" id=\"refreshStatus\">↻ Atualizar agora</button></div>'"
+          new_header = "'<div class=\"row\">'+statusPill(p.status)+'<button class=\"btn\" id=\"refreshStatus\">↻ Atualizar agora</button>'+(!terminal.includes(p.status)?'<button class=\"btn danger\" id=\"deleteProduction\">✕ Excluir execução</button>':'')+'</div>'"
+          if old_header not in text:
+              raise SystemExit('header target not found')
+          text = text.replace(old_header, new_header, 1)
+
+          marker = "document.querySelectorAll('.downloadBtn').forEach"
+          if marker not in text:
+              raise SystemExit('download marker not found')
+
+          wiring = "const deleteBtn=document.getElementById('deleteProduction');if(deleteBtn)deleteBtn.onclick=()=>modal('Excluir execução?','A produção <b>'+esc(topic(p))+'</b> será removida do painel. Se houver uma execução ativa no GitHub, o sistema tentará cancelá-la antes.<br><br><b>Esta ação não pode ser desfeita.</b>','Excluir execução',async()=>{clearPoll();const r=await invoke('mfcc-delete-production',{production_id:id});toast('Execução excluída',r&&r.cancelled?'A execução do GitHub também foi cancelada.':'A produção foi removida do painel.','success');go('/productions')});"
+          text = text.replace(marker, wiring + marker, 1)
+          p.write_text(text, encoding='utf-8')
+      - name: Commit patch
+        run: |
+          git config user.name "MediaForge Bot"
+          git config user.email "thebusinessflowtv@gmail.com"
+          git add docs/control-center/app.html
+          git commit -m "Add delete production action to MediaForge Control Center"
+          git push
