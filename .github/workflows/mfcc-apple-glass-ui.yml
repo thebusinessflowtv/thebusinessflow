@@ -1,0 +1,34 @@
+name: MFCC Apple Glass UI
+
+on:
+  push:
+    paths:
+      - 'tools/patch_control_center_apple_glass.py'
+      - '.github/workflows/mfcc-apple-glass-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mfcc-control-center-ui
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply Apple Glass redesign
+        run: python3 tools/patch_control_center_apple_glass.py
+      - name: Commit Control Center redesign
+        run: |
+          git config user.name "MediaForge Bot"
+          git config user.email "thebusinessflowtv@gmail.com"
+          git add docs/control-center/app.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Redesign Control Center with Apple Glass UI and video player"
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
