@@ -27,12 +27,15 @@
         "Open and close smaller curiosity loops every 45-90 seconds.",
         "Use factual clickbait only; every ranking and number must match the research metric."
       ],
-      "status": "queue_blocked",
+      "status": "uploaded_private",
       "scored_at": "2026-09-25T20:54:58.615763+00:00",
       "pipeline_repaired_at": "2026-09-25T23:49:22.701208+00:00",
       "rendered_at": "2026-09-26T00:30:56.564159+00:00",
       "queue_block_reason": "private upload failed after maximum retries",
-      "queue_blocked_at": "2026-09-26T01:31:07.368190+00:00"
+      "queue_blocked_at": "2026-09-26T01:31:07.368190+00:00",
+      "youtube_video_id": "JTWfweC0smE",
+      "youtube_privacy_status": "private",
+      "youtube_uploaded_at": "2026-09-26T01:42:26.886440+00:00"
     },
     {
       "id": "custom-15-us-industries-billions-2026-09",
