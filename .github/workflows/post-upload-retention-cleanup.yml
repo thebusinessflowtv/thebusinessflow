@@ -1,0 +1,152 @@
+name: The Business Flow Post-Upload Retention Cleanup
+
+on:
+  workflow_run:
+    workflows:
+      - 'The Business Flow Private YouTube Upload'
+    types: [completed]
+  push:
+    paths:
+      - 'production/retention-cleanup-now.json'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: the-business-flow-post-upload-retention
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve uploaded topic and source production run
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          REQUEST='production/private-upload-now.json'
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ -s production/retention-cleanup-now.json ]; then
+            REQUEST='production/retention-cleanup-now.json'
+          fi
+          test -s "$REQUEST"
+          python - "$REQUEST" <<'PY' >> "$GITHUB_OUTPUT"
+          import json, sys
+          d=json.load(open(sys.argv[1],encoding='utf-8'))
+          topic=str(d.get('topic_id') or '').strip()
+          run_id=int(d.get('source_run_id') or 0)
+          if not topic or not run_id:
+              raise SystemExit('Missing topic_id/source_run_id for cleanup')
+          print(f'topic_id={topic}')
+          print(f'source_run_id={run_id}')
+          PY
+
+      - name: Confirm YouTube upload is checkpointed
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOPIC='${{ steps.source.outputs.topic_id }}'
+          python - "$TOPIC" <<'PY'
+          import json, sys
+          topic=sys.argv[1]
+          d=json.load(open('production/topics.json',encoding='utf-8'))
+          row=next((x for x in d.get('topics',[]) if str(x.get('id'))==topic),None)
+          if not row:
+              raise SystemExit('Topic not found')
+          if str(row.get('status')) not in {'uploaded_private','used'} or not row.get('youtube_video_id'):
+              raise SystemExit(f'YouTube upload not yet confirmed for {topic}: {row.get("status")}')
+          print('Upload confirmed:', row['youtube_video_id'])
+          PY
+
+      - name: Restore topic images cache
+        uses: actions/cache/restore@v4
+        with:
+          path: production/visual-cache/${{ steps.source.outputs.topic_id }}
+          key: tbf-retention-visual-${{ steps.source.outputs.topic_id }}-${{ github.run_id }}
+          restore-keys: |
+            tbf-visual-v1-${{ steps.source.outputs.topic_id }}-
+
+      - name: Download source production artifact for script
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tbf-production-${{ steps.source.outputs.topic_id }}-*
+          path: restored
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.source.outputs.source_run_id }}
+
+      - name: Build seven-day images-and-script package only
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOPIC='${{ steps.source.outputs.topic_id }}'
+          PACKAGE="restored/output/${TOPIC}/episode-package.json"
+          test -s "$PACKAGE"
+          test -d "production/visual-cache/${TOPIC}"
+          rm -rf retention
+          mkdir -p retention/images
+          python - "$PACKAGE" <<'PY'
+          import json, pathlib, sys
+          p=json.load(open(sys.argv[1],encoding='utf-8'))
+          script=str(p.get('script') or '').strip()
+          if not script:
+              raise SystemExit('Script missing from episode package')
+          pathlib.Path('retention/script.txt').write_text(script+'\n',encoding='utf-8')
+          PY
+          find "production/visual-cache/${TOPIC}" -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -exec cp {} retention/images/ \;
+          IMAGE_COUNT="$(find retention/images -type f | wc -l | tr -d ' ')"
+          test "$IMAGE_COUNT" -ge 1
+          echo "Retaining ${IMAGE_COUNT} images + script only for 7 days."
+
+      - name: Preserve images and script for seven days
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbf-retained-${{ steps.source.outputs.topic_id }}-${{ github.run_id }}
+          path: retention/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+
+      - name: Delete original production artifact containing MP4
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOPIC='${{ steps.source.outputs.topic_id }}'
+          RUN='${{ steps.source.outputs.source_run_id }}'
+          IDS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN}/artifacts" --paginate --jq ".artifacts[] | select(.name | startswith(\"tbf-production-${TOPIC}-\")) | .id")"
+          test -n "$IDS" || { echo 'No source production artifact found to delete.'; exit 0; }
+          while read -r ID; do
+            [ -n "$ID" ] || continue
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}"
+            echo "Deleted production artifact ${ID}; MP4 removed from Actions storage."
+          done <<< "$IDS"
+
+      - name: Cleanup local MP4 copies
+        if: always()
+        shell: bash
+        run: |
+          rm -f restored/rendered/final.mp4 || true
+          find restored -type f -name '*.mp4' -delete 2>/dev/null || true
+
+      - name: Retention summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Post-upload retention cleanup'
+            echo '- Topic: ${{ steps.source.outputs.topic_id }}'
+            echo '- Source run: ${{ steps.source.outputs.source_run_id }}'
+            echo '- MP4 policy: delete immediately after confirmed YouTube upload.'
+            echo '- Retained: images + script only.'
+            echo '- Retention: 7 days, then GitHub artifact expiry removes the retained package.'
+          } >> "$GITHUB_STEP_SUMMARY"
