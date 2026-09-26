@@ -14,7 +14,7 @@
     "custom-broadcom-hidden-giant-2026-09"
   ],
   "current_topic": "custom-top-5-most-valuable-us-companies-2026-09",
-  "source_run_id": null,
+  "source_run_id": 36213594579,
   "production_attempts": {
     "custom-10-american-billion-dollar-companies-2026-09": 1,
     "custom-15-us-industries-billions-2026-09": 1,
@@ -22,11 +22,12 @@
   },
   "upload_attempts": {
     "custom-10-american-billion-dollar-companies-2026-09": 3,
-    "custom-15-us-industries-billions-2026-09": 3
+    "custom-15-us-industries-billions-2026-09": 3,
+    "custom-top-5-most-valuable-us-companies-2026-09": 1
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_upload:custom-15-us-industries-billions-2026-09",
-  "updated_at": "2026-09-26T03:41:23.225897+00:00",
-  "last_reason": "worker already active"
+  "updated_at": "2026-09-26T03:56:50.067384+00:00",
+  "last_reason": "retrying private upload attempt 1/3"
 }
