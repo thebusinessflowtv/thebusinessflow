@@ -47,7 +47,27 @@
   function clearMsg(){const el=$('message');el.className='msg';el.textContent=''}
   function busy(on,label){const b=$('submit');b.disabled=on;b.innerHTML=on?'<span class="spin"></span>'+(label||'Aguarde…'):(magic?'Enviar link mágico':'Entrar')}
   async function isAdmin(session){if(!session?.user?.id)return false;const q=await sb.from('user_roles').select('role').eq('user_id',session.user.id).eq('role','admin').maybeSingle();return !q.error&&!!q.data}
-  async function enter(session){show('loading');if(await isAdmin(session)){location.replace('./app.html'+location.hash);return}show('denied')}
+  async function enter(session){
+    show('loading');
+    if(await isAdmin(session)){
+      try{
+        const r=await fetch('./app.html?v=20260926-retry',{cache:'no-store'});
+        if(!r.ok)throw new Error('Não foi possível carregar o Control Center.');
+        let html=await r.text();
+        const helper='<script src="./retry-failed-production.js?v=20260926"></'+'script>';
+        html=html.replace('</body>',helper+'\n</body>');
+        document.open();
+        document.write(html);
+        document.close();
+        return;
+      }catch(err){
+        show('login');
+        msg(err?.message||'Não foi possível carregar o Control Center.');
+        return;
+      }
+    }
+    show('denied')
+  }
   async function init(){const {data}=await sb.auth.getSession();if(data.session){await enter(data.session)}else show('login')}
   $('mode').onclick=()=>{magic=!magic;clearMsg();$('pwrow').classList.toggle('hidden',magic);$('password').required=!magic;$('mode').textContent=magic?'Entrar com senha':'Entrar com link mágico';$('submit').textContent=magic?'Enviar link mágico':'Entrar'};
   $('form').onsubmit=async e=>{e.preventDefault();clearMsg();busy(true);const email=$('email').value.trim();try{if(magic){const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname,shouldCreateUser:false}});if(error)throw error;msg('Link enviado. Abra o e-mail nesta mesma conta para continuar.','ok');busy(false);$('submit').textContent='Link enviado'}else{const {data,error}=await sb.auth.signInWithPassword({email,password:$('password').value});if(error)throw error;await enter(data.session)}}catch(err){msg(err?.message||'Não foi possível entrar.');busy(false)}};
