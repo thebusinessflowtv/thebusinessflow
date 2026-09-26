@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="color-scheme" content="dark" />
+  <title>MediaForge Control Center</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    :root{--bg:#08090d;--panel:#11131a;--line:#272b38;--txt:#f5f7fa;--muted:#9299a9;--violet:#8b72ff;--blue:#62a5ff;--green:#59d39a;--red:#ee7c86}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt)}body{background-image:radial-gradient(900px 520px at 50% -180px,rgba(108,84,255,.2),transparent 66%),radial-gradient(600px 380px at 90% 15%,rgba(57,132,255,.08),transparent 70%)}
+    .wrap{min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(420px,100%);background:rgba(17,19,26,.92);border:1px solid var(--line);border-radius:18px;padding:28px;box-shadow:0 28px 90px rgba(0,0,0,.42);backdrop-filter:blur(18px)}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}.mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--blue),var(--violet));font-weight:900}.brand b{display:block;font-size:15px}.brand small{color:var(--muted);font-size:11px}.lock{margin-left:auto;border:1px solid rgba(89,211,154,.25);background:rgba(89,211,154,.07);color:var(--green);font-size:10px;padding:5px 8px;border-radius:999px}
+    h1{font-size:23px;margin:0 0 6px;letter-spacing:-.025em}p{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 22px}label{display:block;font-size:12px;color:#cbd0da;margin:0 0 7px}.field{margin-bottom:14px}.input{width:100%;border:1px solid #333847;background:#0c0e13;color:var(--txt);border-radius:10px;padding:11px 12px;outline:none}.input:focus{border-color:#7368ef;box-shadow:0 0 0 3px rgba(115,104,239,.12)}
+    .btn{width:100%;border:0;border-radius:10px;min-height:42px;padding:10px 14px;color:#fff;background:linear-gradient(135deg,#5f99ff,#8268ef);font-weight:650;cursor:pointer}.btn:disabled{opacity:.55;cursor:not-allowed}.link{width:100%;border:0;background:none;color:var(--muted);font-size:11px;padding:14px 0 0;cursor:pointer}.link:hover{color:var(--txt)}.divider{height:1px;background:var(--line);margin:20px 0 0}.msg{display:none;margin-top:15px;border-radius:10px;border:1px solid var(--line);padding:11px 12px;font-size:12px;line-height:1.45}.msg.on{display:block}.msg.error{border-color:rgba(238,124,134,.32);background:rgba(238,124,134,.06);color:#f0b0b7}.msg.ok{border-color:rgba(89,211,154,.3);background:rgba(89,211,154,.06);color:#abe7cb}.spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.28);border-top-color:white;border-radius:50%;display:inline-block;vertical-align:-4px;margin-right:7px;animation:s .8s linear infinite}@keyframes s{to{transform:rotate(360deg)}}.foot{margin-top:18px;text-align:center;color:#626979;font-size:10px}.hidden{display:none!important}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="card">
+      <div class="brand"><div class="mark">M</div><div><b>MediaForge</b><small>Control Center</small></div><span class="lock">ACESSO PRIVADO</span></div>
+      <section id="loading"><h1>Verificando acesso…</h1><p>Validando sua sessão com segurança.</p></section>
+      <section id="login" class="hidden">
+        <h1>Entrar</h1><p>Este painel é privado. Apenas contas previamente autorizadas podem acessar.</p>
+        <form id="form">
+          <div class="field"><label for="email">E-mail</label><input class="input" id="email" type="email" autocomplete="email" required /></div>
+          <div class="field" id="pwrow"><label for="password">Senha</label><input class="input" id="password" type="password" autocomplete="current-password" required /></div>
+          <button class="btn" id="submit" type="submit">Entrar</button>
+        </form>
+        <div class="divider"></div><button class="link" id="mode" type="button">Entrar com link mágico</button>
+        <div id="message" class="msg"></div>
+      </section>
+      <section id="denied" class="hidden"><h1>Acesso negado</h1><p>Esta conta existe, mas não possui autorização para o MediaForge Control Center.</p><button class="btn" id="logout" type="button">Sair desta conta</button></section>
+      <div class="foot">Sem cadastro público · Sessão protegida pelo Supabase Auth</div>
+    </main>
+  </div>
+<script>
+  const SUPABASE_URL='https://fykwalznmcrjgnyveagy.supabase.co';
+  const SUPABASE_KEY='sb_publishable_46tbOLOFhKqirGConFVg2w_xRQmmVli';
+  const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const $=id=>document.getElementById(id);
+  let magic=false;
+  function show(id){['loading','login','denied'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
+  function msg(text,type='error'){const el=$('message');el.textContent=text;el.className='msg on '+type}
+  function clearMsg(){const el=$('message');el.className='msg';el.textContent=''}
+  function busy(on,label){const b=$('submit');b.disabled=on;b.innerHTML=on?'<span class="spin"></span>'+(label||'Aguarde…'):(magic?'Enviar link mágico':'Entrar')}
+  async function isAdmin(session){if(!session?.user?.id)return false;const q=await sb.from('user_roles').select('role').eq('user_id',session.user.id).eq('role','admin').maybeSingle();return !q.error&&!!q.data}
+  async function enter(session){show('loading');if(await isAdmin(session)){location.replace('./app.html'+location.hash);return}show('denied')}
+  async function init(){const {data}=await sb.auth.getSession();if(data.session){await enter(data.session)}else show('login')}
+  $('mode').onclick=()=>{magic=!magic;clearMsg();$('pwrow').classList.toggle('hidden',magic);$('password').required=!magic;$('mode').textContent=magic?'Entrar com senha':'Entrar com link mágico';$('submit').textContent=magic?'Enviar link mágico':'Entrar'};
+  $('form').onsubmit=async e=>{e.preventDefault();clearMsg();busy(true);const email=$('email').value.trim();try{if(magic){const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname,shouldCreateUser:false}});if(error)throw error;msg('Link enviado. Abra o e-mail nesta mesma conta para continuar.','ok');busy(false);$('submit').textContent='Link enviado'}else{const {data,error}=await sb.auth.signInWithPassword({email,password:$('password').value});if(error)throw error;await enter(data.session)}}catch(err){msg(err?.message||'Não foi possível entrar.');busy(false)}};
+  $('logout').onclick=async()=>{await sb.auth.signOut();show('login')};
+  sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_IN'&&session)await enter(session);if(event==='SIGNED_OUT')show('login')});
+  init();
+</script>
+</body>
+</html>
