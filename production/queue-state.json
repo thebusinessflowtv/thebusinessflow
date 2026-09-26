@@ -25,11 +25,11 @@
     "custom-10-american-billion-dollar-companies-2026-09": 3,
     "custom-15-us-industries-billions-2026-09": 3,
     "custom-top-5-most-valuable-us-companies-2026-09": 2,
-    "custom-5-us-market-shaping-companies-2026-09": 1
+    "custom-5-us-market-shaping-companies-2026-09": 2
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "completed:custom-top-5-most-valuable-us-companies-2026-09",
-  "updated_at": "2026-09-26T05:21:30.832162+00:00",
-  "last_reason": "retrying private upload attempt 1/3"
+  "updated_at": "2026-09-26T05:40:11.522075+00:00",
+  "last_reason": "retrying private upload attempt 2/3"
 }
