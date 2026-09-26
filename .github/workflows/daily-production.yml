@@ -116,15 +116,6 @@ jobs:
           path: production/package-cache/${{ steps.setup.outputs.topic_id }}
           key: tbf-sonnet-package-v3-${{ steps.setup.outputs.topic_id }}
 
-      - name: Restore visual asset cache
-        id: visual-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: production/visual-cache/${{ steps.setup.outputs.topic_id }}
-          key: tbf-visual-v1-${{ steps.setup.outputs.topic_id }}-${{ github.run_id }}
-          restore-keys: |
-            tbf-visual-v1-${{ steps.setup.outputs.topic_id }}-
-
       - name: Hydrate durable research checkpoint
         shell: bash
         run: |
@@ -152,7 +143,7 @@ jobs:
           pip install -r production/requirements.txt
           pip install -r youtube-worker/requirements.txt
           git lfs pull
-          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/generate_episode_v3.py production/recover_paid_episode.py production/recover_paid_episode_v3.py production/collect_visual_assets.py production/render_episode.py
+          python -m py_compile production/anthropic_budget.py production/research_episode.py production/generate_episode.py production/generate_episode_v3.py production/recover_paid_episode.py production/recover_paid_episode_v3.py production/collect_visual_assets.py production/collect_visual_assets_unique.py production/register_used_visual_assets.py production/render_episode.py
           test -s media-library/catalog.json
           ffmpeg -version >/dev/null
 
@@ -209,7 +200,7 @@ jobs:
           mkdir -p production/research-library
           cp "$SRC" "$DST"
 
-      - name: Collect up to 50 topic-specific 16:9 images — free web sources, cache first
+      - name: Collect up to 50 topic-specific 16:9 images — fresh only, zero cross-video reuse
         id: visuals
         continue-on-error: true
         shell: bash
@@ -217,17 +208,10 @@ jobs:
           ANTHROPIC_API_KEY: ''
         run: |
           set -euo pipefail
-          python production/collect_visual_assets.py \
+          python production/collect_visual_assets_unique.py \
             --topic-id "${{ steps.setup.outputs.topic_id }}" \
             --research "production/research-cache/${{ steps.setup.outputs.topic_id }}/research.json" \
             --target 50
-
-      - name: Save visual work immediately
-        if: always() && steps.visual-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: production/visual-cache/${{ steps.setup.outputs.topic_id }}
-          key: ${{ steps.visual-cache.outputs.cache-primary-key }}
 
       - name: Verify topic visual package before any Sonnet/render work
         shell: bash
@@ -244,7 +228,10 @@ jobs:
               raise SystemExit(f'Only {len(assets)} topic images collected; need at least 40')
           assert all(int(a.get('width') or 0)==1280 and int(a.get('height') or 0)==720 for a in assets)
           assert d.get('logos_excluded') is True
-          print('Topic visuals verified:', len(assets), 'unique 16:9 images; Anthropic visual calls: 0')
+          assert d.get('fresh_only') is True, 'Visual package was not collected fresh'
+          assert d.get('cross_video_reuse_allowed') is False, 'Cross-video visual reuse must be disabled'
+          assert all(a.get('sha256') and a.get('perceptual_hash') for a in assets), 'Missing image fingerprints'
+          print('Topic visuals verified:', len(assets), 'fresh unique 16:9 images; Anthropic visual calls: 0')
           PY
 
       - name: Sonnet 5 writing — script first, no web, cache first
@@ -368,6 +355,16 @@ jobs:
           json.dump(d, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
           PY
 
+      - name: Permanently reserve images used by this video
+        shell: bash
+        run: |
+          set -euo pipefail
+          python production/register_used_visual_assets.py \
+            --manifest "production/visual-cache/${{ steps.setup.outputs.topic_id }}/visual-assets.json" \
+            --registry production/used-visual-assets.json \
+            --topic-id "${{ steps.setup.outputs.topic_id }}" \
+            --run-id "${{ github.run_id }}"
+
       - name: Preserve completed production artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -394,7 +391,7 @@ jobs:
           git config user.name 'The Business Flow Factory'
           git config user.email 'thebusinessflowtv@gmail.com'
           git restore --worktree media-library/catalog.json || true
-          git add production/topics.json "production/research-library/${{ steps.setup.outputs.topic_id }}.json"
+          git add production/topics.json production/used-visual-assets.json "production/research-library/${{ steps.setup.outputs.topic_id }}.json"
           if git diff --cached --quiet; then
             echo 'No checkpoint change to commit.'
             exit 0
@@ -445,8 +442,9 @@ jobs:
           visual=Path(f'production/visual-cache/{topic}/visual-assets.json')
           if visual.exists():
               v=json.loads(visual.read_text(encoding='utf-8'))
-              print(f"- Topic-specific images: {len(v.get('assets') or [])}")
+              print(f"- Topic-specific fresh images: {len(v.get('assets') or [])}")
+              print(f"- Cross-video image candidates rejected: {int(v.get('rejected_cross_video_assets') or 0)}")
               print('- Additional Anthropic cost for visual collection: $0.0000')
-          print('- Paid Haiku/Sonnet outputs are cached before rendering; visual downloads are cached independently.')
+          print('- Paid Haiku/Sonnet outputs are cached before rendering; visual images are always collected fresh and permanently fingerprinted.')
           print('- Automatic public/scheduled upload gate: ${{ steps.setup.outputs.should_upload }}')
           PY
