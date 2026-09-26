@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   publish:
-    if: github.event.workflow_run.conclusion == 'success'
+    # Publish whenever the parent run finished and left a valid production artifact.
+    # This also preserves a finished render if a later non-render step failed.
+    if: github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -53,7 +55,7 @@ jobs:
           name: mfcc-video-${{ steps.output.outputs.topic_id }}-${{ github.event.workflow_run.id }}
           path: restored/rendered/final.mp4
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
           compression-level: 0
       - name: Upload standalone thumbnail
         uses: actions/upload-artifact@v4
@@ -61,11 +63,11 @@ jobs:
           name: mfcc-thumbnail-${{ steps.output.outputs.topic_id }}-${{ github.event.workflow_run.id }}
           path: restored/rendered/thumbnail.png
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
       - name: Upload standalone script
         uses: actions/upload-artifact@v4
         with:
           name: mfcc-script-${{ steps.output.outputs.topic_id }}-${{ github.event.workflow_run.id }}
           path: restored/rendered/script.txt
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
