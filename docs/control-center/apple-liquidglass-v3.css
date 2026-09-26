@@ -379,3 +379,28 @@ body{background-image:none!important}
   .player-stage{border-radius:17px!important}
   .player-head-text b{font-size:14px!important}
 }
+
+/* Desktop document scroll recovery v1 */
+@media (min-width:901px){
+  html{
+    min-height:100%!important;
+    height:auto!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+  }
+  body{
+    min-height:100vh!important;
+    height:auto!important;
+    overflow-x:hidden!important;
+  }
+  body:not(:has(.player-overlay)){
+    overflow-y:auto!important;
+  }
+  body:has(.player-overlay){
+    overflow:hidden!important;
+  }
+  .shell,.main{
+    min-height:100vh!important;
+    height:auto!important;
+  }
+}
