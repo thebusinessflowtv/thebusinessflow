@@ -1170,8 +1170,9 @@
         "Use current filings and market-value data for scale claims.",
         "Open with why most consumers barely know the name despite its size, and reveal the key business engine near the end."
       ],
-      "status": "ready",
-      "scored_at": "2026-09-25T20:54:58.615763+00:00"
+      "status": "rendered_pending_manual_upload",
+      "scored_at": "2026-09-25T20:54:58.615763+00:00",
+      "rendered_at": "2026-09-26T22:38:38.664377+00:00"
     }
   ],
   "reservoir": {

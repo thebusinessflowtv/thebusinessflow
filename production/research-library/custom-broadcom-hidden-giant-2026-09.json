@@ -1,0 +1,109 @@
+{
+  "thesis": "Broadcom is a $30+ billion quarterly revenue technology company dominating hidden infrastructure via semiconductor solutions (AI accelerators and networking) and enterprise software, revealing why most consumers know the brand minimally despite its massive scale.",
+  "facts": [
+    {
+      "claim": "Q3 2026 consolidated revenue reached $29.6 billion, up 86% year-over-year, with semiconductors representing 70% and infrastructure software 30% of revenue.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000076/avgo-08022026x8kxex99.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "AI semiconductor revenue grew 221% year-over-year to $16.7 billion in Q3 2026, driven by custom AI accelerators and networking chips that power data centers globally.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000076/avgo-08022026x8kxex99.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Infrastructure software segment operating margin reached 84% in Q3 2026 with 94% gross margin, making it the highest-margin business despite being 30% of revenue.",
+      "source_url": "https://www.alpha-sense.com/earnings/avgo/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Broadcom's current form is built through major acquisitions including legacy Broadcom, Avago Technologies, VMware, Brocade, CA Technologies, and Symantec.",
+      "source_url": "https://www.alpha-sense.com/earnings/avgo/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The company generated $10.3 billion in free cash flow in Q2 2026 from $10.5 billion operating cash, reflecting powerful cash conversion despite capital intensity.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000051/avgo-05032026x8kxex99.htm",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Broadcom semiconductor solutions serve enterprise data centers, AI systems, networking equipment, storage systems, broadband access, telecom, wireless devices and industrial automation.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000054/avgo-20260503.htm",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$29.6 billion",
+      "context": "Q3 2026 consolidated quarterly revenue",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000076/avgo-08022026x8kxex99.htm"
+    },
+    {
+      "value": "86% year-over-year",
+      "context": "Q3 2026 revenue growth rate",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000076/avgo-08022026x8kxex99.htm"
+    },
+    {
+      "value": "$21.7 billion",
+      "context": "Expected Q4 2026 AI semiconductor revenue, up 236% year-over-year",
+      "source_url": "https://www.alpha-sense.com/earnings/avgo/"
+    },
+    {
+      "value": "84%",
+      "context": "Infrastructure software operating margin Q3 2026",
+      "source_url": "https://www.alpha-sense.com/earnings/avgo/"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2023",
+      "event": "Broadcom acquired VMware for enterprise software segment expansion",
+      "source_url": "https://www.alpha-sense.com/earnings/avgo/"
+    },
+    {
+      "date": "Q2 2026 (May 3, 2026)",
+      "event": "Q2 revenue hit record $22.2 billion with AI semiconductor revenue $10.8 billion, up 143% year-over-year",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000051/avgo-05032026x8kxex99.htm"
+    },
+    {
+      "date": "Q3 2026 (August 2, 2026)",
+      "event": "Q3 revenue reached $29.6 billion, up 86% year-over-year, with AI semiconductor revenue $16.7 billion",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000076/avgo-08022026x8kxex99.htm"
+    }
+  ],
+  "sources": [
+    {
+      "title": "sec.gov",
+      "url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000076/avgo-08022026x8kxex99.htm",
+      "source_type": "web"
+    },
+    {
+      "title": "alpha-sense.com",
+      "url": "https://www.alpha-sense.com/earnings/avgo/",
+      "source_type": "web"
+    },
+    {
+      "title": "sec.gov",
+      "url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000051/avgo-05032026x8kxex99.htm",
+      "source_type": "web"
+    },
+    {
+      "title": "sec.gov",
+      "url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000054/avgo-20260503.htm",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-broadcom-hidden-giant-2026-09",
+  "topic": "Broadcom",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 13989,
+    "output_tokens": 1592,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.031949,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-26T21:59:31.174496+00:00"
+}
