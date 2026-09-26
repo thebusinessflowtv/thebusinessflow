@@ -380,21 +380,24 @@ body{background-image:none!important}
   .player-head-text b{font-size:14px!important}
 }
 
-/* Desktop document scroll recovery v1 */
+/* Desktop document scroll recovery v2 — keep exactly one vertical scroll owner */
 @media (min-width:901px){
   html{
     min-height:100%!important;
     height:auto!important;
     overflow-x:hidden!important;
-    overflow-y:auto!important;
+    overflow-y:scroll!important;
+    overscroll-behavior-y:auto!important;
+    scrollbar-gutter:stable;
   }
   body{
     min-height:100vh!important;
     height:auto!important;
     overflow-x:hidden!important;
+    overscroll-behavior-y:auto!important;
   }
   body:not(:has(.player-overlay)){
-    overflow-y:auto!important;
+    overflow-y:visible!important;
   }
   body:has(.player-overlay){
     overflow:hidden!important;
@@ -402,5 +405,6 @@ body{background-image:none!important}
   .shell,.main{
     min-height:100vh!important;
     height:auto!important;
+    overflow-y:visible!important;
   }
 }
