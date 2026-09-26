@@ -27,6 +27,6 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_upload:custom-15-us-industries-billions-2026-09",
-  "updated_at": "2026-09-26T03:22:17.557616+00:00",
+  "updated_at": "2026-09-26T03:41:23.225897+00:00",
   "last_reason": "worker already active"
 }
