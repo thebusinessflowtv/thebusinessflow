@@ -1,0 +1,114 @@
+{
+  "thesis": "The top 10 American billion-dollar companies represent the deepest concentration of corporate power in Fortune 500 history. Four tech giants control over a fifth of all Fortune 500 profits while ten companies alone generate $4.5 trillion in combined annual revenue—a structural shift reshaping the U.S. economy.",
+  "facts": [
+    {
+      "claim": "Amazon (No. 1) surpassed Walmart after 13 years through 12% year-over-year revenue growth and AWS cloud-services margin expansion.",
+      "source_url": "https://fortune.com/ranking/fortune500/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Alphabet recorded a Fortune 500 earnings record of $132 billion in profits, with Nvidia, Apple, and Microsoft—all tech—combining for over 20% of total Fortune 500 earnings.",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "UnitedHealth Group (No. 3) holds nearly $450 billion in revenue, positioning healthcare as half of the top-ten company composition alongside retail and tech.",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Nvidia jumped 15 spots to No. 16 on AI momentum, crossing the $200 billion annual revenue threshold in 2026.",
+      "source_url": "https://fortune.com/ranking/fortune500/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "The Fortune 500 is now more concentrated than its 72-year history, with corporate expansion driven by AI, healthcare consolidation, and oligopolistic tech dominance.",
+      "source_url": "https://www.msn.com/en-us/money/companies/the-10-largest-us-companies-by-revenue-fortune-500-list-for-2026/ar-AA24LnLS",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Fortune 500 companies represent two-thirds of U.S. GDP, generating $21 trillion in combined revenue and $2.1 trillion in profits across all 500 members.",
+      "source_url": "https://fortune.com/ranking/fortune500/2026/explore/",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$716.9 billion",
+      "context": "Amazon's 2025 annual revenue, securing No. 1 position on 2026 Fortune 500.",
+      "source_url": "https://en.wikipedia.org/wiki/Fortune_500"
+    },
+    {
+      "value": "$4.5 trillion",
+      "context": "Combined annual revenue of the top ten Fortune 500 companies, representing over one-fifth of all Fortune 500 revenue.",
+      "source_url": "https://www.bestfirms.org/fortune-500-companies-list/"
+    },
+    {
+      "value": "$21 trillion",
+      "context": "Total combined revenue of all 500 Fortune 500 companies in 2026.",
+      "source_url": "https://fortune.com/ranking/fortune500/2026/explore/"
+    },
+    {
+      "value": "20%",
+      "context": "Share of total Fortune 500 earnings captured by the top four tech companies (Alphabet, Nvidia, Apple, Microsoft).",
+      "source_url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "January 2026",
+      "event": "Doug McMillon, Walmart's CEO, retired after presiding over 13-year streak at No. 1 Fortune ranking.",
+      "source_url": "https://fortune.com/ranking/fortune500/"
+    },
+    {
+      "date": "2026",
+      "event": "Amazon seized No. 1 position from Walmart for first time in over a decade via 12% revenue growth.",
+      "source_url": "https://fortune.com/ranking/fortune500/"
+    },
+    {
+      "date": "2026",
+      "event": "Nvidia jumped 15 spots to No. 16 after surpassing $200 billion annual revenue threshold on AI expansion.",
+      "source_url": "https://fortune.com/ranking/fortune500/"
+    },
+    {
+      "date": "June 2026",
+      "event": "Fortune published 2026 rankings showing most concentrated corporate landscape in 72-year history.",
+      "source_url": "https://fortune.com/ranking/fortune500/"
+    }
+  ],
+  "sources": [
+    {
+      "title": "Fortune 500 – The largest companies in the U.S. by revenue",
+      "url": "https://fortune.com/ranking/fortune500/",
+      "source_type": "Official publisher"
+    },
+    {
+      "title": "The 10 largest US companies by revenue: Fortune 500 list for 2026",
+      "url": "https://finance.yahoo.com/markets/stocks/articles/10-largest-us-companies-revenue-190317616.html",
+      "source_type": "Financial news aggregator"
+    },
+    {
+      "title": "Fortune 500 – Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Fortune_500",
+      "source_type": "Encyclopedic reference"
+    },
+    {
+      "title": "Fortune 500 Companies List: The Complete 2026 Report",
+      "url": "https://www.bestfirms.org/fortune-500-companies-list/",
+      "source_type": "Business data analysis"
+    }
+  ],
+  "topic_id": "custom-10-american-billion-dollar-companies-2026-09",
+  "topic": "10 American Billion-Dollar Companies",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 13286,
+    "output_tokens": 1598,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.031276,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-25T20:56:38.487252+00:00"
+}
