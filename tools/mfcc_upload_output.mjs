@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import * as tus from 'tus-js-client';
 
 const projectRef=process.env.MFCC_SUPABASE_PROJECT_REF||'fykwalznmcrjgnyveagy';
 const productionId=process.env.MFCC_PRODUCTION_ID;
@@ -30,27 +29,22 @@ async function edge(token,payload){
 const fileSize=fs.statSync(filePath).size;
 const identity=await oidc();
 const ticket=await edge(identity,{production_id:productionId,kind,action:'ticket',size:fileSize});
+if(!ticket.signed_url) throw new Error('Storage ticket did not return a signed upload URL');
 console.log(`Uploading ${kind} (${fileSize} bytes) -> ${ticket.path}`);
 
-await new Promise((resolve,reject)=>{
-  const upload=new tus.Upload(fs.createReadStream(filePath),{
-    endpoint:`https://${projectRef}.supabase.co/storage/v1/upload/resumable`,
-    uploadSize:fileSize,
-    retryDelays:[0,3000,5000,10000,20000],
-    headers:{'x-signature':ticket.token},
-    uploadDataDuringCreation:true,
-    removeFingerprintOnSuccess:true,
-    chunkSize:6*1024*1024,
-    metadata:{bucketName:ticket.bucket,objectName:ticket.path,contentType:ticket.content_type,cacheControl:'3600'},
-    onError:reject,
-    onProgress:(done,total)=>{
-      const pct=((done/total)*100).toFixed(1);
-      process.stdout.write(`\r${kind}: ${pct}%`);
-    },
-    onSuccess:()=>{process.stdout.write(`\r${kind}: 100.0%\n`);resolve();}
-  });
-  upload.start();
+const upload=await fetch(ticket.signed_url,{
+  method:'PUT',
+  headers:{
+    'Content-Type':ticket.content_type||'application/octet-stream',
+    'Content-Length':String(fileSize),
+    'Cache-Control':'max-age=3600',
+    'x-upsert':'true'
+  },
+  body:fs.createReadStream(filePath),
+  duplex:'half'
 });
+if(!upload.ok) throw new Error(`Signed upload failed ${upload.status}: ${await upload.text()}`);
+console.log(`${kind}: upload complete.`);
 
 const identity2=await oidc();
 await edge(identity2,{production_id:productionId,kind,action:'complete',size:fileSize});
