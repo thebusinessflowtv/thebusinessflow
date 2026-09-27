@@ -43,6 +43,6 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_upload:custom-broadcom-hidden-giant-2026-09",
-  "updated_at": "2026-09-27T14:59:17.317058+00:00",
+  "updated_at": "2026-09-27T15:17:58.540749+00:00",
   "last_reason": "no ready topic available yet"
 }
