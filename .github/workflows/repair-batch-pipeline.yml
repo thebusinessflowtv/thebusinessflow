@@ -24,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply Research Gate V2 and reset affected jobs
+      - name: Verify Research Gate V2 and reset affected jobs
         shell: bash
         run: |
           set -euo pipefail
@@ -36,44 +36,20 @@ jobs:
 
           now = datetime.now(timezone.utc).isoformat()
 
-          # Validate the already-committed research implementation before changing queue state.
           py_compile.compile('production/research_episode.py', doraise=True)
+          daily_text = Path('.github/workflows/daily-production.yml').read_text(encoding='utf-8')
+          required_contract = [
+              'ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES',
+              'ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES',
+              'ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES',
+              'tbf-haiku-research-v4-',
+              'restore-keys:',
+              'multi-source with cached gap repair',
+          ]
+          missing_contract = [token for token in required_contract if token not in daily_text]
+          if missing_contract:
+              raise SystemExit(f'Research Gate V2 workflow contract missing: {missing_contract}')
 
-          # Upgrade the daily workflow to a new cache generation. Old v3 paid snapshots
-          # remain recoverable as a fallback, while repaired output is saved under v4.
-          daily = Path('.github/workflows/daily-production.yml')
-          lines = daily.read_text(encoding='utf-8').splitlines()
-          out = []
-          env_inserted = any('ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES:' in line for line in lines)
-
-          for line in lines:
-              if 'ANTHROPIC_RESEARCH_MAX_USD:' in line and not env_inserted:
-                  out.append(line)
-                  indent = line[:len(line) - len(line.lstrip())]
-                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES: '3'")
-                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES: '4'")
-                  out.append(indent + "ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES: '2'")
-                  env_inserted = True
-                  continue
-
-              if 'key: tbf-haiku-research-v3-' in line:
-                  old_key = line.split('key:', 1)[1].strip()
-                  out.append(line.replace('tbf-haiku-research-v3-', 'tbf-haiku-research-v4-'))
-                  indent = line[:len(line) - len(line.lstrip())]
-                  out.append(indent + 'restore-keys: |')
-                  out.append(indent + '  ' + old_key)
-                  continue
-
-              if 'Haiku 4.5 research — at most one search, cache first' in line:
-                  line = line.replace(
-                      'Haiku 4.5 research — at most one search, cache first',
-                      'Haiku 4.5 research — multi-source with cached gap repair'
-                  )
-              out.append(line)
-
-          daily.write_text('\n'.join(out) + '\n', encoding='utf-8')
-
-          # Only the three jobs that were blocked during the broken research gate are reset.
           affected = [
               'custom-us-airline-collapse-2026-09',
               'custom-us-convenience-collapse-2026-09',
@@ -116,33 +92,21 @@ jobs:
           }
           Path('production/queue-kick.json').write_text(json.dumps(kick, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
-          print('Research Gate V2 recovery prepared.')
+          print('Research Gate V2 verified.')
           print('Reset topics:', ', '.join(affected))
           PY
 
-      - name: Verify repaired workflow contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -q 'ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES' .github/workflows/daily-production.yml
-          grep -q 'ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES' .github/workflows/daily-production.yml
-          grep -q 'ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES' .github/workflows/daily-production.yml
-          grep -q 'tbf-haiku-research-v4-' .github/workflows/daily-production.yml
-          grep -q 'restore-keys:' .github/workflows/daily-production.yml
-          grep -q 'multi-source with cached gap repair' .github/workflows/daily-production.yml
-          python -m py_compile production/research_episode.py
-
-      - name: Commit and resume sequential queue
+      - name: Commit queue recovery and resume production
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'The Business Flow Factory'
           git config user.email 'thebusinessflowtv@gmail.com'
-          git add .github/workflows/daily-production.yml production/topics.json production/queue-state.json production/queue-kick.json
+          git add production/topics.json production/queue-state.json production/queue-kick.json
           if git diff --cached --quiet; then
-            echo 'No repair changes to commit.'
+            echo 'No queue recovery changes to commit.'
             exit 0
           fi
-          git commit -m 'Activate Research Gate V2 and retry blocked jobs'
+          git commit -m 'Retry blocked jobs with Research Gate V2'
           git pull --rebase --autostash origin main
           git push origin HEAD:main
