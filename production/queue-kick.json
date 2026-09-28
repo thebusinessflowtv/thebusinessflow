@@ -1,6 +1,7 @@
 {
-  "requested_at": "2026-09-28",
-  "reason": "Retry Airline after source-index normalization and cost-guard alignment; continue queue sequentially",
+  "requested_at": "2026-09-28T21:27:00Z",
+  "reason": "Restart Airline, Convenience and Fast-Food after dynamic-subject title validation fix; process sequentially",
   "research_gate_version": 2,
-  "kick": 3
+  "dynamic_subject_gate_version": 2,
+  "kick": 4
 }
