@@ -45,26 +45,23 @@ jobs:
           lines = daily.read_text(encoding='utf-8').splitlines()
           out = []
           env_inserted = any('ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES:' in line for line in lines)
-          restore_present = any('tbf-haiku-research-v3-' in line and 'restore-keys' not in line for line in lines) and any('restore-keys:' in line for line in lines)
 
           for line in lines:
               if 'ANTHROPIC_RESEARCH_MAX_USD:' in line and not env_inserted:
                   out.append(line)
                   indent = line[:len(line) - len(line.lstrip())]
-                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES: ${{ vars.ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES || '3' }}")
-                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES: ${{ vars.ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES || '4' }}")
-                  out.append(indent + "ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES: ${{ vars.ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES || '2' }}")
+                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES: '3'")
+                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES: '4'")
+                  out.append(indent + "ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES: '2'")
                   env_inserted = True
                   continue
 
               if 'key: tbf-haiku-research-v3-' in line:
                   old_key = line.split('key:', 1)[1].strip()
                   out.append(line.replace('tbf-haiku-research-v3-', 'tbf-haiku-research-v4-'))
-                  if not restore_present:
-                      indent = line[:len(line) - len(line.lstrip())]
-                      out.append(indent + 'restore-keys: |')
-                      out.append(indent + '  ' + old_key)
-                      restore_present = True
+                  indent = line[:len(line) - len(line.lstrip())]
+                  out.append(indent + 'restore-keys: |')
+                  out.append(indent + '  ' + old_key)
                   continue
 
               if 'Haiku 4.5 research — at most one search, cache first' in line:
