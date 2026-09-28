@@ -35,6 +35,9 @@ jobs:
       ANTHROPIC_RESEARCH_MODEL: ${{ vars.ANTHROPIC_RESEARCH_MODEL || 'claude-haiku-4-5-20251001' }}
       ANTHROPIC_SCRIPT_MODEL: ${{ vars.ANTHROPIC_SCRIPT_MODEL || 'claude-sonnet-5' }}
       ANTHROPIC_RESEARCH_MAX_USD: ${{ vars.ANTHROPIC_RESEARCH_MAX_USD || '0.030' }}
+      ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES: '3'
+      ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES: '4'
+      ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES: '2'
       ANTHROPIC_TOTAL_BUDGET_USD: '0.100'
       VISUAL_IMAGE_TARGET: '50'
       VISUAL_IMAGE_MIN: '40'
@@ -107,7 +110,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: production/research-cache/${{ steps.setup.outputs.topic_id }}
-          key: tbf-haiku-research-v3-${{ steps.setup.outputs.topic_id }}
+          key: tbf-haiku-research-v4-${{ steps.setup.outputs.topic_id }}
+          restore-keys: |
+            tbf-haiku-research-v3-${{ steps.setup.outputs.topic_id }}
 
       - name: Restore Sonnet package cache
         id: package-cache
@@ -178,7 +183,7 @@ jobs:
           PY
           fi
 
-      - name: Haiku 4.5 research — at most one search, cache first
+      - name: Haiku 4.5 research — multi-source with cached gap repair
         id: research
         shell: bash
         run: python production/research_episode.py --topic-id "${{ steps.setup.outputs.topic_id }}"
