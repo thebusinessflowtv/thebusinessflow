@@ -1,0 +1,119 @@
+{
+  "thesis": "7-Eleven plans to close 645 North American stores in fiscal 2026—its fifth consecutive year closing more locations than opening—while parent Seven & i Holdings projects 9.4% revenue decline amid declining foot traffic, franchisee disputes, and structural industry headwinds in convenience retail.",
+  "facts": [
+    {
+      "claim": "7-Eleven will close 645 North American stores in fiscal 2026 (March 2026–Feb 2027), more than triple the 205 planned openings.",
+      "source_url": "https://finance.yahoo.com/economy/articles/convenience-store-chain-closing-hundreds-110101146.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Seven & i Holdings parent company expects 9.4% revenue decline, approximately $59.5 billion in losses, for current fiscal year.",
+      "source_url": "https://finance.yahoo.com/economy/articles/convenience-store-chain-closing-hundreds-110101146.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "7-Eleven fiscal 2026 closure announcement marks fifth consecutive year chain closed more stores than it opened.",
+      "source_url": "https://theheartysoul.com/store-closures-2026-full-list-of-major-brands-closing/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "U.S. 7-Eleven locations faced declining foot traffic, revenue, and franchisee disputes with hundreds shuttered in past two years.",
+      "source_url": "https://financebuzz.com/news/struggling-companies-facing-closure-3",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Convenience store industry shifting revenue away from cigarettes toward foodservice (30% of in-store revenue by 2024, up from 12% in 2004).",
+      "source_url": "https://theheartysoul.com/store-closures-2026-full-list-of-major-brands-closing/",
+      "safe_for_packaging": false
+    },
+    {
+      "claim": "7-Eleven closures part of broader effort to evolve business model toward higher-margin foodservice offerings and away from traditional convenience model.",
+      "source_url": "https://theheartysoul.com/store-closures-2026-full-list-of-major-brands-closing/",
+      "safe_for_packaging": false
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "645",
+      "context": "Planned North American store closures by 7-Eleven in fiscal 2026",
+      "source_url": "https://finance.yahoo.com/economy/articles/convenience-store-chain-closing-hundreds-110101146.html"
+    },
+    {
+      "value": "205",
+      "context": "Planned store openings by 7-Eleven in same fiscal 2026 period",
+      "source_url": "https://finance.yahoo.com/economy/articles/convenience-store-chain-closing-hundreds-110101146.html"
+    },
+    {
+      "value": "9.4%",
+      "context": "Expected revenue decline for Seven & i Holdings in fiscal 2026",
+      "source_url": "https://finance.yahoo.com/economy/articles/convenience-store-chain-closing-hundreds-110101146.html"
+    },
+    {
+      "value": "12,000+",
+      "context": "7-Eleven locations operated in U.S. and Canada as of 2026",
+      "source_url": "https://finance.yahoo.com/economy/articles/convenience-store-chain-closing-hundreds-110101146.html"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2024",
+      "event": "7-Eleven had closed approximately 500 stores since start of sustained contraction period",
+      "source_url": "https://finance.yahoo.com/economy/articles/another-retail-chain-closing-stores-033300636.html"
+    },
+    {
+      "date": "May 2026",
+      "event": "Seven & i Holdings and 7-Eleven parent confirm 645-store closure plan for fiscal 2026 in earnings filings",
+      "source_url": "https://theheartysoul.com/store-closures-2026-full-list-of-major-brands-closing/"
+    },
+    {
+      "date": "2026 (Aug)",
+      "event": "Analysis reports 7-Eleven expected to close 601 stores by year-end with 63 already confirmed at midyear",
+      "source_url": "https://finance.yahoo.com/small-business/articles/store-closures-2026-see-list-114400390.html"
+    },
+    {
+      "date": "September 2026",
+      "event": "FinanceBuzz flags 7-Eleven among companies facing potential structural viability concerns if inflation persists",
+      "source_url": "https://financebuzz.com/news/struggling-companies-facing-closure-3"
+    }
+  ],
+  "sources": [
+    {
+      "title": "finance.yahoo.com",
+      "url": "https://finance.yahoo.com/economy/articles/convenience-store-chain-closing-hundreds-110101146.html",
+      "source_type": "web"
+    },
+    {
+      "title": "theheartysoul.com",
+      "url": "https://theheartysoul.com/store-closures-2026-full-list-of-major-brands-closing/",
+      "source_type": "web"
+    },
+    {
+      "title": "financebuzz.com",
+      "url": "https://financebuzz.com/news/struggling-companies-facing-closure-3",
+      "source_type": "web"
+    },
+    {
+      "title": "finance.yahoo.com",
+      "url": "https://finance.yahoo.com/economy/articles/another-retail-chain-closing-stores-033300636.html",
+      "source_type": "web"
+    },
+    {
+      "title": "finance.yahoo.com",
+      "url": "https://finance.yahoo.com/small-business/articles/store-closures-2026-see-list-114400390.html",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-us-convenience-collapse-2026-09",
+  "topic": "The American Convenience Chain That Could Be in Real Trouble",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 13939,
+    "output_tokens": 1585,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.031864,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-28T12:59:10.480907+00:00"
+}

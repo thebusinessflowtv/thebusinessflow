@@ -16,7 +16,7 @@
       "working_angle": "Research and select one major U.S. convenience-store chain with current, documented signs of financial distress, contraction, store closures, debt pressure, restructuring risk, weak performance, ownership stress, or another credible threat to the business. Prefer a nationally or regionally recognizable brand with strong visual identity and a story that can genuinely make viewers ask whether the chain is heading toward collapse. Do not state that the company will fail or go bankrupt unless that is confirmed; frame uncertainty accurately and use the strongest verified warning signs.",
       "title_seed": "Create the most provocative factual English title only after research, ideally built around a curiosity gap such as whether a famous convenience chain is closer to collapse than people realize.",
       "thumbnail_text_seed": "IS IT OVER?",
-      "status": "ready",
+      "status": "rendered_pending_manual_upload",
       "click_score": 100,
       "click_reason": "User-requested standalone convenience-store distress documentary built to provoke debate while preserving uncertainty and factual accuracy.",
       "language": "en-US",
@@ -36,7 +36,8 @@
       "reference_media": [],
       "scored_at": "2026-09-28T12:56:52.723659+00:00",
       "research_gate_v2_reset_at": "2026-09-28T20:00:28.236782+00:00",
-      "dynamic_subject_validation_reset_at": "2026-09-28T21:26:26.314942+00:00"
+      "dynamic_subject_validation_reset_at": "2026-09-28T21:26:26.314942+00:00",
+      "rendered_at": "2026-09-28T23:13:00.106616+00:00"
     },
     {
       "id": "custom-us-fastfood-collapse-2026-09",
