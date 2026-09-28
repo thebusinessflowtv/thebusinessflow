@@ -1,4 +1,5 @@
 {
-  "requested_at": "2026-09-25T23:48:00Z",
-  "reason": "Fix research/package recovery, reset blocked first topic, resume private 4K batch"
+  "requested_at": "2026-09-28",
+  "reason": "Install Research Gate V2, migrate research cache to v4, reset Airline/Convenience/Fast-Food research failures and resume sequential production",
+  "research_gate_version": 2
 }
