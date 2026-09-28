@@ -49,8 +49,8 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_production:custom-us-airline-collapse-2026-09",
-  "updated_at": "2026-09-28T22:40:24.706304+00:00",
-  "last_reason": "retrying production attempt 2/3",
+  "updated_at": "2026-09-28T22:57:53.077356+00:00",
+  "last_reason": "worker already active",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
 }
