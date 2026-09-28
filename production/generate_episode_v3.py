@@ -64,6 +64,14 @@ def required_brand_token(topic: dict[str, Any]) -> str:
     if explicit and explicit.lower() not in NON_BRAND_EXPLICIT:
         return explicit
 
+    # Editorial seeds that explicitly ask research to choose the company are not brands.
+    # The selected entity comes from the verified research (for example 7-Eleven), so
+    # never require generic seed words such as Convenience, Airline or Fast-Food in
+    # the final title. True single-brand topics still use the strict brand gate.
+    selection_angle = str(topic.get("working_angle") or "").strip().lower()
+    if "research and select one" in selection_angle:
+        return ""
+
     raw = str(topic.get("topic") or "").strip()
     low = raw.lower()
     words = re.findall(r"[A-Za-z0-9][A-Za-z0-9&.-]*", raw)
