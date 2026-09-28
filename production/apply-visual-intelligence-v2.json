@@ -1,4 +1,5 @@
 {
-  "requested_at": "2026-09-27T21:15:00-03:00",
-  "reason": "Improve image relevance: exact products, real offices/factories, official-source images, high-resolution Google Images discovery"
+  "requested_at": "2026-09-27T21:46:00-03:00",
+  "attempt": 2,
+  "reason": "Apply Visual Intelligence V2 to the active collector and daily production workflow"
 }
