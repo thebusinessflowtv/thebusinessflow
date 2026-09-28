@@ -10,6 +10,33 @@
   },
   "topics": [
     {
+      "id": "custom-us-airline-collapse-2026-09",
+      "topic": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
+      "category": "aviation airlines bankruptcy business collapse",
+      "working_angle": "Research and select one highly recognizable U.S. airline or aviation company that genuinely went bankrupt, collapsed, or disappeared. Prefer a case with strong American brand recognition, dramatic rise-and-fall economics, clear verified bankruptcy/collapse facts, and abundant authentic visual material. Build the episode around why a company that once looked untouchable fell apart. Do not conflate Chapter 11 restructuring with permanent failure unless the company actually ceased operations or the distinction is made clearly.",
+      "title_seed": "Create the most provocative factual English title only after research; maximize curiosity and disbelief without inventing claims.",
+      "thumbnail_text_seed": "HOW DID THIS HAPPEN?",
+      "status": "ready",
+      "click_score": 100,
+      "click_reason": "User-requested standalone airline-collapse documentary with strong brand recognition, controversy and discussion potential.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "This is one standalone video. Do not combine it with the fast-food or convenience-store ideas.",
+        "Open within the first 20 seconds with a brief natural request to like the video and subscribe, then immediately deliver a strong hook.",
+        "End with another concise like-and-subscribe call to action.",
+        "Ask viewers for their opinion at least twice, including a direct question near the ending designed to generate comments and disagreement.",
+        "Use a sensational, provocative, debate-driving tone, but keep every factual claim defensible and sourced.",
+        "Choose the final title only after research. It may be aggressive and polarizing, but must accurately distinguish bankruptcy, restructuring, closure and liquidation.",
+        "Prefer authentic company-specific visuals over generic aviation B-roll. Use Visual Intelligence V2 and reject unrelated aircraft, airports or generic stock images.",
+        "Show the actual airline/company, its real aircraft and liveries, airports, ticket counters, employees, executives, advertisements, archival material, bankruptcy/news context and locations whenever possible.",
+        "Prioritize large/high-resolution current or historically correct images from authoritative and relevant sources."
+      ],
+      "verified_context": [],
+      "reference_media": [],
+      "scored_at": "2026-09-28T12:55:30.143504+00:00"
+    },
+    {
       "id": "famous-001",
       "topic": "Meta",
       "category": "social media/advertising",
