@@ -16,10 +16,10 @@
     "custom-google-real-money-machine-2026-09",
     "custom-broadcom-hidden-giant-2026-09"
   ],
-  "current_topic": null,
+  "current_topic": "custom-us-airline-collapse-2026-09",
   "source_run_id": null,
   "production_attempts": {
-    "custom-us-airline-collapse-2026-09": 0,
+    "custom-us-airline-collapse-2026-09": 1,
     "custom-us-convenience-collapse-2026-09": 0,
     "custom-us-fastfood-collapse-2026-09": 0,
     "custom-10-american-billion-dollar-companies-2026-09": 1,
@@ -49,8 +49,8 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "dynamic_subject_validator_recovery",
-  "updated_at": "2026-09-28T21:26:26.314942+00:00",
-  "last_reason": "reset three requested videos after fixing generic topic label brand validation",
+  "updated_at": "2026-09-28T21:27:09.193665+00:00",
+  "last_reason": "starting next queued topic attempt 1/3",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
 }
