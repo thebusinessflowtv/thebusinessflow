@@ -1,0 +1,131 @@
+name: Apply Visual Intelligence V2
+
+on:
+  push:
+    paths:
+      - 'production/apply-visual-intelligence-v2.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: the-business-flow-visual-intelligence-v2
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch active visual collector
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          collector = Path("production/collect_visual_assets_unique.py")
+          text = collector.read_text(encoding="utf-8")
+
+          if "import visual_intelligence_v2" not in text:
+              text = text.replace(
+                  "import collect_visual_assets as profiles\n",
+                  "import collect_visual_assets as profiles\nimport visual_intelligence_v2\n",
+                  1,
+              )
+
+          if "visual_intelligence_v2.install(core)" not in text:
+              text = text.replace(
+                  "core = profiles.core\n",
+                  "core = profiles.core\nvisual_intelligence_v2.install(core)\n",
+                  1,
+              )
+
+          text = text.replace(
+              '"profile_version": "hq-v3-zero-reuse",',
+              '"profile_version": "hq-v4-visual-intelligence",\n'
+              '        "visual_intelligence": "v2",\n'
+              '        "official_source_priority": True,\n'
+              '        "exact_topic_queries": True,',
+          )
+
+          needle = '                    "license": candidate.get("license"),\n'
+          replacement = (
+              needle
+              + '                    "rights_review_required": bool(candidate.get("rights_review_required")),\n'
+              + '                    "source_domain": candidate.get("source_domain"),\n'
+              + '                    "source_type": candidate.get("source_type"),\n'
+          )
+          if '"rights_review_required": bool(candidate.get("rights_review_required"))' not in text:
+              text = text.replace(needle, replacement, 1)
+
+          collector.write_text(text, encoding="utf-8")
+
+          workflow = Path(".github/workflows/daily-production.yml")
+          w = workflow.read_text(encoding="utf-8")
+
+          marker = "      VISUAL_MAX_PER_QUERY: '7'\n"
+          if "GOOGLE_CSE_API_KEY:" not in w:
+              secret_key = "$" + "{{ secrets.GOOGLE_CSE_API_KEY }}"
+              secret_cx = "$" + "{{ secrets.GOOGLE_CSE_CX }}"
+              w = w.replace(
+                  marker,
+                  marker
+                  + f"      GOOGLE_CSE_API_KEY: {secret_key}\n"
+                  + f"      GOOGLE_CSE_CX: {secret_cx}\n"
+                  + "      VISUAL_GOOGLE_OFFICIAL_ONLY: 'true'\n",
+                  1,
+              )
+
+          compile_old = (
+              "production/collect_visual_assets.py "
+              "production/collect_visual_assets_unique.py "
+              "production/register_used_visual_assets.py"
+          )
+          compile_new = (
+              "production/collect_visual_assets.py "
+              "production/collect_visual_assets_unique.py "
+              "production/visual_intelligence_v2.py "
+              "production/register_used_visual_assets.py"
+          )
+          w = w.replace(compile_old, compile_new, 1)
+          workflow.write_text(w, encoding="utf-8")
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            production/collect_visual_assets_hq.py \
+            production/collect_visual_assets.py \
+            production/collect_visual_assets_unique.py \
+            production/visual_intelligence_v2.py
+          grep -q 'visual_intelligence_v2.install(core)' production/collect_visual_assets_unique.py
+          grep -q 'hq-v4-visual-intelligence' production/collect_visual_assets_unique.py
+          grep -q 'GOOGLE_CSE_API_KEY' .github/workflows/daily-production.yml
+          grep -q 'VISUAL_GOOGLE_OFFICIAL_ONLY' .github/workflows/daily-production.yml
+
+      - name: Commit correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add \
+            production/collect_visual_assets_unique.py \
+            production/visual_intelligence_v2.py \
+            .github/workflows/daily-production.yml
+          if git diff --cached --quiet; then
+            echo 'Visual Intelligence V2 already applied.'
+            exit 0
+          fi
+          git commit -m 'Apply Visual Intelligence V2'
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
