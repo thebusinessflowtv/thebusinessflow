@@ -1,6 +1,9 @@
 {
   "version": 1,
   "batch_ids": [
+    "custom-us-airline-collapse-2026-09",
+    "custom-us-convenience-collapse-2026-09",
+    "custom-us-fastfood-collapse-2026-09",
     "custom-10-american-billion-dollar-companies-2026-09",
     "custom-15-us-industries-billions-2026-09",
     "custom-top-5-most-valuable-us-companies-2026-09",
@@ -16,6 +19,9 @@
   "current_topic": null,
   "source_run_id": null,
   "production_attempts": {
+    "custom-us-airline-collapse-2026-09": 0,
+    "custom-us-convenience-collapse-2026-09": 0,
+    "custom-us-fastfood-collapse-2026-09": 0,
     "custom-10-american-billion-dollar-companies-2026-09": 1,
     "custom-15-us-industries-billions-2026-09": 1,
     "custom-top-5-most-valuable-us-companies-2026-09": 1,
@@ -42,7 +48,7 @@
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
-  "last_action": "blocked_upload:custom-broadcom-hidden-giant-2026-09",
-  "updated_at": "2026-09-28T13:48:35.611955+00:00",
-  "last_reason": "worker already active"
+  "last_action": "queue_registered:user_requested_three_videos",
+  "updated_at": "2026-09-28T13:49:00+00:00",
+  "last_reason": "airline active; convenience pending; fast-food queued for sequential retry"
 }
