@@ -24,68 +24,116 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Repair research validation and reset batch head
+      - name: Apply Research Gate V2 and reset affected jobs
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
+          import py_compile
           from datetime import datetime, timezone
           from pathlib import Path
 
           now = datetime.now(timezone.utc).isoformat()
 
-          # A single bounded Haiku research pass can legitimately return three
-          # independent, cited sources. Keep URL integrity and the six-fact floor,
-          # but do not discard a valid paid brief merely because a fourth source
-          # was not returned.
-          research = Path('production/research_episode.py')
-          text = research.read_text(encoding='utf-8')
-          old = text
-          text = text.replace('if len(sources) < 4:', 'if len(sources) < 3:')
-          text = text.replace('Research brief needs at least 4 sources;', 'Research brief needs at least 3 sources;')
-          text = text.replace('if len(urls) < 4 or any(not url for url in urls):', 'if len(urls) < 3 or any(not url for url in urls):')
-          if text == old:
-              print('Research validator was already repaired or source text changed.')
-          research.write_text(text, encoding='utf-8')
+          # Validate the already-committed research implementation before changing queue state.
+          py_compile.compile('production/research_episode.py', doraise=True)
 
-          first = 'custom-10-american-billion-dollar-companies-2026-09'
-          second = 'custom-15-us-industries-billions-2026-09'
+          # Upgrade the daily workflow to a new cache generation. Old v3 paid snapshots
+          # remain recoverable as a fallback, while repaired output is saved under v4.
+          daily = Path('.github/workflows/daily-production.yml')
+          lines = daily.read_text(encoding='utf-8').splitlines()
+          out = []
+          env_inserted = any('ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES:' in line for line in lines)
+          restore_present = any('tbf-haiku-research-v3-' in line and 'restore-keys' not in line for line in lines) and any('restore-keys:' in line for line in lines)
+
+          for line in lines:
+              if 'ANTHROPIC_RESEARCH_MAX_USD:' in line and not env_inserted:
+                  out.append(line)
+                  indent = line[:len(line) - len(line.lstrip())]
+                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES: ${{ vars.ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES || '3' }}")
+                  out.append(indent + "ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES: ${{ vars.ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES || '4' }}")
+                  out.append(indent + "ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES: ${{ vars.ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES || '2' }}")
+                  env_inserted = True
+                  continue
+
+              if 'key: tbf-haiku-research-v3-' in line:
+                  old_key = line.split('key:', 1)[1].strip()
+                  out.append(line.replace('tbf-haiku-research-v3-', 'tbf-haiku-research-v4-'))
+                  if not restore_present:
+                      indent = line[:len(line) - len(line.lstrip())]
+                      out.append(indent + 'restore-keys: |')
+                      out.append(indent + '  ' + old_key)
+                      restore_present = True
+                  continue
+
+              if 'Haiku 4.5 research — at most one search, cache first' in line:
+                  line = line.replace(
+                      'Haiku 4.5 research — at most one search, cache first',
+                      'Haiku 4.5 research — multi-source with cached gap repair'
+                  )
+              out.append(line)
+
+          daily.write_text('\n'.join(out) + '\n', encoding='utf-8')
+
+          # Only the three jobs that were blocked during the broken research gate are reset.
+          affected = [
+              'custom-us-airline-collapse-2026-09',
+              'custom-us-convenience-collapse-2026-09',
+              'custom-us-fastfood-collapse-2026-09',
+          ]
 
           topics_path = Path('production/topics.json')
           topics_doc = json.loads(topics_path.read_text(encoding='utf-8'))
-          found = False
-          for item in topics_doc.get('topics') or []:
-              if str(item.get('id')) == first:
-                  item['status'] = 'ready'
-                  item.pop('queue_block_reason', None)
-                  item.pop('queue_blocked_at', None)
-                  item['pipeline_repaired_at'] = now
-                  found = True
-                  break
-          if not found:
-              raise SystemExit('First batch topic not found')
+          by_id = {str(item.get('id')): item for item in topics_doc.get('topics') or []}
+          missing = [topic_id for topic_id in affected if topic_id not in by_id]
+          if missing:
+              raise SystemExit(f'Affected topics not found: {missing}')
+
+          for topic_id in affected:
+              item = by_id[topic_id]
+              item['status'] = 'ready'
+              item.pop('queue_block_reason', None)
+              item.pop('queue_blocked_at', None)
+              item['research_gate_v2_reset_at'] = now
+
           topics_path.write_text(json.dumps(topics_doc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
           state_path = Path('production/queue-state.json')
           state = json.loads(state_path.read_text(encoding='utf-8'))
-          state['current_topic'] = first
-          state['source_run_id'] = None
           attempts = state.setdefault('production_attempts', {})
-          attempts[first] = 0
-          attempts[second] = 0
-          state['last_action'] = 'pipeline_repaired'
-          state['last_reason'] = 'retry first topic with resilient package recovery and 3-source research floor'
+          for topic_id in affected:
+              attempts[topic_id] = 0
+
+          state['current_topic'] = affected[0]
+          state['source_run_id'] = None
+          state['research_gate_version'] = 2
+          state['last_action'] = 'research_gate_v2_recovery'
+          state['last_reason'] = 'multi-source research enabled; invalid paid cache can be repaired once without blind retries'
           state['updated_at'] = now
           state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
           kick = {
               'requested_at': now,
-              'reason': 'Resume sequential 11-video queue after research/package recovery fixes'
+              'reason': 'Research Gate V2 installed; retry Airline, Convenience and Fast-Food jobs from clean attempt counters'
           }
           Path('production/queue-kick.json').write_text(json.dumps(kick, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-          print('Pipeline repair prepared; first topic reset to ready and queue returned to batch head.')
+
+          print('Research Gate V2 recovery prepared.')
+          print('Reset topics:', ', '.join(affected))
           PY
+
+      - name: Verify repaired workflow contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES' .github/workflows/daily-production.yml
+          grep -q 'ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES' .github/workflows/daily-production.yml
+          grep -q 'ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES' .github/workflows/daily-production.yml
+          grep -q 'tbf-haiku-research-v4-' .github/workflows/daily-production.yml
+          grep -q 'restore-keys:' .github/workflows/daily-production.yml
+          grep -q 'multi-source with cached gap repair' .github/workflows/daily-production.yml
+          python -m py_compile production/research_episode.py
 
       - name: Commit and resume sequential queue
         shell: bash
@@ -93,11 +141,11 @@ jobs:
           set -euo pipefail
           git config user.name 'The Business Flow Factory'
           git config user.email 'thebusinessflowtv@gmail.com'
-          git add production/research_episode.py production/topics.json production/queue-state.json production/queue-kick.json
+          git add .github/workflows/daily-production.yml production/topics.json production/queue-state.json production/queue-kick.json
           if git diff --cached --quiet; then
             echo 'No repair changes to commit.'
             exit 0
           fi
-          git commit -m 'Repair batch research and resume sequential queue'
+          git commit -m 'Activate Research Gate V2 and retry blocked jobs'
           git pull --rebase --autostash origin main
           git push origin HEAD:main
