@@ -151,7 +151,13 @@ def source_label(url: str) -> str:
 
 
 def normalize_brief_sources(brief: dict[str, Any]) -> bool:
-    """Rebuild the source index only from URLs already present in the brief."""
+    """Rebuild the source index only from URLs already present in the brief.
+
+    The model is asked to emit a compact four-entry source list, but citations inside
+    facts/numbers/timeline may legitimately reference additional URLs returned by web
+    search. The stored source index is a catalog, not a hard cap: never discard a URL
+    that is already cited by a claim.
+    """
     changed = False
     ordered: dict[str, dict[str, str]] = {}
     raw_sources = brief.get("sources")
@@ -184,7 +190,7 @@ def normalize_brief_sources(brief: dict[str, Any]) -> bool:
             ordered[url] = {"title": source_label(url), "url": url, "source_type": "web"}
             changed = True
 
-    normalized = list(ordered.values())[:4]
+    normalized = list(ordered.values())
     if normalized != raw_sources:
         brief["sources"] = normalized
         changed = True
@@ -315,7 +321,7 @@ STRICT COST / OUTPUT RULES
 - You need four distinct, useful HTTP(S) source URLs for the final brief. Do not waste searches repeating the same domain/page when stronger independent evidence is available.
 - After research, call {RESEARCH_TOOL_NAME} immediately and exactly once.
 - Keep the tool payload compact: thesis <= 60 words; exactly 6 factual claims, each <= 32 words; exactly 4 distinct sources; at most 4 verified numbers; at most 4 timeline entries; at most 2 short risk flags.
-- Every facts[].source_url, verified_numbers[].source_url and timeline[].source_url MUST exactly match one of sources[].url.
+- Every facts[].source_url, verified_numbers[].source_url and timeline[].source_url SHOULD match one of sources[].url. If a web-search citation URL is used inside a claim, keep that exact URL; local normalization will preserve it in the stored source index.
 - Do not narrate your process before or after searching.
 
 RESEARCH RULES
@@ -351,8 +357,8 @@ REPAIR RULES
 - Perform UP TO {max_searches} targeted web searches only to fill the missing evidence/source gaps.
 - Prefer primary/official/SEC/IR evidence and reputable financial/news reporting.
 - Return a COMPLETE corrected brief by calling {RESEARCH_TOOL_NAME} exactly once.
-- The corrected brief MUST contain exactly 6 sourced facts and exactly 4 DISTINCT HTTP(S) source URLs.
-- Every fact/number/timeline source_url MUST exactly match one of those four source URLs.
+- The corrected brief MUST contain exactly 6 sourced facts and exactly 4 DISTINCT HTTP(S) source entries.
+- Prefer reusing those four source entries across fact/number/timeline citations. If a claim requires another web-search URL, cite that exact URL rather than fabricating or remapping attribution; local normalization will add it to the stored source index.
 - Replace or remove any claim that cannot be supported. Do not invent a URL or infer bankruptcy, fraud, collapse, motive, or causation beyond the evidence.
 - Do not narrate the repair process.
 """.strip()
