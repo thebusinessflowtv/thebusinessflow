@@ -45,13 +45,13 @@
     "custom-richest-american-family-2026-09": 3,
     "custom-google-real-money-machine-2026-09": 3,
     "custom-broadcom-hidden-giant-2026-09": 3,
-    "custom-us-convenience-collapse-2026-09": 2
+    "custom-us-convenience-collapse-2026-09": 3
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_production:custom-us-airline-collapse-2026-09",
-  "updated_at": "2026-09-28T23:33:14.446663+00:00",
-  "last_reason": "retrying private upload attempt 2/3",
+  "updated_at": "2026-09-28T23:49:46.911671+00:00",
+  "last_reason": "retrying private upload attempt 3/3",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
 }
