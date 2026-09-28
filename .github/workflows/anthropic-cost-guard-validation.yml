@@ -117,13 +117,15 @@ jobs:
           editorial=json.load(open('channel/editorial.json',encoding='utf-8'))
           prompt=build_prompt(topic,research,editorial)
           research_cost=float(research.get('estimated_cost_usd') or 0)
-          max_output_tokens=4100
+          max_output_tokens=4800
+          total_budget=0.100
           input_chars=len(prompt)+len(json.dumps(EPISODE_TOOL,ensure_ascii=False))
           estimated_input_tokens=max(1,int(input_chars/2.5))
           conservative_total=research_cost + estimated_input_tokens/1_000_000*2.0 + max_output_tokens/1_000_000*10.0
           print('Amazon paid research already spent:', round(research_cost,6))
           print('Estimated Sonnet input tokens:', estimated_input_tokens)
           print('Worst-case total at current output cap:', round(conservative_total,6))
-          if conservative_total > 0.080:
-              raise SystemExit(f'Amazon exceeds $0.080 budget before Sonnet: ${conservative_total:.6f}')
+          print('Episode budget:', total_budget)
+          if conservative_total > total_budget:
+              raise SystemExit(f'Amazon exceeds ${total_budget:.3f} budget before Sonnet: ${conservative_total:.6f}')
           PY
