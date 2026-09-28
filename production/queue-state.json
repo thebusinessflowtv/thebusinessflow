@@ -49,6 +49,6 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "queue_registered:user_requested_three_videos",
-  "updated_at": "2026-09-28T13:59:32.755298+00:00",
-  "last_reason": "retrying production attempt 2/3"
+  "updated_at": "2026-09-28T14:02:36.126418+00:00",
+  "last_reason": "worker already active"
 }
