@@ -19,7 +19,7 @@
   "current_topic": "custom-us-airline-collapse-2026-09",
   "source_run_id": null,
   "production_attempts": {
-    "custom-us-airline-collapse-2026-09": 2,
+    "custom-us-airline-collapse-2026-09": 3,
     "custom-us-convenience-collapse-2026-09": 0,
     "custom-us-fastfood-collapse-2026-09": 0,
     "custom-10-american-billion-dollar-companies-2026-09": 1,
@@ -49,8 +49,8 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "dynamic_subject_validator_recovery",
-  "updated_at": "2026-09-28T21:49:48.370618+00:00",
-  "last_reason": "retrying production attempt 2/3",
+  "updated_at": "2026-09-28T22:01:44.259912+00:00",
+  "last_reason": "retrying production attempt 3/3",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
 }
