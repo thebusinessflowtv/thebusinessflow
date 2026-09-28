@@ -1,0 +1,102 @@
+name: Repair Dynamic Topic Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'production/dynamic-topic-repair-request.json'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch dynamic-subject validation and reset requested jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          script_path = Path('production/generate_episode_v3.py')
+          text = script_path.read_text(encoding='utf-8')
+          marker = '    raw = str(topic.get("topic") or "").strip()\n'
+          patch = (
+              '    # Editorial seeds that explicitly ask research to choose the company are not brands.\n'
+              '    # The selected entity comes from the verified research (for example 7-Eleven), so\n'
+              '    # never require generic seed words such as Convenience, Airline or Fast-Food in\n'
+              '    # the final title. True single-brand topics still use the strict brand gate.\n'
+              '    selection_angle = str(topic.get("working_angle") or "").strip().lower()\n'
+              '    if "research and select one" in selection_angle:\n'
+              '        return ""\n\n'
+          )
+          if 'selection_angle = str(topic.get("working_angle")' not in text:
+              if marker not in text:
+                  raise SystemExit('Unable to locate required_brand_token insertion point')
+              text = text.replace(marker, patch + marker, 1)
+              script_path.write_text(text, encoding='utf-8')
+
+          target_ids = [
+              'custom-us-airline-collapse-2026-09',
+              'custom-us-convenience-collapse-2026-09',
+              'custom-us-fastfood-collapse-2026-09',
+          ]
+          now = datetime.now(timezone.utc).isoformat()
+
+          topics_path = Path('production/topics.json')
+          topics_doc = json.loads(topics_path.read_text(encoding='utf-8'))
+          by_id = {str(t.get('id')): t for t in topics_doc.get('topics') or []}
+          missing = [x for x in target_ids if x not in by_id]
+          if missing:
+              raise SystemExit('Missing topics: ' + ', '.join(missing))
+          for topic_id in target_ids:
+              item = by_id[topic_id]
+              item['status'] = 'ready'
+              item.pop('queue_block_reason', None)
+              item.pop('queue_blocked_at', None)
+              item['dynamic_subject_validation_reset_at'] = now
+          topics_path.write_text(json.dumps(topics_doc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          state_path = Path('production/queue-state.json')
+          state = json.loads(state_path.read_text(encoding='utf-8'))
+          attempts = state.setdefault('production_attempts', {})
+          for topic_id in target_ids:
+              attempts[topic_id] = 0
+          state['current_topic'] = None
+          state['source_run_id'] = None
+          state['last_action'] = 'dynamic_subject_validator_recovery'
+          state['last_reason'] = 'reset three requested videos after fixing generic topic label brand validation'
+          state['updated_at'] = now
+          state['dynamic_subject_gate_version'] = 2
+          state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          # Free validation: compile the patched generator before committing anything.
+          import py_compile
+          py_compile.compile(str(script_path), doraise=True)
+          print('Dynamic-topic validator repaired and three jobs reset to ready.')
+          PY
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add production/generate_episode_v3.py production/topics.json production/queue-state.json
+          if git diff --cached --quiet; then
+            echo 'No repair changes required.'
+            exit 0
+          fi
+          git commit -m 'Fix dynamic-subject title validation and reset three videos'
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main
