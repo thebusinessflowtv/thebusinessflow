@@ -8,6 +8,7 @@ on:
       - 'production/generate_episode.py'
       - 'production/recover_paid_episode.py'
       - 'production/render_episode.py'
+      - 'production/render_episode_hq.py'
       - 'production/topic_reservoir_v4.py'
       - 'production/research-library/**'
       - '.github/workflows/daily-production.yml'
@@ -41,6 +42,7 @@ jobs:
             production/generate_episode.py \
             production/recover_paid_episode.py \
             production/render_episode.py \
+            production/render_episode_hq.py \
             production/topic_reservoir_v4.py
 
       - name: Parse workflow YAML
@@ -68,19 +70,29 @@ jobs:
           research = Path('production/research_episode.py').read_text(encoding='utf-8')
           writer = Path('production/generate_episode.py').read_text(encoding='utf-8')
           renderer = Path('production/render_episode.py').read_text(encoding='utf-8')
+          renderer_hq = Path('production/render_episode_hq.py').read_text(encoding='utf-8')
           reservoir = Path('production/topic_reservoir_v4.py').read_text(encoding='utf-8')
           reservoir_wf = Path('.github/workflows/topic-reservoir-v3.yml').read_text(encoding='utf-8')
           daily = Path('.github/workflows/daily-production.yml').read_text(encoding='utf-8')
 
           checks = {
               'Haiku research model': 'claude-haiku-4-5-20251001' in research,
-              'one web search maximum': '"max_uses": 1' in research,
+              'research web-search caps': (
+                  'ANTHROPIC_RESEARCH_MAX_WEB_SEARCHES' in research
+                  and 'ANTHROPIC_RESEARCH_MAX_TOTAL_WEB_SEARCHES' in research
+                  and '"max_uses": max_uses' in research
+              ),
+              'research repair is bounded': (
+                  'ANTHROPIC_RESEARCH_REPAIR_WEB_SEARCHES' in research
+                  and 'remaining = total_search_limit() - used_searches' in research
+              ),
               'research disables SDK retries': 'max_retries=0' in research,
               'Sonnet has no web search': 'web_search_' not in writer,
               'Sonnet disables thinking': 'thinking={"type": "disabled"}' in writer,
               'Sonnet disables SDK retries': 'max_retries=0' in writer,
               'hard total budget': 'ANTHROPIC_TOTAL_BUDGET_USD' in writer,
-              'renderer thumbnail fallback': 'load_thumbnail_base' in renderer and 'Image.new("RGB", (1280, 720)' in renderer,
+              'renderer delegates to HQ implementation': 'from render_episode_smooth import main' in renderer,
+              'HQ renderer builds thumbnail from topic image': 'def make_thumbnail' in renderer_hq and 'Image.open(images[0].path)' in renderer_hq,
               'weekly optimizer uses Haiku': 'claude-haiku-4-5-20251001' in reservoir and 'claude-haiku-4-5-20251001' in reservoir_wf,
               'weekly optimizer disables retries': 'max_retries=0' in reservoir,
               'weekly optimizer output cap': 'max_tokens=4500' in reservoir,
