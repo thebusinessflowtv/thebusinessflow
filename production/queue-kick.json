@@ -1,6 +1,6 @@
 {
   "requested_at": "2026-09-28",
-  "reason": "External queue kick after Research Gate V2 recovery; start Airline then continue sequentially",
+  "reason": "Retry Airline after source-index normalization and cost-guard alignment; continue queue sequentially",
   "research_gate_version": 2,
-  "kick": 2
+  "kick": 3
 }
