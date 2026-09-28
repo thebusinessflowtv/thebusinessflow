@@ -21,7 +21,7 @@
   "production_attempts": {
     "custom-us-airline-collapse-2026-09": 3,
     "custom-us-convenience-collapse-2026-09": 3,
-    "custom-us-fastfood-collapse-2026-09": 1,
+    "custom-us-fastfood-collapse-2026-09": 2,
     "custom-10-american-billion-dollar-companies-2026-09": 1,
     "custom-15-us-industries-billions-2026-09": 1,
     "custom-top-5-most-valuable-us-companies-2026-09": 1,
@@ -49,6 +49,6 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_production:custom-us-convenience-collapse-2026-09",
-  "updated_at": "2026-09-28T15:54:17.528497+00:00",
-  "last_reason": "starting next queued topic attempt 1/3"
+  "updated_at": "2026-09-28T16:15:13.739289+00:00",
+  "last_reason": "retrying production attempt 2/3"
 }
