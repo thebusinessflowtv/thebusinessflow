@@ -10,6 +10,33 @@
   },
   "topics": [
     {
+      "id": "custom-us-convenience-collapse-2026-09",
+      "topic": "The American Convenience Chain That Could Be in Real Trouble",
+      "category": "convenience stores retail financial distress business collapse risk",
+      "working_angle": "Research and select one major U.S. convenience-store chain with current, documented signs of financial distress, contraction, store closures, debt pressure, restructuring risk, weak performance, ownership stress, or another credible threat to the business. Prefer a nationally or regionally recognizable brand with strong visual identity and a story that can genuinely make viewers ask whether the chain is heading toward collapse. Do not state that the company will fail or go bankrupt unless that is confirmed; frame uncertainty accurately and use the strongest verified warning signs.",
+      "title_seed": "Create the most provocative factual English title only after research, ideally built around a curiosity gap such as whether a famous convenience chain is closer to collapse than people realize.",
+      "thumbnail_text_seed": "IS IT OVER?",
+      "status": "ready",
+      "click_score": 100,
+      "click_reason": "User-requested standalone convenience-store distress documentary built to provoke debate while preserving uncertainty and factual accuracy.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "This is one standalone video. Do not combine it with the airline or fast-food ideas.",
+        "Open within the first 20 seconds with a brief natural request to like the video and subscribe, then immediately deliver a strong hook.",
+        "End with another concise like-and-subscribe call to action.",
+        "Ask viewers for their opinion at least twice, including a direct question near the ending asking whether they think the chain can recover or is heading toward failure.",
+        "Use a sensational, provocative, debate-driving tone, but do not present a future bankruptcy or collapse as established fact without definitive evidence.",
+        "Choose the final title only after research and make the distinction between financial distress, store closures, restructuring and bankruptcy explicit where necessary.",
+        "Prefer authentic chain-specific visuals over generic gas stations, convenience stores or retail B-roll. Use Visual Intelligence V2 and reject unrelated storefronts.",
+        "Show the actual chain, real storefronts, interiors, products, fuel stations where applicable, customers, executives/owners, closed locations, corporate offices, financial/news context and current locations whenever possible.",
+        "Prioritize large/high-resolution and recent images for current claims; use older visuals only when narrating the chain's history."
+      ],
+      "verified_context": [],
+      "reference_media": [],
+      "scored_at": "2026-09-28T12:56:52.723659+00:00"
+    },
+    {
       "id": "custom-us-fastfood-collapse-2026-09",
       "topic": "The Famous American Fast-Food Chain That Went Bankrupt",
       "category": "fast food restaurants bankruptcy business collapse",
