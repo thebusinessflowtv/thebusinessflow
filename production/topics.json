@@ -10,6 +10,31 @@
   },
   "topics": [
     {
+      "id": "custom-us-brand-collapse-2026-09",
+      "topic": "A Famous American Business Collapse Nobody Saw Coming",
+      "category": "business collapse bankruptcy retail restaurants aviation",
+      "working_angle": "Research the user's three story directions and choose the strongest factual U.S. case for one high-retention documentary: (1) a notable U.S. airplane/airline company that went bankrupt or collapsed, (2) a once-famous U.S. fast-food chain that went bankrupt or effectively disappeared, or (3) a major U.S. convenience-store chain showing documented financial distress. Select the angle with the strongest verified facts, brand recognition, visual material, and curiosity gap. If the convenience-store angle is chosen, do not claim it 'will fail' as fact unless there is definitive evidence; frame uncertainty accurately with a provocative question. Build a sensational, polarizing but factual narrative that can spark debate without inventing accusations.",
+      "title_seed": "Pick the most provocative factual title after research; do not use this seed literally.",
+      "thumbnail_text_seed": "WHAT WENT WRONG?",
+      "status": "ready",
+      "click_score": 100,
+      "click_reason": "User-requested provocative U.S. business-collapse episode; maximize curiosity and debate while preserving factual accuracy.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "Open within the first 20 seconds with a brief, natural request to like the video and subscribe, then immediately deliver the hook.",
+        "End with another concise like-and-subscribe call to action.",
+        "Ask viewers for their opinion at least twice, including one direct question near the end designed to generate comments.",
+        "Use a provocative, sensational, polarizing tone, but keep all factual claims defensible and sourced.",
+        "Choose the final title only after research. It should create a strong curiosity gap and may be controversial, but must not make a false bankruptcy or failure claim.",
+        "Prefer specific brand, product and location visuals over generic B-roll. Use Visual Intelligence V2 and reject unrelated or generic images.",
+        "Show the actual company, stores, aircraft, restaurants, executives, locations, filings/news context, or products being discussed whenever possible."
+      ],
+      "verified_context": [],
+      "reference_media": [],
+      "scored_at": "2026-09-28T05:58:21.335576+00:00"
+    },
+    {
       "id": "famous-001",
       "topic": "Meta",
       "category": "social media/advertising",
