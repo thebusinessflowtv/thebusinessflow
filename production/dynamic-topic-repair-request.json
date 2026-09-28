@@ -1,0 +1,9 @@
+{
+  "requested_at": "2026-09-28T21:22:00Z",
+  "reason": "Fix generic editorial topic label being mistaken for selected company brand and reopen the three user-requested productions",
+  "topics": [
+    "custom-us-airline-collapse-2026-09",
+    "custom-us-convenience-collapse-2026-09",
+    "custom-us-fastfood-collapse-2026-09"
+  ]
+}
