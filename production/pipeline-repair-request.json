@@ -1,5 +1,6 @@
 {
   "requested_at": "2026-09-28",
-  "reason": "Install Research Gate V2, migrate research cache to v4, reset Airline/Convenience/Fast-Food research failures and resume sequential production",
-  "research_gate_version": 2
+  "reason": "Research Gate V2 is installed directly; reset Airline/Convenience/Fast-Food and resume sequential production",
+  "research_gate_version": 2,
+  "attempt": 2
 }
