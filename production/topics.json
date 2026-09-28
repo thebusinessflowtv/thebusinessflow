@@ -10,6 +10,33 @@
   },
   "topics": [
     {
+      "id": "custom-us-fastfood-collapse-2026-09",
+      "topic": "The Famous American Fast-Food Chain That Went Bankrupt",
+      "category": "fast food restaurants bankruptcy business collapse",
+      "working_angle": "Research and select one once-famous U.S. fast-food chain that genuinely filed for bankruptcy, collapsed, disappeared, or suffered a dramatic verified business failure. Prefer a brand Americans broadly recognize, with a strong rise-and-fall story, clear financial/business causes, nostalgia, controversy, and abundant authentic visual material. Distinguish bankruptcy, restructuring, store closures, acquisition and total shutdown accurately.",
+      "title_seed": "Create the most provocative factual English title only after research; make it feel shocking, nostalgic and debate-worthy without inventing a bankruptcy claim.",
+      "thumbnail_text_seed": "THEY LOST EVERYTHING",
+      "status": "ready",
+      "click_score": 100,
+      "click_reason": "User-requested standalone fast-food collapse documentary designed for recognition, nostalgia, controversy and comments.",
+      "language": "en-US",
+      "audience": "United States",
+      "editorial_requirements": [
+        "This is one standalone video. Do not combine it with the airline or convenience-store ideas.",
+        "Open within the first 20 seconds with a brief natural request to like the video and subscribe, then immediately deliver a strong hook.",
+        "End with another concise like-and-subscribe call to action.",
+        "Ask viewers for their opinion at least twice, including a direct question near the end designed to create comments, nostalgia and disagreement.",
+        "Use a sensational, provocative, polarizing tone while keeping factual claims defensible and sourced.",
+        "Choose the final title only after research. It may be aggressive and controversial, but must not misstate bankruptcy, closure or current operating status.",
+        "Prefer authentic brand-specific visuals over generic restaurant or food footage. Use Visual Intelligence V2 and reject unrelated fast-food B-roll.",
+        "Show the actual chain, real restaurants and storefronts, menu items, packaging, advertisements, logos in context, founders/executives, customers, historic locations, closures and bankruptcy/news context whenever possible.",
+        "Prioritize large/high-resolution images that are historically correct for the period being narrated."
+      ],
+      "verified_context": [],
+      "reference_media": [],
+      "scored_at": "2026-09-28T12:56:08.395743+00:00"
+    },
+    {
       "id": "custom-us-airline-collapse-2026-09",
       "topic": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
       "category": "aviation airlines bankruptcy business collapse",
