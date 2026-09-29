@@ -1,8 +1,49 @@
 from __future__ import annotations
 
+import asyncio
+import os
 from pathlib import Path
 
 import render_episode_hq as hq
+
+
+async def make_tts_resilient(script: str, out: Path) -> None:
+    """Generate narration with retries and a voice fallback for transient Edge TTS failures."""
+    primary = os.getenv("TTS_VOICE", "en-US-AndrewNeural")
+    voices = []
+    for voice in (primary, os.getenv("TTS_FALLBACK_VOICE", "en-US-GuyNeural"), "en-US-ChristopherNeural"):
+        if voice and voice not in voices:
+            voices.append(voice)
+
+    errors: list[str] = []
+    for voice_index, voice in enumerate(voices):
+        attempts = 4 if voice_index == 0 else 2
+        for attempt in range(1, attempts + 1):
+            try:
+                if out.exists():
+                    out.unlink()
+                communicate = hq.edge_tts.Communicate(
+                    script,
+                    voice=voice,
+                    rate=os.getenv("TTS_RATE", "-4%"),
+                )
+                await communicate.save(str(out))
+                if not out.exists() or out.stat().st_size < 10_000:
+                    raise RuntimeError("TTS returned an empty or incomplete audio file")
+                if voice != primary:
+                    print(f"TTS recovered with fallback voice: {voice}")
+                elif attempt > 1:
+                    print(f"TTS recovered on retry {attempt}/{attempts} with primary voice: {voice}")
+                return
+            except Exception as exc:
+                errors.append(f"{voice} attempt {attempt}/{attempts}: {type(exc).__name__}: {exc}")
+                print(f"TTS attempt failed: {errors[-1]}")
+                if out.exists():
+                    out.unlink()
+                if attempt < attempts:
+                    await asyncio.sleep(min(12, 2 * attempt))
+
+    raise RuntimeError("Edge TTS failed after resilient retries. " + " | ".join(errors[-6:]))
 
 
 def render_image_segment_smooth(asset: hq.RenderAsset, seconds: float, out: Path, motion_index: int) -> None:
@@ -40,6 +81,7 @@ def render_image_segment_smooth(asset: hq.RenderAsset, seconds: float, out: Path
 
 
 def main() -> None:
+    hq.make_tts = make_tts_resilient
     hq.render_image_segment = render_image_segment_smooth
     hq.main()
 
