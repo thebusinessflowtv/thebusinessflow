@@ -36,6 +36,7 @@ jobs:
           app = Path('control-center/index.html').read_text(encoding='utf-8')
           gate = Path('control-center/secure.html').read_text(encoding='utf-8')
           office = Path('control-center/office-music.js').read_text(encoding='utf-8')
+          office_html = Path('control-center/office-music.html').read_text(encoding='utf-8')
 
           required_app = [
             '<title>MediaForge Control Center</title>',
@@ -52,6 +53,7 @@ jobs:
           ]
           missing_office = [item for item in required_office if item not in office]
           assert not missing_office, f'Missing Office Music contract: {missing_office}'
+          assert '<title>The Office Music · MediaForge</title>' in office_html, 'Missing Office Music page'
 
           required_gate = [
             'ACESSO PRIVADO', 'user_roles', "eq('role','admin')",
@@ -77,6 +79,7 @@ jobs:
           mkdir -p _site/control-center
           cp control-center/secure.html _site/control-center/index.html
           cp control-center/index.html _site/control-center/app.html
+          cp control-center/office-music.html _site/control-center/office-music.html
           cp control-center/office-music.js _site/control-center/office-music.js
           python - <<'PY'
           from pathlib import Path
