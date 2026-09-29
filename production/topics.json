@@ -10,6 +10,29 @@
   },
   "topics": [
     {
+      "id": "91591616-d501-4378-b86d-a22af8d1d663",
+      "topic": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
+      "category": "timely business/technology",
+      "working_angle": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
+      "title_seed": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
+      "thumbnail_text_seed": "NEW STORY",
+      "click_score": 100,
+      "click_reason": "MediaForge Auto Heal retry.",
+      "objective": "curiosity",
+      "upload_requested": false,
+      "mfcc_production_id": "91591616-d501-4378-b86d-a22af8d1d663",
+      "mfcc_channel_slug": "the-business-flow",
+      "mfcc_requested_by": "cfa2b99a-68d0-41db-b5fa-1bda45f0506a",
+      "autoheal": {
+        "attempt": 1,
+        "nonce": "2026-09-29T04:19:53.127Z",
+        "error_class": "media_collection",
+        "stage": "media"
+      },
+      "status": "ready",
+      "scored_at": "2026-09-29T04:20:01.816856+00:00"
+    },
+    {
       "id": "custom-us-convenience-collapse-2026-09",
       "topic": "The American Convenience Chain That Could Be in Real Trouble",
       "category": "convenience stores retail financial distress business collapse risk",
