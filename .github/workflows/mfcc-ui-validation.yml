@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - 'docs/control-center/app.html'
+      - 'docs/control-center/app-core.html'
+      - 'docs/control-center/retry-failed-production.js'
+      - 'docs/control-center/production-status-reconcile.js'
       - '.github/workflows/mfcc-ui-validation.yml'
   workflow_dispatch:
 
@@ -15,22 +18,34 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Validate required UI features
+
+      - name: Validate loader and required UI features
         run: |
-          grep -q 'MediaForge Apple Glass Design System v1' docs/control-center/app.html
-          grep -q 'async function openVideoPlayer' docs/control-center/app.html
-          grep -q 'class="mobile-dock"' docs/control-center/app.html
-          grep -q 'id="watchVideo"' docs/control-center/app.html
-      - name: Validate inline JavaScript syntax
+          grep -q 'app-core.html' docs/control-center/app.html
+          grep -q 'production-status-reconcile.js' docs/control-center/app.html
+          grep -q 'MediaForge Apple Glass Design System v1' docs/control-center/app-core.html
+          grep -q 'async function openVideoPlayer' docs/control-center/app-core.html
+          grep -q 'class="mobile-dock"' docs/control-center/app-core.html
+          grep -q 'id="watchVideo"' docs/control-center/app-core.html
+
+      - name: Validate JavaScript syntax
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          text=Path('docs/control-center/app.html').read_text(encoding='utf-8')
-          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',text,re.S)
-          inline=[s for s in scripts if s.strip()]
-          if not inline:
-              raise SystemExit('No inline script found')
-          Path('/tmp/mfcc-inline.js').write_text(inline[-1],encoding='utf-8')
+
+          for source, dest in [
+              ('docs/control-center/app.html', '/tmp/mfcc-loader.js'),
+              ('docs/control-center/app-core.html', '/tmp/mfcc-core.js'),
+          ]:
+              text=Path(source).read_text(encoding='utf-8')
+              scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', text, re.S)
+              inline=[s for s in scripts if s.strip()]
+              if not inline:
+                  raise SystemExit(f'No inline script found in {source}')
+              Path(dest).write_text(inline[-1], encoding='utf-8')
           PY
-          node --check /tmp/mfcc-inline.js
+          node --check /tmp/mfcc-loader.js
+          node --check /tmp/mfcc-core.js
+          node --check docs/control-center/retry-failed-production.js
+          node --check docs/control-center/production-status-reconcile.js
