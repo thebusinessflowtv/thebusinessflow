@@ -13,9 +13,9 @@
   "mfcc_channel_slug": "the-business-flow",
   "mfcc_requested_by": "cfa2b99a-68d0-41db-b5fa-1bda45f0506a",
   "autoheal": {
-    "attempt": 1,
-    "nonce": "2026-09-29T17:11:09.527Z",
-    "error_class": "unknown",
-    "stage": "unknown"
+    "attempt": 2,
+    "nonce": "2026-09-29T17:18:10.821Z",
+    "error_class": "ai_generation",
+    "stage": "script"
   }
 }
