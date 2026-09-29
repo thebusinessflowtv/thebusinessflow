@@ -1,0 +1,82 @@
+name: Patch Office Music Live + Assets UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-office-music-live-assets-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Office Music UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          js_paths=[Path('control-center/office-music.js'),Path('docs/control-center/office-music.js')]
+          for p in js_paths:
+              s=p.read_text(encoding='utf-8')
+
+              old="let state={jobs:[],tracks:[],lives:[],assets:[],tab:'generate'};"
+              new="let state={jobs:[],tracks:[],lives:[],assets:[],masterRelease:null,tab:'generate'};"
+              if old in s: s=s.replace(old,new,1)
+              elif new not in s: raise SystemExit(f'state marker not found in {p}')
+
+              old="  async function loadData(sync=true){\n    const [jobsR,tracksR,livesR,assetsR]=await Promise.all(["
+              new="  async function loadData(sync=true){\n    const masterReleaseP=invoke({action:'health'}).catch(()=>null);\n    const [jobsR,tracksR,livesR,assetsR]=await Promise.all(["
+              if old in s: s=s.replace(old,new,1)
+              elif new not in s: raise SystemExit(f'loadData marker not found in {p}')
+
+              old="    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[];"
+              new="    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[]; state.masterRelease=await masterReleaseP;"
+              if old in s: s=s.replace(old,new,1)
+              elif new not in s: raise SystemExit(f'state assignment marker not found in {p}')
+
+              old='          <div class="field"><label>Título da live</label><input id="liveTitle" class="input" maxlength="100" value="The Office Music — Live Office Lounge"></div>\n          <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">'
+              new='          <div class="field"><label>Título da live</label><input id="liveTitle" class="input" maxlength="100" value="The Office Music — Live Office Lounge"></div>\n          <div class="field"><label>Descrição da live</label><textarea id="liveDescription" class="input" maxlength="5000" rows="5" style="min-height:110px;resize:vertical;font:inherit" placeholder="Descreva a live, o estilo musical, o canal e inclua links ou chamadas relevantes."></textarea><div class="tiny muted" style="margin-top:5px">Enviada diretamente para a descrição da transmissão no YouTube.</div></div>\n          <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">'
+              if old in s: s=s.replace(old,new,1)
+              elif 'id="liveDescription"' not in s: raise SystemExit(f'live title marker not found in {p}')
+
+              old="await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null})"
+              new="await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,description:root.querySelector('#liveDescription').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null})"
+              if old in s: s=s.replace(old,new,1)
+              elif new not in s: raise SystemExit(f'start_live payload marker not found in {p}')
+
+              old="  function renderAssets(){\n    const root=document.getElementById('view-assets'); if(!root)return;\n    root.innerHTML=`<div class=\"grid grid2\"><div class=\"grid\"><div class=\"card pad\"><h3 class=\"section-title\">Master visual em loop</h3><p class=\"small muted\">O master visual oficial está armazenado no GitHub Releases e é baixado automaticamente em cada render e em cada live. Não é necessário reenviar o vídeo.</p><label class=\"assetdrop\" for=\"loopFile\"><b class=\"small\">Selecionar vídeo MP4/MOV</b><div class=\"tiny muted\" style=\"margin-top:5px\">Aceita até 1 GB · recomendado 16:9</div><input id=\"loopFile\" type=\"file\" accept=\"video/mp4,video/quicktime\"><div class=\"uploadbar\"><span id=\"loopProgress\"></span></div></label><div class=\"list\" style=\"margin-top:12px\">${assetsHtml('loop')}</div></div></div><div class=\"grid\"><div class=\"card pad\"><h3 class=\"section-title\">Thumbnail padrão</h3>"
+              new="  function renderAssets(){\n    const root=document.getElementById('view-assets'); if(!root)return;\n    const rel=state.masterRelease||{};\n    const releaseUrl=rel.loop_url||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4';\n    const releaseSize=Number(rel.loop_size_bytes||517903191);\n    const releaseDigest=String(rel.loop_digest||'');\n    const officialMaster=`<div class=\"asset\"><div class=\"row between wrap\"><div><b class=\"small\">office-music-master-loop.mp4</b><div class=\"tiny muted\" style=\"margin-top:3px\">GitHub Release · office-assets-v1 · ${(releaseSize/1024/1024).toFixed(1)} MB</div>${releaseDigest?`<div class=\"tiny muted\" style=\"margin-top:3px\">${esc(releaseDigest)}</div>`:''}</div><span class=\"pill green\">Padrão oficial</span></div><div class=\"row wrap\" style=\"margin-top:9px\"><a class=\"btn\" target=\"_blank\" rel=\"noopener\" href=\"${esc(releaseUrl)}\">↗ Abrir asset</a><span class=\"pill blue\">GitHub Releases</span></div></div>`;\n    const customLoops=state.assets.some(a=>a.asset_type==='loop')?assetsHtml('loop'):'';\n    root.innerHTML=`<div class=\"grid grid2\"><div class=\"grid\"><div class=\"card pad\"><h3 class=\"section-title\">Master visual em loop</h3><p class=\"small muted\">O master visual oficial é puxado automaticamente do GitHub Release <b>office-assets-v1</b> e usado em cada render e live. O upload abaixo fica disponível apenas para alternativas personalizadas.</p><div class=\"list\" style=\"margin:12px 0\">${officialMaster}${customLoops}</div><label class=\"assetdrop\" for=\"loopFile\"><b class=\"small\">Enviar master alternativo MP4/MOV</b><div class=\"tiny muted\" style=\"margin-top:5px\">Aceita até 1 GB · recomendado 16:9</div><input id=\"loopFile\" type=\"file\" accept=\"video/mp4,video/quicktime\"><div class=\"uploadbar\"><span id=\"loopProgress\"></span></div></label></div></div><div class=\"grid\"><div class=\"card pad\"><h3 class=\"section-title\">Thumbnail padrão</h3>"
+              if old in s: s=s.replace(old,new,1)
+              elif 'const officialMaster=' not in s: raise SystemExit(f'renderAssets marker not found in {p}')
+
+              p.write_text(s,encoding='utf-8')
+              print('patched',p)
+
+          for p in [Path('control-center/office-music.html'),Path('docs/control-center/office-music.html')]:
+              s=p.read_text(encoding='utf-8')
+              s=s.replace('office-music.js?v=20260929-2','office-music.js?v=20260929-3')
+              p.write_text(s,encoding='utf-8')
+              print('cache-busted',p)
+          PY
+
+      - name: Commit UI changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control-center/office-music.js control-center/office-music.html docs/control-center/office-music.js docs/control-center/office-music.html
+          git diff --cached --quiet && { echo 'No UI changes needed.'; exit 0; }
+          git commit -m 'office-music: surface release master and live description'
+          git pull --rebase origin main
+          git push origin HEAD:main
