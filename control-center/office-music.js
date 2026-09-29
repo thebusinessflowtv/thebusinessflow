@@ -190,11 +190,22 @@
           <button id="startLive" class="btn primary block" style="margin-top:14px;min-height:45px" ${state.tracks.length?'':'disabled'}>● Iniciar live</button>
         </div>
       </div>
-      <div class="grid"><div class="card pad"><div class="row between"><h3 class="section-title" style="margin:0">Lives</h3><button id="refreshLives" class="btn">↻ Atualizar</button></div><div class="list" style="margin-top:12px">${liveSessionsHtml()}</div></div><div class="card pad"><h3 class="section-title">Configuração automática</h3><div class="small muted" style="line-height:1.7">RTMP criado pela YouTube Live Streaming API · playlist em loop · vídeo 1080p/30 para estabilidade · áudio AAC · início e encerramento automáticos · reconexão encadeada no modo contínuo.</div></div></div>
+      <div class="grid"><div class="card pad"><div class="row between wrap"><h3 class="section-title" style="margin:0">Lives</h3><div class="row wrap"><button id="clearLiveLogs" class="btn danger">Limpar logs</button><button id="refreshLives" class="btn">↻ Atualizar</button></div></div><div class="tiny muted" style="margin-top:7px">Limpar logs remove apenas lives encerradas ou com falha. Uma transmissão ativa nunca é apagada.</div><div class="list" style="margin-top:12px">${liveSessionsHtml()}</div></div><div class="card pad"><h3 class="section-title">Configuração automática</h3><div class="small muted" style="line-height:1.7">RTMP criado pela YouTube Live Streaming API · playlist em loop · vídeo 1080p/30 para estabilidade · áudio AAC · início e encerramento automáticos · reconexão encadeada no modo contínuo.</div></div></div>
     </div>`;
     root.querySelector('#selectAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=true);
     root.querySelector('#clearAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=false);
     root.querySelector('#refreshLives').onclick=refresh;
+    const clearLiveLogs=root.querySelector('#clearLiveLogs');
+    if(clearLiveLogs)clearLiveLogs.onclick=async()=>{
+      if(!confirm('Limpar o histórico de lives encerradas e com falha? Lives ativas não serão removidas.'))return;
+      clearLiveLogs.disabled=true;clearLiveLogs.textContent='Limpando…';
+      try{
+        const {error}=await client.from('office_music_live_sessions').delete().in('status',['failed','completed']);
+        if(error)throw error;
+        toast('Logs de lives limpos','Foram removidas apenas transmissões encerradas ou com falha.');
+        await refresh();
+      }catch(e){toast('Falha ao limpar logs',e.message||String(e),'error');clearLiveLogs.disabled=false;clearLiveLogs.textContent='Limpar logs'}
+    };
     const ytSel=root.querySelector('#youtubePlaylist');
     const ytInfo=root.querySelector('#youtubePlaylistInfo');
     const updateYtInfo=()=>{
