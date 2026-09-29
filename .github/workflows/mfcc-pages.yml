@@ -36,6 +36,7 @@ jobs:
           app = Path('control-center/index.html').read_text(encoding='utf-8')
           gate = Path('control-center/secure.html').read_text(encoding='utf-8')
           office = Path('control-center/office-music.js').read_text(encoding='utf-8')
+          office_nav = Path('control-center/office-music-nav.js').read_text(encoding='utf-8')
           office_html = Path('control-center/office-music.html').read_text(encoding='utf-8')
 
           required_app = [
@@ -49,11 +50,12 @@ jobs:
 
           required_office = [
             'The Office Music', 'office-music-control', 'office_music_jobs',
-            'office_music_tracks', 'duration_minutes', 'privacy:\'public\''
+            'office_music_tracks', 'duration_minutes', "privacy:'public'"
           ]
           missing_office = [item for item in required_office if item not in office]
           assert not missing_office, f'Missing Office Music contract: {missing_office}'
           assert '<title>The Office Music · MediaForge</title>' in office_html, 'Missing Office Music page'
+          assert 'officeMusicProductionsPanel' in office_nav, 'Missing Office Music productions integration'
 
           required_gate = [
             'ACESSO PRIVADO', 'user_roles', "eq('role','admin')",
@@ -70,6 +72,7 @@ jobs:
           node --check /tmp/mfcc-app.js
           node --check /tmp/mfcc-gate.js
           node --check control-center/office-music.js
+          node --check control-center/office-music-nav.js
 
       - name: Prepare Control Center subpath
         shell: bash
@@ -77,19 +80,31 @@ jobs:
           set -euo pipefail
           rm -rf _site
           mkdir -p _site/control-center
+
+          # Publish the complete control-center bundle so new modules cannot be
+          # accidentally omitted from GitHub Pages.
+          cp -R control-center/. _site/control-center/
+
+          # Public entry is the secure gate; the SPA itself lives at app.html.
           cp control-center/secure.html _site/control-center/index.html
           cp control-center/index.html _site/control-center/app.html
-          cp control-center/office-music.html _site/control-center/office-music.html
-          cp control-center/office-music.js _site/control-center/office-music.js
+
+          # Friendly alias in addition to office-music.html.
+          mkdir -p _site/control-center/office-music
+          cp control-center/office-music.html _site/control-center/office-music/index.html
+
+          # Keep the dedicated navigation/productions bridge attached to app.html.
           python - <<'PY'
           from pathlib import Path
           p = Path('_site/control-center/app.html')
           s = p.read_text(encoding='utf-8')
-          marker = '<script src="./office-music.js"></script>'
-          if marker not in s:
+          marker = '<script src="./office-music-nav.js?v=20260929-3"></script>'
+          s = s.replace('<script src="./office-music-nav.js?v=20260929-2"></script>', marker)
+          if 'office-music-nav.js' not in s:
               s = s.replace('</body>', marker + '\n</body>')
           p.write_text(s, encoding='utf-8')
           PY
+
           touch _site/.nojekyll
           cat > _site/index.html <<'HTML'
           <!doctype html>
@@ -100,6 +115,9 @@ jobs:
           </body>
           </html>
           HTML
+
+          echo 'Published files:'
+          find _site -maxdepth 3 -type f -print | sort
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
