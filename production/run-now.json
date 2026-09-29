@@ -1,6 +1,6 @@
 {
-  "topic_id": "custom-us-convenience-collapse-2026-09",
-  "mode": "render_only",
-  "requested_at": "2026-09-28T13:45:20Z",
-  "reason": "Start user-requested production now"
+  "topic_id": "custom-us-airline-collapse-2026-09",
+  "mode": "render_only_recovery",
+  "requested_at": "2026-09-29T01:09:02.167677+00:00",
+  "reason": "Recover Airline from cached research/script with resilient TTS"
 }
