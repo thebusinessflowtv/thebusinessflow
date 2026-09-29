@@ -80,7 +80,7 @@
       "working_angle": "Research and select one highly recognizable U.S. airline or aviation company that genuinely went bankrupt, collapsed, or disappeared. Prefer a case with strong American brand recognition, dramatic rise-and-fall economics, clear verified bankruptcy/collapse facts, and abundant authentic visual material. Build the episode around why a company that once looked untouchable fell apart. Do not conflate Chapter 11 restructuring with permanent failure unless the company actually ceased operations or the distinction is made clearly.",
       "title_seed": "Create the most provocative factual English title only after research; maximize curiosity and disbelief without inventing claims.",
       "thumbnail_text_seed": "HOW DID THIS HAPPEN?",
-      "status": "rendered_pending_manual_upload",
+      "status": "uploaded_private",
       "click_score": 100,
       "click_reason": "User-requested standalone airline-collapse documentary with strong brand recognition, controversy and discussion potential.",
       "language": "en-US",
@@ -103,7 +103,10 @@
       "dynamic_subject_validation_reset_at": "2026-09-28T21:26:26.314942+00:00",
       "queue_block_reason": "production failed after maximum retries",
       "queue_blocked_at": "2026-09-28T22:22:49.256473+00:00",
-      "rendered_at": "2026-09-29T01:37:01.120110+00:00"
+      "rendered_at": "2026-09-29T01:37:01.120110+00:00",
+      "youtube_video_id": "wYZjzaGfND8",
+      "youtube_privacy_status": "private",
+      "youtube_uploaded_at": "2026-09-29T01:38:32.284173+00:00"
     },
     {
       "id": "famous-001",
