@@ -17,7 +17,7 @@
     "custom-broadcom-hidden-giant-2026-09"
   ],
   "current_topic": "custom-us-fastfood-collapse-2026-09",
-  "source_run_id": null,
+  "source_run_id": 36506554618,
   "production_attempts": {
     "custom-us-airline-collapse-2026-09": 3,
     "custom-us-convenience-collapse-2026-09": 2,
@@ -49,8 +49,8 @@
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
-  "last_action": "blocked_upload:custom-us-convenience-collapse-2026-09",
-  "updated_at": "2026-09-29T01:31:53.168743+00:00",
+  "last_action": "production_success:custom-us-fastfood-collapse-2026-09",
+  "updated_at": "2026-09-29T01:37:41.525581+00:00",
   "last_reason": "worker already active",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
