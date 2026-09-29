@@ -4,7 +4,7 @@
   const BUCKET='office-music-assets';
   const client=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const terminal=new Set(['completed','failed']);
-  let state={jobs:[],tracks:[],lives:[],assets:[],tab:'generate'};
+  let state={jobs:[],tracks:[],lives:[],assets:[],masterRelease:null,tab:'generate'};
   let refreshTimer=null;
 
   const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -39,6 +39,7 @@
   }
 
   async function loadData(sync=true){
+    const masterReleaseP=invoke({action:'health'}).catch(()=>null);
     const [jobsR,tracksR,livesR,assetsR]=await Promise.all([
       client.from('office_music_jobs').select('*').order('created_at',{ascending:false}).limit(30),
       client.from('office_music_tracks').select('*').order('created_at',{ascending:false}).limit(200),
@@ -46,7 +47,7 @@
       client.from('office_music_assets').select('*').order('created_at',{ascending:false}).limit(100)
     ]);
     for(const r of [jobsR,tracksR,livesR,assetsR]) if(r.error)throw r.error;
-    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[];
+    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[]; state.masterRelease=await masterReleaseP;
     if(sync){
       const jobs=state.jobs.filter(j=>!terminal.has(j.status)).slice(0,5);
       const lives=state.lives.filter(l=>liveActive(l.status)).slice(0,4);
@@ -126,6 +127,7 @@
       <div class="grid">
         <div class="card pad livehero"><div class="row"><span class="live-dot"></span><div class="label">YouTube Live</div></div><h2 style="font-size:18px;margin:11px 0 5px">Abrir uma live do The Office Music</h2><p class="small muted" style="line-height:1.6;margin:0 0 16px">Selecione músicas salvas, duração e thumbnail. O vídeo usa o master visual padrão em loop e a transmissão começa automaticamente.</p>
           <div class="field"><label>Título da live</label><input id="liveTitle" class="input" maxlength="100" value="The Office Music — Live Office Lounge"></div>
+          <div class="field"><label>Descrição da live</label><textarea id="liveDescription" class="input" maxlength="5000" rows="5" style="min-height:110px;resize:vertical;font:inherit" placeholder="Descreva a live, o estilo musical, o canal e inclua links ou chamadas relevantes."></textarea><div class="tiny muted" style="margin-top:5px">Enviada diretamente para a descrição da transmissão no YouTube.</div></div>
           <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><div class="field"><label>Duração</label><select id="liveDuration" class="select"><option value="60">1 hora</option><option value="120">2 horas</option><option value="180">3 horas</option><option value="360">6 horas</option><option value="720">12 horas</option><option value="0">Contínua — até encerrar manualmente</option></select></div><div class="field"><label>Thumbnail</label><select id="liveThumb" class="select"><option value="">Thumbnail padrão</option>${thumbs.map(a=>`<option value="${esc(a.id)}" ${a.is_default?'selected':''}>${esc(a.title||'Thumbnail')}</option>`).join('')}</select></div></div>
           <div class="row between" style="margin:8px 0"><div><b class="small">Playlist da live</b><div class="tiny muted">A ordem segue a biblioteca e reinicia automaticamente.</div></div><div class="row"><button id="selectAll" class="btn">Selecionar tudo</button><button id="clearAll" class="btn">Limpar</button></div></div>
           <div class="list" style="max-height:420px;overflow:auto">${tracksPicker()}</div>
@@ -142,7 +144,7 @@
     root.querySelector('#startLive').onclick=async()=>{
       const ids=[...root.querySelectorAll('.liveTrack:checked')].map(x=>x.value); if(!ids.length){toast('Selecione músicas','Escolha pelo menos uma faixa para a live.','error');return}
       const btn=root.querySelector('#startLive');btn.disabled=true;btn.textContent='Preparando transmissão…';
-      try{const d=Number(root.querySelector('#liveDuration').value);await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null});toast('Live criada','O YouTube será conectado e a transmissão começará automaticamente.');await refresh()}
+      try{const d=Number(root.querySelector('#liveDuration').value);await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,description:root.querySelector('#liveDescription').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null});toast('Live criada','O YouTube será conectado e a transmissão começará automaticamente.');await refresh()}
       catch(e){toast('Falha ao iniciar live',e.message||String(e),'error');btn.disabled=false;btn.textContent='● Iniciar live'}
     };
   }
@@ -180,7 +182,13 @@
 
   function renderAssets(){
     const root=document.getElementById('view-assets'); if(!root)return;
-    root.innerHTML=`<div class="grid grid2"><div class="grid"><div class="card pad"><h3 class="section-title">Master visual em loop</h3><p class="small muted">O master visual oficial está armazenado no GitHub Releases e é baixado automaticamente em cada render e em cada live. Não é necessário reenviar o vídeo.</p><label class="assetdrop" for="loopFile"><b class="small">Selecionar vídeo MP4/MOV</b><div class="tiny muted" style="margin-top:5px">Aceita até 1 GB · recomendado 16:9</div><input id="loopFile" type="file" accept="video/mp4,video/quicktime"><div class="uploadbar"><span id="loopProgress"></span></div></label><div class="list" style="margin-top:12px">${assetsHtml('loop')}</div></div></div><div class="grid"><div class="card pad"><h3 class="section-title">Thumbnail padrão</h3><p class="small muted">A thumbnail selecionada é usada automaticamente nos vídeos e pode ser escolhida na live.</p><label class="assetdrop" for="thumbFile"><b class="small">Selecionar JPG/PNG/WEBP</b><div class="tiny muted" style="margin-top:5px">Recomendado 1280×720 ou maior</div><input id="thumbFile" type="file" accept="image/jpeg,image/png,image/webp"><div class="uploadbar"><span id="thumbProgress"></span></div></label><div class="list" style="margin-top:12px">${assetsHtml('thumbnail')}</div></div></div></div>`;
+    const rel=state.masterRelease||{};
+    const releaseUrl=rel.loop_url||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4';
+    const releaseSize=Number(rel.loop_size_bytes||517903191);
+    const releaseDigest=String(rel.loop_digest||'');
+    const officialMaster=`<div class="asset"><div class="row between wrap"><div><b class="small">office-music-master-loop.mp4</b><div class="tiny muted" style="margin-top:3px">GitHub Release · office-assets-v1 · ${(releaseSize/1024/1024).toFixed(1)} MB</div>${releaseDigest?`<div class="tiny muted" style="margin-top:3px">${esc(releaseDigest)}</div>`:''}</div><span class="pill green">Padrão oficial</span></div><div class="row wrap" style="margin-top:9px"><a class="btn" target="_blank" rel="noopener" href="${esc(releaseUrl)}">↗ Abrir asset</a><span class="pill blue">GitHub Releases</span></div></div>`;
+    const customLoops=state.assets.some(a=>a.asset_type==='loop')?assetsHtml('loop'):'';
+    root.innerHTML=`<div class="grid grid2"><div class="grid"><div class="card pad"><h3 class="section-title">Master visual em loop</h3><p class="small muted">O master visual oficial é puxado automaticamente do GitHub Release <b>office-assets-v1</b> e usado em cada render e live. O upload abaixo fica disponível apenas para alternativas personalizadas.</p><div class="list" style="margin:12px 0">${officialMaster}${customLoops}</div><label class="assetdrop" for="loopFile"><b class="small">Enviar master alternativo MP4/MOV</b><div class="tiny muted" style="margin-top:5px">Aceita até 1 GB · recomendado 16:9</div><input id="loopFile" type="file" accept="video/mp4,video/quicktime"><div class="uploadbar"><span id="loopProgress"></span></div></label></div></div><div class="grid"><div class="card pad"><h3 class="section-title">Thumbnail padrão</h3><p class="small muted">A thumbnail selecionada é usada automaticamente nos vídeos e pode ser escolhida na live.</p><label class="assetdrop" for="thumbFile"><b class="small">Selecionar JPG/PNG/WEBP</b><div class="tiny muted" style="margin-top:5px">Recomendado 1280×720 ou maior</div><input id="thumbFile" type="file" accept="image/jpeg,image/png,image/webp"><div class="uploadbar"><span id="thumbProgress"></span></div></label><div class="list" style="margin-top:12px">${assetsHtml('thumbnail')}</div></div></div></div>`;
     const wire=(id,type,pid)=>{const input=root.querySelector('#'+id);input.onchange=async()=>{const f=input.files?.[0];if(!f)return;const bar=root.querySelector('#'+pid);try{toast('Upload iniciado',f.name);await uploadAsset(type,f,bar);toast('Asset salvo',type==='loop'?'Novo master visual definido como padrão.':'Nova thumbnail definida como padrão.');await refresh()}catch(e){toast('Falha no upload',e.message||String(e),'error');bar.style.width='0%'}}};
     wire('thumbFile','thumbnail','thumbProgress');
     root.querySelectorAll('.setDefault').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await invoke({action:'set_default_asset',asset_id:b.dataset.id});toast('Padrão atualizado');await refresh()}catch(e){toast('Falha',e.message||String(e),'error');b.disabled=false}});
