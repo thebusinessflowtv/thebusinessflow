@@ -237,11 +237,20 @@ jobs:
             -f upload_and_schedule=false
           echo "Started one production only: $TOPIC"
 
-      - name: Private upload retry is triggered by checkpoint push
+      - name: Start exactly one Private YouTube Upload retry
         if: steps.plan.outputs.action == 'retry_upload'
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          echo "Queued private upload retry for ${{ steps.plan.outputs.topic_id }} using production run ${{ steps.plan.outputs.source_run_id }}."
+          set -euo pipefail
+          SOURCE_RUN_ID='${{ steps.plan.outputs.source_run_id }}'
+          test -n "$SOURCE_RUN_ID"
+          gh workflow run private-upload-after-production.yml \
+            --repo '${{ github.repository }}' \
+            --ref main \
+            -f source_run_id="$SOURCE_RUN_ID"
+          echo "Started private upload retry for ${{ steps.plan.outputs.topic_id }} using production run $SOURCE_RUN_ID."
 
       - name: Queue summary
         if: always()
