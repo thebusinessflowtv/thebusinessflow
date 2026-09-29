@@ -1,0 +1,66 @@
+name: Patch Office Music Release UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-office-music-release-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update Office Music UI for GitHub Release master
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          paths=[Path('control-center/office-music.js')]
+          for p in paths:
+              s=p.read_text(encoding='utf-8')
+              old="${loop?'Master visual configurado: <b>'+esc(loop.title||'Loop padrão')+'</b>':'Sem master visual personalizado: o sistema usa automaticamente um fallback seguro animado a partir da thumbnail.'}"
+              new="Master visual oficial: <b>GitHub Release office-assets-v1 · office-music-master-loop.mp4 · 517,9 MB</b>"
+              if old in s:
+                  s=s.replace(old,new)
+              s=s.replace('Envie o vídeo oficial uma única vez. Arquivos grandes usam upload resumível e depois viram o padrão automático para renders e lives.','O master visual oficial está armazenado no GitHub Releases e é baixado automaticamente em cada render e em cada live. Não é necessário reenviar o vídeo.')
+              s,n=re.subn(r'<label class=\\"assetdrop\\" for=\\"loopFile\\">.*?<\\/label>', '<div class=\\"assetdrop\\"><b class=\\"small\\">✓ Master oficial configurado</b><div class=\\"tiny muted\\" style=\\"margin-top:5px\\">office-assets-v1 · office-music-master-loop.mp4 · 517,9 MB</div></div>', s, count=1)
+              if n!=1:
+                  print('warning: loop upload block replacement count',n)
+              s=s.replace("wire('loopFile','loop','loopProgress'); wire('thumbFile','thumbnail','thumbProgress');","wire('thumbFile','thumbnail','thumbProgress');")
+              p.write_text(s,encoding='utf-8')
+
+          # Keep active GitHub Pages source in sync immediately.
+          src=Path('control-center/office-music.js')
+          dst=Path('docs/control-center/office-music.js')
+          dst.parent.mkdir(parents=True,exist_ok=True)
+          dst.write_text(src.read_text(encoding='utf-8'),encoding='utf-8')
+          PY
+
+      - name: Validate JavaScript
+        run: node --check control-center/office-music.js
+
+      - name: Commit UI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control-center/office-music.js docs/control-center/office-music.js
+          if git diff --cached --quiet; then
+            echo 'UI already patched.'
+            exit 0
+          fi
+          git commit -m 'feat: show GitHub Release master in Office Music UI'
+          git pull --rebase origin main
+          git push origin HEAD:main
