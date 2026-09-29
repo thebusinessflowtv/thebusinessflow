@@ -1,0 +1,37 @@
+name: Patch Office Music Sync Routing
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-office-music-sync-routing.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Route sync through public-read sync control
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('docs/control-center/office-music.js')
+          s=p.read_text()
+          old="const queueAction=body?.action==='create_job'||body?.action==='start_live'||body?.action==='stop_live';\n    const functionName=queueAction?'office-music-queue-control':'office-music-control';"
+          new="const queueAction=body?.action==='create_job'||body?.action==='start_live'||body?.action==='stop_live';\n    const syncAction=body?.action==='sync_job'||body?.action==='sync_live';\n    const functionName=queueAction?'office-music-queue-control':(syncAction?'office-music-sync-control':'office-music-control');"
+          if old not in s:
+              raise SystemExit('target block not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Commit UI patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/control-center/office-music.js
+          git commit -m "office-music: route sync through public GitHub reader"
+          git pull --rebase origin main
+          git push origin HEAD:main
