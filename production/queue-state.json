@@ -50,7 +50,7 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_upload:custom-us-convenience-collapse-2026-09",
-  "updated_at": "2026-09-29T01:13:15.705875+00:00",
+  "updated_at": "2026-09-29T01:31:53.168743+00:00",
   "last_reason": "worker already active",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
