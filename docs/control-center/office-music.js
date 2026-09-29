@@ -25,7 +25,7 @@
   }
 
   async function invoke(body){
-    const queueAction=body?.action==='create_job'||body?.action==='start_live';
+    const queueAction=body?.action==='create_job'||body?.action==='start_live'||body?.action==='stop_live';
     const functionName=queueAction?'office-music-queue-control':'office-music-control';
     const {data,error}=await client.functions.invoke(functionName,{body});
     if(error)throw error;
