@@ -1,0 +1,94 @@
+name: Sync Office Music to Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'control-center/office-music.html'
+      - 'control-center/office-music.js'
+      - 'control-center/office-music-nav.js'
+      - 'control-center/office-music-playlists.js'
+      - '.github/workflows/sync-office-music-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-office-music-pages
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync Office Music files into docs Pages source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/control-center
+          cp control-center/office-music.html docs/control-center/office-music.html
+          cp control-center/office-music.js docs/control-center/office-music.js
+          cp control-center/office-music-nav.js docs/control-center/office-music-nav.js
+          cp control-center/office-music-playlists.js docs/control-center/office-music-playlists.js
+
+          # Inside the dedicated Office Music page, sidebar navigation should return
+          # to the actual SPA page, while unauthenticated users are still handled
+          # by office-music.js via ./index.html.
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('docs/control-center/office-music.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('href="./index.html#/', 'href="./app.html#/')
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Ensure Office Music bridge loads in the MediaForge SPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('docs/control-center/app.html')
+          s = p.read_text(encoding='utf-8')
+          old = "const helpers='<script src=\"./retry-failed-production.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./production-status-reconcile.js?v=20260929-status-sync1\"></'+'script>';"
+          new = "const helpers='<script src=\"./retry-failed-production.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./production-status-reconcile.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./office-music-nav.js?v=20260929-pages1\"></'+'script>';"
+          if old in s:
+              s = s.replace(old, new)
+          elif 'office-music-nav.js' not in s:
+              s = s.replace("html=html.replace('</body>',helpers+'\\n</body>');", "helpers += '<script src=\"./office-music-nav.js?v=20260929-pages1\"></'+'script>';\\n      html=html.replace('</body>',helpers+'\\n</body>');")
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Validate synced files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s docs/control-center/office-music.html
+          test -s docs/control-center/office-music.js
+          test -s docs/control-center/office-music-nav.js
+          test -s docs/control-center/office-music-playlists.js
+          grep -q 'The Office Music' docs/control-center/office-music.html
+          grep -q 'officeMusicProductionsPanel' docs/control-center/office-music-nav.js
+          grep -q 'office-music-nav.js' docs/control-center/app.html
+          node --check docs/control-center/office-music.js
+          node --check docs/control-center/office-music-nav.js
+          node --check docs/control-center/office-music-playlists.js
+
+      - name: Commit synced Pages files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/control-center; then
+            echo 'Pages source already synchronized.'
+            exit 0
+          fi
+          git config user.name 'The Business Flow Factory'
+          git config user.email 'thebusinessflowtv@gmail.com'
+          git add docs/control-center/office-music.html docs/control-center/office-music.js docs/control-center/office-music-nav.js docs/control-center/office-music-playlists.js docs/control-center/app.html
+          git commit -m 'Sync Office Music into GitHub Pages source'
+          git push origin HEAD:main
