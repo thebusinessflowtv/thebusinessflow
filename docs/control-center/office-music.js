@@ -2,9 +2,10 @@
   const SB_URL='https://fykwalznmcrjgnyveagy.supabase.co';
   const SB_KEY='sb_publishable_46tbOLOFhKqirGConFVg2w_xRQmmVli';
   const BUCKET='office-music-assets';
+  const YT_PLAYLIST_SNAPSHOT='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/youtube-playlists.json';
   const client=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const terminal=new Set(['completed','failed']);
-  let state={jobs:[],tracks:[],lives:[],assets:[],masterRelease:null,tab:'generate'};
+  let state={jobs:[],tracks:[],lives:[],assets:[],youtubePlaylists:[],youtubePlaylistsUpdatedAt:null,masterRelease:null,tab:'generate'};
   let refreshTimer=null;
 
   const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -30,6 +31,15 @@
     return data;
   }
 
+  async function loadYoutubePlaylistSnapshot(){
+    try{
+      const r=await fetch(YT_PLAYLIST_SNAPSHOT+'?v='+Date.now(),{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const data=await r.json();
+      return {playlists:Array.isArray(data?.playlists)?data.playlists:[],generated_at:data?.generated_at||null};
+    }catch(_){return {playlists:[],generated_at:null}}
+  }
+
   async function auth(){
     const {data:{session}}=await client.auth.getSession();
     if(!session){ location.href='./index.html'; return null; }
@@ -40,6 +50,7 @@
 
   async function loadData(sync=true){
     const masterReleaseP=invoke({action:'health'}).catch(()=>null);
+    const youtubePlaylistsP=loadYoutubePlaylistSnapshot();
     const [jobsR,tracksR,livesR,assetsR]=await Promise.all([
       client.from('office_music_jobs').select('*').order('created_at',{ascending:false}).limit(30),
       client.from('office_music_tracks').select('*').order('created_at',{ascending:false}).limit(200),
@@ -47,7 +58,7 @@
       client.from('office_music_assets').select('*').order('created_at',{ascending:false}).limit(100)
     ]);
     for(const r of [jobsR,tracksR,livesR,assetsR]) if(r.error)throw r.error;
-    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[]; state.masterRelease=await masterReleaseP;
+    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[]; state.masterRelease=await masterReleaseP; const yp=await youtubePlaylistsP; state.youtubePlaylists=yp.playlists||[]; state.youtubePlaylistsUpdatedAt=yp.generated_at||null;
     if(sync){
       const jobs=state.jobs.filter(j=>!terminal.has(j.status)).slice(0,5);
       const lives=state.lives.filter(l=>liveActive(l.status)).slice(0,4);
@@ -125,6 +136,29 @@
     };
   }
 
+  function youtubePlaylistTrackIds(playlistId){
+    const p=state.youtubePlaylists.find(x=>x.id===playlistId); if(!p)return [];
+    const jobsByVideo=new Map(state.jobs.filter(j=>j.youtube_video_id).map(j=>[String(j.youtube_video_id),j]));
+    const out=[],seen=new Set();
+    for(const item of (p.items||[])){
+      const job=jobsByVideo.get(String(item.video_id||'')); if(!job)continue;
+      const tracks=state.tracks.filter(t=>t.job_id===job.id).sort((a,b)=>(Number(a.position)||0)-(Number(b.position)||0));
+      for(const t of tracks)if(!seen.has(t.id)&&urlOf(t)){seen.add(t.id);out.push(t.id)}
+    }
+    return out;
+  }
+
+  function youtubePlaylistStats(p){
+    const jobsByVideo=new Map(state.jobs.filter(j=>j.youtube_video_id).map(j=>[String(j.youtube_video_id),j]));
+    let matchedVideos=0,trackCount=0;
+    for(const item of (p.items||[])){
+      const job=jobsByVideo.get(String(item.video_id||'')); if(!job)continue;
+      matchedVideos++;
+      trackCount+=state.tracks.filter(t=>t.job_id===job.id&&urlOf(t)).length;
+    }
+    return {matchedVideos,trackCount};
+  }
+
   function tracksPicker(){
     if(!state.tracks.length)return '<div class="empty">Gere pelo menos uma sessão para liberar faixas para live.</div>';
     return state.tracks.slice(0,80).map((t,i)=>{const u=urlOf(t);return `<label class="track" style="cursor:pointer"><input class="liveTrack" type="checkbox" value="${esc(t.id)}" ${i<10?'checked':''}><div><b>${esc(t.title)}</b><small>${mm(t.duration_seconds)} min${t.bpm?' · '+esc(t.bpm)+' BPM':''}</small></div>${u?`<audio controls preload="none" src="${esc(u)}"></audio>`:'<span class="tiny muted">sem preview</span>'}</label>`}).join('');
@@ -138,13 +172,17 @@
   function renderLive(){
     const root=document.getElementById('view-live'); if(!root)return;
     const thumbs=state.assets.filter(a=>a.asset_type==='thumbnail');
+    const ytOptions=state.youtubePlaylists.map(p=>{const st=youtubePlaylistStats(p);return `<option value="${esc(p.id)}">${esc(p.title||'Playlist sem nome')} · ${Number(p.item_count||0)} vídeos · ${st.trackCount} faixas reproduzíveis</option>`}).join('');
+    const ytUpdated=state.youtubePlaylistsUpdatedAt?fmt(state.youtubePlaylistsUpdatedAt):'ainda não sincronizado';
     root.innerHTML=`<div class="grid grid2">
       <div class="grid">
-        <div class="card pad livehero"><div class="row"><span class="live-dot"></span><div class="label">YouTube Live</div></div><h2 style="font-size:18px;margin:11px 0 5px">Abrir uma live do The Office Music</h2><p class="small muted" style="line-height:1.6;margin:0 0 16px">Selecione músicas salvas, duração e thumbnail. O vídeo usa o master visual padrão em loop e a transmissão começa automaticamente.</p>
+        <div class="card pad livehero"><div class="row"><span class="live-dot"></span><div class="label">YouTube Live</div></div><h2 style="font-size:18px;margin:11px 0 5px">Abrir uma live do The Office Music</h2><p class="small muted" style="line-height:1.6;margin:0 0 16px">Escolha uma playlist do próprio canal no YouTube ou monte uma seleção manual de músicas salvas. Defina duração e thumbnail; a transmissão começa automaticamente.</p>
           <div class="field"><label>Título da live</label><input id="liveTitle" class="input" maxlength="100" value="The Office Music — Live Office Lounge"></div>
           <div class="field"><label>Descrição da live</label><textarea id="liveDescription" class="input" maxlength="5000" rows="5" style="min-height:110px;resize:vertical;font:inherit" placeholder="Descreva a live, o estilo musical, o canal e inclua links ou chamadas relevantes."></textarea><div class="tiny muted" style="margin-top:5px">Enviada diretamente para a descrição da transmissão no YouTube.</div></div>
           <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><div class="field"><label>Duração</label><select id="liveDuration" class="select"><option value="60">1 hora</option><option value="120">2 horas</option><option value="180">3 horas</option><option value="360">6 horas</option><option value="720">12 horas</option><option value="0">Contínua — até encerrar manualmente</option></select></div><div class="field"><label>Thumbnail</label><select id="liveThumb" class="select"><option value="">Thumbnail padrão</option>${thumbs.map(a=>`<option value="${esc(a.id)}" ${a.is_default?'selected':''}>${esc(a.title||'Thumbnail')}</option>`).join('')}</select></div></div>
-          <div class="row between" style="margin:8px 0"><div><b class="small">Playlist da live</b><div class="tiny muted">A ordem segue a biblioteca e reinicia automaticamente.</div></div><div class="row"><button id="selectAll" class="btn">Selecionar tudo</button><button id="clearAll" class="btn">Limpar</button></div></div>
+          <div class="field"><div class="row between wrap"><label style="margin:0">Playlist do YouTube</label><button id="reloadYoutubePlaylists" class="btn" type="button">↻ Recarregar</button></div><select id="youtubePlaylist" class="select" style="margin-top:7px"><option value="">Seleção manual / playlist salva do MediaForge</option>${ytOptions}</select><div id="youtubePlaylistInfo" class="tiny muted" style="margin-top:6px">Sincronização automática com o canal a cada hora · último snapshot: ${esc(ytUpdated)}.</div></div>
+          <div class="note" style="margin-bottom:12px">Ao escolher uma playlist do YouTube, a ordem dos vídeos da playlist vira a ordem das músicas da live. São reproduzidas as faixas-fonte salvas no MediaForge dos vídeos daquele playlist. Vídeos externos ou antigos sem arquivos-fonte salvos são ignorados.</div>
+          <div class="row between" style="margin:8px 0"><div><b class="small">Seleção manual</b><div class="tiny muted">Usada quando nenhuma playlist do YouTube estiver selecionada.</div></div><div class="row"><button id="selectAll" class="btn">Selecionar tudo</button><button id="clearAll" class="btn">Limpar</button></div></div>
           <div class="list" style="max-height:420px;overflow:auto">${tracksPicker()}</div>
           <div class="note" style="margin-top:12px">Modo contínuo é encadeado automaticamente para contornar o limite dos runners hospedados. Pode haver uma reconexão curta a cada bloco longo; o botão Encerrar envia um sinal de parada e finaliza a transmissão no YouTube.</div>
           <button id="startLive" class="btn primary block" style="margin-top:14px;min-height:45px" ${state.tracks.length?'':'disabled'}>● Iniciar live</button>
@@ -155,11 +193,22 @@
     root.querySelector('#selectAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=true);
     root.querySelector('#clearAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=false);
     root.querySelector('#refreshLives').onclick=refresh;
+    const ytSel=root.querySelector('#youtubePlaylist');
+    const ytInfo=root.querySelector('#youtubePlaylistInfo');
+    const updateYtInfo=()=>{
+      if(!ytSel.value){ytInfo.textContent=`Seleção manual ativa · playlists do YouTube sincronizadas: ${state.youtubePlaylists.length} · snapshot: ${ytUpdated}.`;return}
+      const p=state.youtubePlaylists.find(x=>x.id===ytSel.value),st=p?youtubePlaylistStats(p):{matchedVideos:0,trackCount:0};
+      ytInfo.textContent=p?`${p.title}: ${st.matchedVideos}/${Number(p.item_count||0)} vídeos com fonte disponível · ${st.trackCount} faixas entrarão na live.`:'Playlist indisponível.';
+    };
+    ytSel.onchange=updateYtInfo; updateYtInfo();
+    root.querySelector('#reloadYoutubePlaylists').onclick=async()=>{const b=root.querySelector('#reloadYoutubePlaylists');b.disabled=true;b.textContent='Recarregando…';const yp=await loadYoutubePlaylistSnapshot();state.youtubePlaylists=yp.playlists||[];state.youtubePlaylistsUpdatedAt=yp.generated_at||null;renderLive();toast('Playlists recarregadas',`${state.youtubePlaylists.length} playlists encontradas no snapshot do canal.`)};
     root.querySelectorAll('.stopLive').forEach(b=>b.onclick=async()=>{if(!confirm('Encerrar esta live agora?'))return;b.disabled=true;try{await invoke({action:'stop_live',session_id:b.dataset.id});toast('Encerramento solicitado','A transmissão será finalizada automaticamente.');await refresh()}catch(e){toast('Falha ao encerrar',e.message||String(e),'error');b.disabled=false}});
     root.querySelector('#startLive').onclick=async()=>{
-      const ids=[...root.querySelectorAll('.liveTrack:checked')].map(x=>x.value); if(!ids.length){toast('Selecione músicas','Escolha pelo menos uma faixa para a live.','error');return}
+      const playlistId=ytSel.value;
+      const ids=playlistId?youtubePlaylistTrackIds(playlistId):[...root.querySelectorAll('.liveTrack:checked')].map(x=>x.value);
+      if(!ids.length){toast(playlistId?'Playlist sem fontes reproduzíveis':'Selecione músicas',playlistId?'Nenhum vídeo dessa playlist possui faixas-fonte salvas no MediaForge.':'Escolha pelo menos uma faixa para a live.','error');return}
       const btn=root.querySelector('#startLive');btn.disabled=true;btn.textContent='Preparando transmissão…';
-      try{const d=Number(root.querySelector('#liveDuration').value);await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,description:root.querySelector('#liveDescription').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null});toast('Live criada','O YouTube será conectado e a transmissão começará automaticamente.');await refresh()}
+      try{const d=Number(root.querySelector('#liveDuration').value);await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,description:root.querySelector('#liveDescription').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null});toast('Live criada',playlistId?`${ids.length} faixas carregadas da playlist do YouTube.`:'A seleção manual foi enviada para a transmissão.');await refresh()}
       catch(e){toast('Falha ao iniciar live',e.message||String(e),'error');btn.disabled=false;btn.textContent='● Iniciar live'}
     };
   }
@@ -169,9 +218,26 @@
     root.innerHTML=`<div class="card pad"><div class="row between"><div><h3 class="section-title" style="margin:0">Biblioteca de músicas</h3><div class="tiny muted" style="margin-top:4px">Faixas originais salvas pelo pipeline e disponíveis para vídeos e lives.</div></div><span class="pill blue">${state.tracks.length} faixas</span></div><div class="list" style="margin-top:14px">${state.tracks.length?state.tracks.map(t=>{const u=urlOf(t);return `<div class="track"><span class="pill blue">♫</span><div><b>${esc(t.title)}</b><small>${mm(t.duration_seconds)} min${t.bpm?' · '+esc(t.bpm)+' BPM':''} · ${esc(t.style||'fashion-retail lounge house')}</small></div>${u?`<div class="row"><audio controls preload="none" src="${esc(u)}"></audio><a class="btn" target="_blank" rel="noopener" href="${esc(u)}">↓</a></div>`:'<span class="tiny muted">arquivo pendente</span>'}</div>`}).join(''):'<div class="empty">A biblioteca será preenchida após a primeira geração.</div>'}</div></div>`;
   }
 
+  function assetPublicUrl(a){
+    try{return client.storage.from(BUCKET).getPublicUrl(a.storage_path).data?.publicUrl||''}catch(_){return ''}
+  }
+
+  function openAssetPreview(a){
+    const url=assetPublicUrl(a); if(!url){toast('Preview indisponível','Não foi possível obter a URL pública deste asset.','error');return}
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.86);display:grid;place-items:center;padding:24px';
+    const box=document.createElement('div'); box.style.cssText='width:min(1000px,96vw);max-height:92vh;background:#151517;border:1px solid #3b3b40;border-radius:16px;padding:14px;box-shadow:0 30px 100px #000';
+    const head=document.createElement('div'); head.className='row between'; head.innerHTML=`<div><b class="small">${esc(a.title||a.storage_path)}</b><div class="tiny muted">${esc(a.mime_type||'')}</div></div><button class="btn" type="button">✕ Fechar</button>`;
+    const media=(a.asset_type==='loop'||String(a.mime_type||'').startsWith('video/'))?document.createElement('video'):document.createElement('img');
+    media.src=url; media.style.cssText='display:block;width:100%;max-height:78vh;object-fit:contain;margin-top:12px;border-radius:10px;background:#050506';
+    if(media.tagName==='VIDEO'){media.controls=true;media.autoplay=false;media.muted=true}
+    head.querySelector('button').onclick=()=>overlay.remove(); overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};
+    box.append(head,media); overlay.appendChild(box); document.body.appendChild(overlay);
+  }
+
   function assetsHtml(type){
     const list=state.assets.filter(a=>a.asset_type===type); if(!list.length)return '<div class="empty">Nenhum asset cadastrado.</div>';
-    return list.map(a=>`<div class="asset"><div class="row between wrap"><div><b class="small">${esc(a.title||a.storage_path)}</b><div class="tiny muted" style="margin-top:3px">${esc(a.mime_type||'')} ${a.size_bytes?'· '+(a.size_bytes/1024/1024).toFixed(1)+' MB':''}</div></div>${a.is_default?'<span class="pill green">Padrão</span>':'<button class="btn setDefault" data-id="'+esc(a.id)+'">Definir padrão</button>'}</div><div class="row" style="margin-top:9px"><button class="btn danger deleteAsset" data-id="${esc(a.id)}">Excluir</button></div></div>`).join('');
+    return list.map(a=>`<div class="asset"><div class="row between wrap"><div><b class="small">${esc(a.title||a.storage_path)}</b><div class="tiny muted" style="margin-top:3px">${esc(a.mime_type||'')} ${a.size_bytes?'· '+(a.size_bytes/1024/1024).toFixed(1)+' MB':''}</div></div>${a.is_default?'<span class="pill green">Padrão</span>':'<button class="btn setDefault" data-id="'+esc(a.id)+'">Definir padrão</button>'}</div><div class="row wrap" style="margin-top:9px"><button class="btn previewAsset" data-id="${esc(a.id)}">◉ Pré-visualizar</button><button class="btn renameAsset" data-id="${esc(a.id)}">✎ Renomear</button><button class="btn danger deleteAsset" data-id="${esc(a.id)}">Excluir</button></div></div>`).join('');
   }
 
   async function uploadAsset(type,file,progressEl){
@@ -203,10 +269,13 @@
     const releaseDigest=String(rel.loop_digest||'');
     const officialMaster=`<div class="asset"><div class="row between wrap"><div><b class="small">office-music-master-loop.mp4</b><div class="tiny muted" style="margin-top:3px">GitHub Release · office-assets-v1 · ${(releaseSize/1024/1024).toFixed(1)} MB</div>${releaseDigest?`<div class="tiny muted" style="margin-top:3px">${esc(releaseDigest)}</div>`:''}</div><span class="pill green">Padrão oficial</span></div><div class="row wrap" style="margin-top:9px"><a class="btn" target="_blank" rel="noopener" href="${esc(releaseUrl)}">↗ Abrir asset</a><span class="pill blue">GitHub Releases</span></div></div>`;
     const customLoops=state.assets.some(a=>a.asset_type==='loop')?assetsHtml('loop'):'';
-    root.innerHTML=`<div class="grid grid2"><div class="grid"><div class="card pad"><h3 class="section-title">Master visual em loop</h3><p class="small muted">O master visual oficial é puxado automaticamente do GitHub Release <b>office-assets-v1</b> e usado em cada render e live. O upload abaixo fica disponível apenas para alternativas personalizadas.</p><div class="list" style="margin:12px 0">${officialMaster}${customLoops}</div><label class="assetdrop" for="loopFile"><b class="small">Enviar master alternativo MP4/MOV</b><div class="tiny muted" style="margin-top:5px">Aceita até 1 GB · recomendado 16:9</div><input id="loopFile" type="file" accept="video/mp4,video/quicktime"><div class="uploadbar"><span id="loopProgress"></span></div></label></div></div><div class="grid"><div class="card pad"><h3 class="section-title">Thumbnail padrão</h3><p class="small muted">A thumbnail selecionada é usada automaticamente nos vídeos e pode ser escolhida na live.</p><label class="assetdrop" for="thumbFile"><b class="small">Selecionar JPG/PNG/WEBP</b><div class="tiny muted" style="margin-top:5px">Recomendado 1280×720 ou maior</div><input id="thumbFile" type="file" accept="image/jpeg,image/png,image/webp"><div class="uploadbar"><span id="thumbProgress"></span></div></label><div class="list" style="margin-top:12px">${assetsHtml('thumbnail')}</div></div></div></div>`;
+    root.innerHTML=`<div class="grid grid2"><div class="grid"><div class="card pad"><h3 class="section-title">Master visual em loop</h3><p class="small muted">O master visual oficial é puxado automaticamente do GitHub Release <b>office-assets-v1</b> e usado em cada render e live. O upload abaixo fica disponível apenas para alternativas personalizadas.</p><div class="list" style="margin:12px 0">${officialMaster}${customLoops}</div><label class="assetdrop" for="loopFile"><b class="small">Enviar master alternativo MP4/MOV</b><div class="tiny muted" style="margin-top:5px">Aceita até 1 GB · recomendado 16:9</div><input id="loopFile" type="file" accept="video/mp4,video/quicktime"><div class="uploadbar"><span id="loopProgress"></span></div></label></div></div><div class="grid"><div class="card pad"><h3 class="section-title">Thumbnail padrão</h3><p class="small muted">A thumbnail selecionada é usada automaticamente nos vídeos e pode ser escolhida na live. Ao enviar uma nova imagem, o nome inicial do asset será exatamente o nome do arquivo.</p><label class="assetdrop" for="thumbFile"><b class="small">Selecionar JPG/PNG/WEBP</b><div class="tiny muted" style="margin-top:5px">Recomendado 1280×720 ou maior</div><input id="thumbFile" type="file" accept="image/jpeg,image/png,image/webp"><div class="uploadbar"><span id="thumbProgress"></span></div></label><div class="list" style="margin-top:12px">${assetsHtml('thumbnail')}</div></div></div></div>`;
     const wire=(id,type,pid)=>{const input=root.querySelector('#'+id);input.onchange=async()=>{const f=input.files?.[0];if(!f)return;const bar=root.querySelector('#'+pid);try{toast('Upload iniciado',f.name);await uploadAsset(type,f,bar);toast('Asset salvo',type==='loop'?'Novo master visual definido como padrão.':'Nova thumbnail definida como padrão.');await refresh()}catch(e){toast('Falha no upload',e.message||String(e),'error');bar.style.width='0%'}}};
+    wire('loopFile','loop','loopProgress');
     wire('thumbFile','thumbnail','thumbProgress');
     root.querySelectorAll('.setDefault').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await invoke({action:'set_default_asset',asset_id:b.dataset.id});toast('Padrão atualizado');await refresh()}catch(e){toast('Falha',e.message||String(e),'error');b.disabled=false}});
+    root.querySelectorAll('.previewAsset').forEach(b=>b.onclick=()=>{const a=state.assets.find(x=>x.id===b.dataset.id);if(a)openAssetPreview(a)});
+    root.querySelectorAll('.renameAsset').forEach(b=>b.onclick=async()=>{const a=state.assets.find(x=>x.id===b.dataset.id);if(!a)return;const title=(prompt('Novo nome do asset:',a.title||'')||'').trim();if(!title||title===a.title)return;b.disabled=true;try{const {error}=await client.rpc('rename_office_music_asset',{p_asset_id:a.id,p_title:title});if(error)throw error;toast('Asset renomeado',title);await refresh()}catch(e){toast('Falha ao renomear',e.message||String(e),'error');b.disabled=false}});
     root.querySelectorAll('.deleteAsset').forEach(b=>b.onclick=async()=>{if(!confirm('Excluir este asset permanentemente?'))return;b.disabled=true;try{await invoke({action:'delete_asset',asset_id:b.dataset.id});toast('Asset excluído');await refresh()}catch(e){toast('Falha ao excluir',e.message||String(e),'error');b.disabled=false}});
   }
 
