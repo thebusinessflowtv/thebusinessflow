@@ -1,147 +1,201 @@
 (()=>{
-  const OFFICE_HASH='#/settings?tab=office-music';
   const SB_URL='https://fykwalznmcrjgnyveagy.supabase.co';
   const SB_KEY='sb_publishable_46tbOLOFhKqirGConFVg2w_xRQmmVli';
+  const BUCKET='office-music-assets';
   const client=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const terminal=new Set(['completed','failed']);
+  let state={jobs:[],tracks:[],lives:[],assets:[],tab:'generate'};
   let refreshTimer=null;
-  const done=new Set(['completed','failed']);
+
   const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const fmt=d=>d?new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
-  const mins=s=>Math.max(1,Math.round(Number(s||0)/60));
+  const mm=s=>Math.max(1,Math.round(Number(s||0)/60));
+  const urlOf=t=>String(t?.metadata?.download_url||t?.github_path||'');
+  const liveActive=s=>['queued','starting','live','reconnecting','stopping'].includes(s);
+  const jobTone=s=>s==='completed'?'green':s==='failed'?'red':s==='queued'?'amber':'blue';
+  const jobLabel=s=>({queued:'Na fila',generating:'Gerando músicas',rendering:'Renderizando 4K',uploading:'Enviando ao YouTube',completed:'Concluído',failed:'Falhou'}[s]||s||'—');
+  const liveTone=s=>s==='live'?'green':s==='completed'?'blue':s==='failed'?'red':'amber';
+  const liveLabel=s=>({queued:'Preparando',starting:'Conectando ao YouTube',live:'AO VIVO',reconnecting:'Reconectando',stopping:'Encerrando',completed:'Encerrada',failed:'Falhou'}[s]||s||'—');
 
-  function addStyles(){
-    if(document.getElementById('office-music-styles'))return;
-    const style=document.createElement('style');
-    style.id='office-music-styles';
-    style.textContent=`
-      .om-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:16px}
-      .om-hero{padding:22px;background:linear-gradient(135deg,rgba(91,149,255,.08),rgba(128,103,238,.12));border:1px solid var(--line);border-radius:var(--r)}
-      .om-big{font-size:42px;font-weight:750;letter-spacing:-.05em;line-height:1}.om-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-      .om-quick{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.om-chip{border:1px solid var(--line2);background:#11141b;color:var(--muted);border-radius:999px;padding:7px 11px;font-size:11px}.om-chip:hover,.om-chip.on{border-color:#766af7;color:var(--txt);background:rgba(118,106,247,.09)}
-      .om-job{padding:14px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.018)}.om-job+.om-job{margin-top:9px}.om-progress{height:7px;background:#1e222c;border-radius:999px;overflow:hidden;margin-top:9px}.om-progress span{height:100%;display:block;background:linear-gradient(90deg,#579fff,#8f72ff);border-radius:999px}
-      .om-track{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(37,41,56,.7)}.om-track:last-child{border-bottom:0}
-      .om-live{opacity:.7}.om-note{border:1px solid rgba(95,211,160,.23);background:rgba(95,211,160,.06);border-radius:10px;padding:11px;color:#b8e8d3;font-size:12px;line-height:1.45}
-      @media(max-width:900px){.om-grid{grid-template-columns:1fr}.om-track{grid-template-columns:minmax(0,1fr) auto}.om-track .om-download{grid-column:1/-1}}
-    `;
-    document.head.appendChild(style);
-  }
-
-  function toastLocal(title,text,type='success'){
+  function toast(title,text='',type='ok'){
     const root=document.getElementById('toasts'); if(!root)return;
-    const el=document.createElement('div'); el.className='toast '+(type==='error'?'error':'success');
-    el.innerHTML='<b>'+esc(title)+'</b><div class="muted">'+esc(text||'')+'</div>'; root.appendChild(el);
-    setTimeout(()=>el.remove(),4200);
+    const el=document.createElement('div'); el.className='toast'+(type==='error'?' error':'');
+    el.innerHTML='<b>'+esc(title)+'</b><div class="muted">'+esc(text)+'</div>'; root.appendChild(el); setTimeout(()=>el.remove(),5000);
   }
 
   async function invoke(body){
     const {data,error}=await client.functions.invoke('office-music-control',{body});
     if(error)throw error;
-    if(data&&data.error)throw new Error(data.message||data.error);
+    if(data?.error)throw new Error(data.message||data.error);
     return data;
   }
 
-  function ensureNav(){
-    const nav=document.querySelector('.sidebar .nav'); if(!nav)return;
-    let link=document.getElementById('officeMusicNav');
-    if(!link){
-      link=document.createElement('a'); link.id='officeMusicNav'; link.href=OFFICE_HASH; link.innerHTML='<span class="ico">♫</span>The Office Music';
-      nav.appendChild(link);
-    }
-    const active=location.hash.includes('tab=office-music');
-    if(active){document.querySelectorAll('.sidebar .nav a').forEach(a=>a.classList.remove('active'));link.classList.add('active')}
+  async function auth(){
+    const {data:{session}}=await client.auth.getSession();
+    if(!session){ location.href='./index.html'; return null; }
+    const email=session.user?.email||'Administrador';
+    const box=document.getElementById('userBox'); if(box)box.textContent=email;
+    return session;
   }
 
-  async function loadData(){
-    const [jobsR,tracksR]=await Promise.all([
-      client.from('office_music_jobs').select('*').order('created_at',{ascending:false}).limit(20),
-      client.from('office_music_tracks').select('*').order('created_at',{ascending:false}).limit(80)
+  async function loadData(sync=true){
+    const [jobsR,tracksR,livesR,assetsR]=await Promise.all([
+      client.from('office_music_jobs').select('*').order('created_at',{ascending:false}).limit(30),
+      client.from('office_music_tracks').select('*').order('created_at',{ascending:false}).limit(200),
+      client.from('office_music_live_sessions').select('*').order('created_at',{ascending:false}).limit(30),
+      client.from('office_music_assets').select('*').order('created_at',{ascending:false}).limit(100)
     ]);
-    if(jobsR.error)throw jobsR.error;if(tracksR.error)throw tracksR.error;
-    return {jobs:jobsR.data||[],tracks:tracksR.data||[]};
-  }
-
-  function statusTone(s){return s==='completed'?'p-success':s==='failed'?'p-danger':s==='queued'?'p-warning':'p-violet'}
-  function statusLabel(s){return({queued:'Na fila',generating:'Gerando músicas',rendering:'Renderizando 4K',uploading:'Enviando ao YouTube',completed:'Concluído',failed:'Falhou'}[s]||s||'—')}
-
-  async function syncActive(jobs){
-    const active=jobs.filter(j=>!done.has(j.status));
-    for(const j of active.slice(0,4)){
-      try{await invoke({action:'sync_job',job_id:j.id})}catch(e){console.warn('Office Music sync failed',e)}
+    for(const r of [jobsR,tracksR,livesR,assetsR]) if(r.error)throw r.error;
+    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[];
+    if(sync){
+      const jobs=state.jobs.filter(j=>!terminal.has(j.status)).slice(0,5);
+      const lives=state.lives.filter(l=>liveActive(l.status)).slice(0,4);
+      await Promise.allSettled([
+        ...jobs.map(j=>invoke({action:'sync_job',job_id:j.id})),
+        ...lives.map(l=>invoke({action:'sync_live',session_id:l.id}))
+      ]);
+      if(jobs.length||lives.length)return loadData(false);
     }
+    return state;
   }
 
-  function jobsHtml(jobs){
-    if(!jobs.length)return '<div class="small muted">Nenhuma geração ainda.</div>';
-    return jobs.slice(0,8).map(j=>{
-      const yt=j.youtube_url?'<a class="btn" target="_blank" rel="noopener" href="'+esc(j.youtube_url)+'">▶ YouTube</a>':'';
-      const gh=j.github_run_url?'<a class="btn" target="_blank" rel="noopener" href="'+esc(j.github_run_url)+'">⌘ GitHub</a>':'';
-      return '<div class="om-job"><div class="row between wrap"><div><b class="small">'+esc(j.title||('Mix de '+j.requested_duration_minutes+' min'))+'</b><div class="tiny muted" style="margin-top:3px">'+fmt(j.created_at)+' · '+j.requested_duration_minutes+' min · '+j.requested_tracks+' faixas solicitadas</div></div><span class="pill '+statusTone(j.status)+'">'+esc(statusLabel(j.status))+'</span></div><div class="om-progress"><span style="width:'+Math.max(0,Math.min(100,Number(j.progress)||0))+'%"></span></div>'+(j.error_message?'<div class="alert danger" style="margin-top:9px">'+esc(j.error_message)+'</div>':'')+((yt||gh)?'<div class="row wrap" style="margin-top:10px">'+yt+gh+'</div>':'')+'</div>'
-    }).join('')
+  function tab(name){
+    state.tab=name;
+    document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+    ['generate','live','library','assets'].forEach(v=>document.getElementById('view-'+v)?.classList.toggle('hidden',v!==name));
+    if(name==='generate')renderGenerate();
+    if(name==='live')renderLive();
+    if(name==='library')renderLibrary();
+    if(name==='assets')renderAssets();
   }
 
-  function tracksHtml(tracks){
-    if(!tracks.length)return '<div class="small muted">As músicas geradas aparecerão aqui quando o primeiro job concluir.</div>';
-    return tracks.slice(0,30).map(t=>{
-      const meta=t.metadata||{}; const url=meta.download_url||t.github_path||'';
-      return '<div class="om-track"><div><b class="small">'+esc(t.title)+'</b><div class="tiny muted">'+mins(t.duration_seconds)+' min'+(t.bpm?' · '+esc(t.bpm)+' BPM':'')+'</div></div><span class="pill p-violet">Original</span>'+(url?'<a class="btn om-download" target="_blank" rel="noopener" href="'+esc(url)+'">↓ Baixar</a>':'<span class="tiny muted om-download">salva no GitHub</span>')+'</div>'
-    }).join('')
+  function jobsHtml(){
+    if(!state.jobs.length)return '<div class="empty">Nenhuma geração criada ainda.</div>';
+    return state.jobs.slice(0,10).map(j=>{
+      const links=[]; if(j.youtube_url)links.push('<a class="btn" target="_blank" rel="noopener" href="'+esc(j.youtube_url)+'">▶ YouTube</a>'); if(j.github_run_url)links.push('<a class="btn" target="_blank" rel="noopener" href="'+esc(j.github_run_url)+'">⌘ Execução</a>');
+      return `<div class="job"><div class="row between wrap"><div><b class="small">${esc(j.title||('Mix de '+j.requested_duration_minutes+' minutos'))}</b><div class="tiny muted" style="margin-top:3px">${fmt(j.created_at)} · ${j.requested_duration_minutes} min · ${j.requested_tracks} faixas</div></div><span class="pill ${jobTone(j.status)}">${esc(jobLabel(j.status))}</span></div><div class="progress"><span style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></span></div>${j.error_message?'<div class="note" style="border-color:#66353b;background:#2b181b;color:#ffadb5;margin-top:9px">'+esc(j.error_message)+'</div>':''}${links.length?'<div class="row wrap" style="margin-top:9px">'+links.join('')+'</div>':''}</div>`;
+    }).join('');
   }
 
-  async function renderOffice(){
-    if(!location.hash.includes('tab=office-music'))return;
-    addStyles();ensureNav();
-    const page=document.querySelector('.page'); if(!page)return;
-    const crumb=document.querySelector('.crumb b'); if(crumb)crumb.textContent='The Office Music';
-    page.innerHTML='<div class="pagehead"><div><h1>The Office Music</h1><p>Gere uma sessão completa e publique automaticamente em 4K no YouTube.</p></div><span class="pill p-success">YouTube conectado</span></div><div class="card pad"><div class="row" style="justify-content:center;padding:44px"><div class="loader"></div></div></div>';
-    try{
-      let data=await loadData();
-      await syncActive(data.jobs); data=await loadData();
-      page.innerHTML=`
-        <div class="pagehead"><div><h1>The Office Music</h1><p>Geração, renderização 4K e publicação automática no canal.</p></div><span class="pill p-success">YouTube conectado</span></div>
-        <div class="om-grid">
-          <div class="grid">
-            <div class="om-hero">
-              <div class="om-label">Music Generator</div>
-              <div style="margin-top:14px" class="grid grid2">
-                <div>
-                  <label>Duração total</label>
-                  <div class="row"><input id="omDuration" class="input" type="number" min="6" max="360" step="1" value="60"><span class="muted small">min</span></div>
-                  <div class="om-quick">${[30,60,90,120].map(v=>'<button class="om-chip '+(v===60?'on':'')+'" data-min="'+v+'">'+v+' min</button>').join('')}</div>
-                </div>
-                <div class="metricbox"><small>PUBLICAÇÃO</small><b class="small">Automática e pública</b><div class="tiny muted" style="margin-top:7px">Música → mix → vídeo 4K → YouTube</div></div>
-              </div>
-              <div class="om-note" style="margin-top:16px">O render 4K usa um master visual curto codificado uma única vez e depois faz stream-copy do vídeo. Isso evita renderizações de horas para mixes longos.</div>
-              <button class="btn primary block" id="omGenerate" style="margin-top:16px;min-height:44px">♫ Gerar música e publicar</button>
-            </div>
-            <div class="card pad"><div class="row between"><h3 class="small">Gerações</h3><button class="btn" id="omRefresh">↻ Atualizar</button></div><div id="omJobs" style="margin-top:13px">${jobsHtml(data.jobs)}</div></div>
-          </div>
-          <div class="grid">
-            <div class="card pad"><div class="row between"><h3 class="small">Biblioteca de músicas</h3><span class="pill">GitHub</span></div><div id="omTracks" style="margin-top:10px">${tracksHtml(data.tracks)}</div></div>
-            <div class="card pad om-live"><div class="row between"><h3 class="small">Live</h3><span class="pill p-warning">Fase 2</span></div><p class="small muted" style="line-height:1.5">A biblioteca já está preparada para selecionar faixas. A transmissão contínua precisa do worker persistente de streaming para não depender do limite do GitHub Actions.</p></div>
-          </div>
-        </div>`;
-      document.querySelectorAll('.om-chip').forEach(b=>b.onclick=()=>{document.getElementById('omDuration').value=b.dataset.min;document.querySelectorAll('.om-chip').forEach(x=>x.classList.toggle('on',x===b))});
-      document.getElementById('omRefresh').onclick=renderOffice;
-      document.getElementById('omGenerate').onclick=async()=>{
-        const btn=document.getElementById('omGenerate');const duration=Math.max(6,Math.min(360,Number(document.getElementById('omDuration').value||60)));
-        btn.disabled=true;btn.textContent='Criando job…';
-        try{
-          const r=await invoke({action:'create_job',duration_minutes:duration,publish:true,privacy:'public'});
-          toastLocal('Geração iniciada',duration+' minutos · publicação pública automática');
-          await renderOffice();
-        }catch(e){toastLocal('Falha ao iniciar',e.message||String(e),'error');btn.disabled=false;btn.textContent='♫ Gerar música e publicar'}
-      };
-      clearInterval(refreshTimer);
-      if(data.jobs.some(j=>!done.has(j.status))) refreshTimer=setInterval(()=>{if(location.hash.includes('tab=office-music'))renderOffice()},15000);
-    }catch(e){page.innerHTML='<div class="pagehead"><div><h1>The Office Music</h1><p>Geração e publicação automática.</p></div></div><div class="card pad"><div class="alert danger"><b>Falha ao carregar</b><div style="margin-top:5px">'+esc(e.message||e)+'</div></div></div>'}
+  function renderGenerate(){
+    const root=document.getElementById('view-generate'); if(!root)return;
+    const loop=state.assets.find(a=>a.asset_type==='loop'&&a.is_default);
+    const thumb=state.assets.find(a=>a.asset_type==='thumbnail'&&a.is_default);
+    root.innerHTML=`<div class="grid grid2">
+      <div class="grid">
+        <div class="card hero">
+          <div class="label">Music Generator</div>
+          <h2 style="margin-top:8px">Gerar sessão completa</h2>
+          <p class="small muted" style="line-height:1.6;margin:6px 0 18px">Você escolhe apenas a duração. O sistema define quantidade de faixas, gera dentro do DNA aprovado, monta o mix, renderiza em 3840×2160 e publica como público no YouTube.</p>
+          <div class="field"><label>Duração total</label><div class="row"><input id="duration" class="input duration" type="number" min="6" max="360" step="1" value="60" style="max-width:170px"><b class="muted">min</b></div><div class="chips">${[30,60,90,120,180].map(x=>`<button class="chip ${x===60?'on':''}" data-min="${x}">${x} min</button>`).join('')}</div></div>
+          <div class="grid" style="grid-template-columns:repeat(3,1fr);margin:18px 0"><div class="metric"><small>MÚSICA</small><b>Stable Audio 3</b></div><div class="metric"><small>VÍDEO</small><b>4K · 3840×2160</b></div><div class="metric"><small>YOUTUBE</small><b>Público automático</b></div></div>
+          <div class="note">${loop?'Master visual configurado: <b>'+esc(loop.title||'Loop padrão')+'</b>':'Sem master visual personalizado: o sistema usa automaticamente um fallback seguro animado a partir da thumbnail.'}<br>${thumb?'Thumbnail padrão: <b>'+esc(thumb.title||'Thumbnail')+'</b>':'Thumbnail padrão do repositório será usada até você cadastrar uma em Assets.'}</div>
+          <button id="generateBtn" class="btn primary block" style="margin-top:16px;min-height:45px">♫ Gerar música + vídeo 4K + publicar</button>
+        </div>
+        <div class="card pad"><div class="row between"><h3 class="section-title" style="margin:0">Gerações</h3><button id="refreshJobs" class="btn">↻ Atualizar</button></div><div class="list" style="margin-top:12px">${jobsHtml()}</div></div>
+      </div>
+      <div class="grid">
+        <div class="card pad"><div class="label">Fluxo automático</div><div class="list" style="margin-top:12px"><div class="metric"><small>01</small><b>Geração musical</b><div class="tiny muted">Medium → Small fallback → master aprovado</div></div><div class="metric"><small>02</small><b>Mix exato</b><div class="tiny muted">Normalizado para a duração selecionada</div></div><div class="metric"><small>03</small><b>Render 4K resiliente</b><div class="tiny muted">Codifica o loop curto uma vez e usa stream-copy</div></div><div class="metric"><small>04</small><b>Publicação</b><div class="tiny muted">Upload resumível + título + descrição + capítulos</div></div></div></div>
+        <div class="card pad"><h3 class="section-title">DNA musical fixo</h3><div class="small muted" style="line-height:1.7">120–123 BPM · fashion-retail deep/lounge house · kick 4/4 limpo · baixo arredondado · hats nítidos · synth plucks minimalistas · pads quentes · energia 6/10 · instrumental · sem drops agressivos · mix comercial premium para escritório/home office.</div></div>
+      </div>
+    </div>`;
+    root.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{root.querySelector('#duration').value=b.dataset.min;root.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b))});
+    root.querySelector('#refreshJobs').onclick=refresh;
+    root.querySelector('#generateBtn').onclick=async()=>{
+      const btn=root.querySelector('#generateBtn'); const duration=Math.max(6,Math.min(360,Number(root.querySelector('#duration').value||60)));
+      btn.disabled=true; btn.textContent='Criando produção…';
+      try{await invoke({action:'create_job',duration_minutes:duration,publish:true,privacy:'public'});toast('Produção iniciada',`${duration} minutos · publicação pública automática`);await refresh();}
+      catch(e){toast('Falha ao iniciar',e.message||String(e),'error');btn.disabled=false;btn.textContent='♫ Gerar música + vídeo 4K + publicar'}
+    };
   }
 
-  function boot(){
-    ensureNav();
-    if(location.hash.includes('tab=office-music'))setTimeout(renderOffice,80);
-    const obs=new MutationObserver(()=>{ensureNav();if(location.hash.includes('tab=office-music')){const h=document.querySelector('.pagehead h1');if(!h||h.textContent!=='The Office Music')setTimeout(renderOffice,30)}});
-    obs.observe(document.body,{childList:true,subtree:true});
-    window.addEventListener('hashchange',()=>{clearInterval(refreshTimer);setTimeout(()=>{ensureNav();if(location.hash.includes('tab=office-music'))renderOffice()},80)});
+  function tracksPicker(){
+    if(!state.tracks.length)return '<div class="empty">Gere pelo menos uma sessão para liberar faixas para live.</div>';
+    return state.tracks.slice(0,80).map((t,i)=>{const u=urlOf(t);return `<label class="track" style="cursor:pointer"><input class="liveTrack" type="checkbox" value="${esc(t.id)}" ${i<10?'checked':''}><div><b>${esc(t.title)}</b><small>${mm(t.duration_seconds)} min${t.bpm?' · '+esc(t.bpm)+' BPM':''}</small></div>${u?`<audio controls preload="none" src="${esc(u)}"></audio>`:'<span class="tiny muted">sem preview</span>'}</label>`}).join('');
+  }
+
+  function liveSessionsHtml(){
+    if(!state.lives.length)return '<div class="empty">Nenhuma live criada ainda.</div>';
+    return state.lives.slice(0,10).map(l=>`<div class="liveitem"><div class="row between wrap"><div><b class="small">${esc(l.title||'The Office Music Live')}</b><div class="tiny muted" style="margin-top:3px">${fmt(l.created_at)} · ${l.duration_minutes?l.duration_minutes+' min':'contínua'}</div></div><span class="pill ${liveTone(l.status)}">${esc(liveLabel(l.status))}</span></div>${l.error_message?'<div class="note" style="border-color:#66353b;background:#2b181b;color:#ffadb5;margin-top:8px">'+esc(l.error_message)+'</div>':''}<div class="row wrap" style="margin-top:9px">${l.youtube_url?`<a class="btn" target="_blank" rel="noopener" href="${esc(l.youtube_url)}">▶ Abrir live</a>`:''}${l.github_run_url?`<a class="btn" target="_blank" rel="noopener" href="${esc(l.github_run_url)}">⌘ Execução</a>`:''}${liveActive(l.status)?`<button class="btn danger stopLive" data-id="${esc(l.id)}">■ Encerrar</button>`:''}</div></div>`).join('');
+  }
+
+  function renderLive(){
+    const root=document.getElementById('view-live'); if(!root)return;
+    const thumbs=state.assets.filter(a=>a.asset_type==='thumbnail');
+    root.innerHTML=`<div class="grid grid2">
+      <div class="grid">
+        <div class="card pad livehero"><div class="row"><span class="live-dot"></span><div class="label">YouTube Live</div></div><h2 style="font-size:18px;margin:11px 0 5px">Abrir uma live do The Office Music</h2><p class="small muted" style="line-height:1.6;margin:0 0 16px">Selecione músicas salvas, duração e thumbnail. O vídeo usa o master visual padrão em loop e a transmissão começa automaticamente.</p>
+          <div class="field"><label>Título da live</label><input id="liveTitle" class="input" maxlength="100" value="The Office Music — Live Office Lounge"></div>
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><div class="field"><label>Duração</label><select id="liveDuration" class="select"><option value="60">1 hora</option><option value="120">2 horas</option><option value="180">3 horas</option><option value="360">6 horas</option><option value="720">12 horas</option><option value="0">Contínua — até encerrar manualmente</option></select></div><div class="field"><label>Thumbnail</label><select id="liveThumb" class="select"><option value="">Thumbnail padrão</option>${thumbs.map(a=>`<option value="${esc(a.id)}" ${a.is_default?'selected':''}>${esc(a.title||'Thumbnail')}</option>`).join('')}</select></div></div>
+          <div class="row between" style="margin:8px 0"><div><b class="small">Playlist da live</b><div class="tiny muted">A ordem segue a biblioteca e reinicia automaticamente.</div></div><div class="row"><button id="selectAll" class="btn">Selecionar tudo</button><button id="clearAll" class="btn">Limpar</button></div></div>
+          <div class="list" style="max-height:420px;overflow:auto">${tracksPicker()}</div>
+          <div class="note" style="margin-top:12px">Modo contínuo é encadeado automaticamente para contornar o limite dos runners hospedados. Pode haver uma reconexão curta a cada bloco longo; o botão Encerrar envia um sinal de parada e finaliza a transmissão no YouTube.</div>
+          <button id="startLive" class="btn primary block" style="margin-top:14px;min-height:45px" ${state.tracks.length?'':'disabled'}>● Iniciar live</button>
+        </div>
+      </div>
+      <div class="grid"><div class="card pad"><div class="row between"><h3 class="section-title" style="margin:0">Lives</h3><button id="refreshLives" class="btn">↻ Atualizar</button></div><div class="list" style="margin-top:12px">${liveSessionsHtml()}</div></div><div class="card pad"><h3 class="section-title">Configuração automática</h3><div class="small muted" style="line-height:1.7">RTMP criado pela YouTube Live Streaming API · playlist em loop · vídeo 1080p/30 para estabilidade · áudio AAC · início e encerramento automáticos · reconexão encadeada no modo contínuo.</div></div></div>
+    </div>`;
+    root.querySelector('#selectAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=true);
+    root.querySelector('#clearAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=false);
+    root.querySelector('#refreshLives').onclick=refresh;
+    root.querySelectorAll('.stopLive').forEach(b=>b.onclick=async()=>{if(!confirm('Encerrar esta live agora?'))return;b.disabled=true;try{await invoke({action:'stop_live',session_id:b.dataset.id});toast('Encerramento solicitado','A transmissão será finalizada automaticamente.');await refresh()}catch(e){toast('Falha ao encerrar',e.message||String(e),'error');b.disabled=false}});
+    root.querySelector('#startLive').onclick=async()=>{
+      const ids=[...root.querySelectorAll('.liveTrack:checked')].map(x=>x.value); if(!ids.length){toast('Selecione músicas','Escolha pelo menos uma faixa para a live.','error');return}
+      const btn=root.querySelector('#startLive');btn.disabled=true;btn.textContent='Preparando transmissão…';
+      try{const d=Number(root.querySelector('#liveDuration').value);await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null});toast('Live criada','O YouTube será conectado e a transmissão começará automaticamente.');await refresh()}
+      catch(e){toast('Falha ao iniciar live',e.message||String(e),'error');btn.disabled=false;btn.textContent='● Iniciar live'}
+    };
+  }
+
+  function renderLibrary(){
+    const root=document.getElementById('view-library'); if(!root)return;
+    root.innerHTML=`<div class="card pad"><div class="row between"><div><h3 class="section-title" style="margin:0">Biblioteca de músicas</h3><div class="tiny muted" style="margin-top:4px">Faixas originais salvas pelo pipeline e disponíveis para vídeos e lives.</div></div><span class="pill blue">${state.tracks.length} faixas</span></div><div class="list" style="margin-top:14px">${state.tracks.length?state.tracks.map(t=>{const u=urlOf(t);return `<div class="track"><span class="pill blue">♫</span><div><b>${esc(t.title)}</b><small>${mm(t.duration_seconds)} min${t.bpm?' · '+esc(t.bpm)+' BPM':''} · ${esc(t.style||'fashion-retail lounge house')}</small></div>${u?`<div class="row"><audio controls preload="none" src="${esc(u)}"></audio><a class="btn" target="_blank" rel="noopener" href="${esc(u)}">↓</a></div>`:'<span class="tiny muted">arquivo pendente</span>'}</div>`}).join(''):'<div class="empty">A biblioteca será preenchida após a primeira geração.</div>'}</div></div>`;
+  }
+
+  function assetsHtml(type){
+    const list=state.assets.filter(a=>a.asset_type===type); if(!list.length)return '<div class="empty">Nenhum asset cadastrado.</div>';
+    return list.map(a=>`<div class="asset"><div class="row between wrap"><div><b class="small">${esc(a.title||a.storage_path)}</b><div class="tiny muted" style="margin-top:3px">${esc(a.mime_type||'')} ${a.size_bytes?'· '+(a.size_bytes/1024/1024).toFixed(1)+' MB':''}</div></div>${a.is_default?'<span class="pill green">Padrão</span>':'<button class="btn setDefault" data-id="'+esc(a.id)+'">Definir padrão</button>'}</div><div class="row" style="margin-top:9px"><button class="btn danger deleteAsset" data-id="${esc(a.id)}">Excluir</button></div></div>`).join('');
+  }
+
+  async function uploadAsset(type,file,progressEl){
+    const {data:{session}}=await client.auth.getSession(); if(!session)throw new Error('Sessão expirada');
+    const safe=(file.name||'asset').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g,'-').slice(-100);
+    const path=`${type}/${Date.now()}-${crypto.randomUUID()}-${safe}`;
+    return new Promise((resolve,reject)=>{
+      const up=new tus.Upload(file,{
+        endpoint:`${SB_URL}/storage/v1/upload/resumable`,
+        retryDelays:[0,1000,3000,5000,10000],
+        headers:{authorization:`Bearer ${session.access_token}`,'x-upsert':'true'},
+        uploadDataDuringCreation:true,
+        removeFingerprintOnSuccess:true,
+        chunkSize:6*1024*1024,
+        metadata:{bucketName:BUCKET,objectName:path,contentType:file.type||'application/octet-stream',cacheControl:'3600'},
+        onError:reject,
+        onProgress:(sent,total)=>{if(progressEl)progressEl.style.width=Math.round(sent/total*100)+'%'},
+        onSuccess:async()=>{try{await invoke({action:'register_asset',asset_type:type,storage_path:path,title:file.name,mime_type:file.type,size_bytes:file.size,set_default:true});resolve(path)}catch(e){reject(e)}}
+      });
+      up.findPreviousUploads().then(prev=>{if(prev.length)up.resumeFromPreviousUpload(prev[0]);up.start()}).catch(()=>up.start());
+    });
+  }
+
+  function renderAssets(){
+    const root=document.getElementById('view-assets'); if(!root)return;
+    root.innerHTML=`<div class="grid grid2"><div class="grid"><div class="card pad"><h3 class="section-title">Master visual em loop</h3><p class="small muted">Envie o vídeo oficial uma única vez. Arquivos grandes usam upload resumível e depois viram o padrão automático para renders e lives.</p><label class="assetdrop" for="loopFile"><b class="small">Selecionar vídeo MP4/MOV</b><div class="tiny muted" style="margin-top:5px">Aceita até 1 GB · recomendado 16:9</div><input id="loopFile" type="file" accept="video/mp4,video/quicktime"><div class="uploadbar"><span id="loopProgress"></span></div></label><div class="list" style="margin-top:12px">${assetsHtml('loop')}</div></div></div><div class="grid"><div class="card pad"><h3 class="section-title">Thumbnail padrão</h3><p class="small muted">A thumbnail selecionada é usada automaticamente nos vídeos e pode ser escolhida na live.</p><label class="assetdrop" for="thumbFile"><b class="small">Selecionar JPG/PNG/WEBP</b><div class="tiny muted" style="margin-top:5px">Recomendado 1280×720 ou maior</div><input id="thumbFile" type="file" accept="image/jpeg,image/png,image/webp"><div class="uploadbar"><span id="thumbProgress"></span></div></label><div class="list" style="margin-top:12px">${assetsHtml('thumbnail')}</div></div></div></div>`;
+    const wire=(id,type,pid)=>{const input=root.querySelector('#'+id);input.onchange=async()=>{const f=input.files?.[0];if(!f)return;const bar=root.querySelector('#'+pid);try{toast('Upload iniciado',f.name);await uploadAsset(type,f,bar);toast('Asset salvo',type==='loop'?'Novo master visual definido como padrão.':'Nova thumbnail definida como padrão.');await refresh()}catch(e){toast('Falha no upload',e.message||String(e),'error');bar.style.width='0%'}}};
+    wire('loopFile','loop','loopProgress'); wire('thumbFile','thumbnail','thumbProgress');
+    root.querySelectorAll('.setDefault').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await invoke({action:'set_default_asset',asset_id:b.dataset.id});toast('Padrão atualizado');await refresh()}catch(e){toast('Falha',e.message||String(e),'error');b.disabled=false}});
+    root.querySelectorAll('.deleteAsset').forEach(b=>b.onclick=async()=>{if(!confirm('Excluir este asset permanentemente?'))return;b.disabled=true;try{await invoke({action:'delete_asset',asset_id:b.dataset.id});toast('Asset excluído');await refresh()}catch(e){toast('Falha ao excluir',e.message||String(e),'error');b.disabled=false}});
+  }
+
+  async function refresh(){
+    try{await loadData(true);tab(state.tab);schedule()}catch(e){toast('Falha ao atualizar',e.message||String(e),'error')}
+  }
+  function schedule(){clearInterval(refreshTimer);if(state.jobs.some(j=>!terminal.has(j.status))||state.lives.some(l=>liveActive(l.status)))refreshTimer=setInterval(refresh,15000)}
+
+  async function boot(){
+    const s=await auth(); if(!s)return;
+    document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
+    try{await loadData(true);tab('generate');schedule()}catch(e){toast('Falha ao carregar The Office Music',e.message||String(e),'error')}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
