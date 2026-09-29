@@ -35,6 +35,7 @@ jobs:
 
           app = Path('control-center/index.html').read_text(encoding='utf-8')
           gate = Path('control-center/secure.html').read_text(encoding='utf-8')
+          office = Path('control-center/office-music.js').read_text(encoding='utf-8')
 
           required_app = [
             '<title>MediaForge Control Center</title>',
@@ -44,6 +45,13 @@ jobs:
           ]
           missing = [item for item in required_app if item not in app]
           assert not missing, f'Missing app contract: {missing}'
+
+          required_office = [
+            'The Office Music', 'office-music-control', 'office_music_jobs',
+            'office_music_tracks', 'duration_minutes', 'privacy:\'public\''
+          ]
+          missing_office = [item for item in required_office if item not in office]
+          assert not missing_office, f'Missing Office Music contract: {missing_office}'
 
           required_gate = [
             'ACESSO PRIVADO', 'user_roles', "eq('role','admin')",
@@ -59,6 +67,7 @@ jobs:
           PY
           node --check /tmp/mfcc-app.js
           node --check /tmp/mfcc-gate.js
+          node --check control-center/office-music.js
 
       - name: Prepare Control Center subpath
         shell: bash
@@ -68,6 +77,16 @@ jobs:
           mkdir -p _site/control-center
           cp control-center/secure.html _site/control-center/index.html
           cp control-center/index.html _site/control-center/app.html
+          cp control-center/office-music.js _site/control-center/office-music.js
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('_site/control-center/app.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '<script src="./office-music.js"></script>'
+          if marker not in s:
+              s = s.replace('</body>', marker + '\n</body>')
+          p.write_text(s, encoding='utf-8')
+          PY
           touch _site/.nojekyll
           cat > _site/index.html <<'HTML'
           <!doctype html>
