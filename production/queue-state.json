@@ -16,12 +16,12 @@
     "custom-google-real-money-machine-2026-09",
     "custom-broadcom-hidden-giant-2026-09"
   ],
-  "current_topic": "custom-us-convenience-collapse-2026-09",
-  "source_run_id": 36493780560,
+  "current_topic": "custom-us-fastfood-collapse-2026-09",
+  "source_run_id": null,
   "production_attempts": {
     "custom-us-airline-collapse-2026-09": 3,
     "custom-us-convenience-collapse-2026-09": 2,
-    "custom-us-fastfood-collapse-2026-09": 0,
+    "custom-us-fastfood-collapse-2026-09": 1,
     "custom-10-american-billion-dollar-companies-2026-09": 1,
     "custom-15-us-industries-billions-2026-09": 1,
     "custom-top-5-most-valuable-us-companies-2026-09": 1,
@@ -49,9 +49,9 @@
   },
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
-  "last_action": "blocked_production:custom-us-airline-collapse-2026-09",
-  "updated_at": "2026-09-28T23:49:46.911671+00:00",
-  "last_reason": "retrying private upload attempt 3/3",
+  "last_action": "blocked_upload:custom-us-convenience-collapse-2026-09",
+  "updated_at": "2026-09-29T00:02:06.061729+00:00",
+  "last_reason": "starting next queued topic attempt 1/3",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
 }
