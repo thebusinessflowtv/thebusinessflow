@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>The Office Music · MediaForge</title>
+  <meta name="description" content="Geração, biblioteca, assets e lives do canal The Office Music.">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
+  <style>
+    :root{--bg:#050506;--side:#111113;--panel:#171719;--panel2:#202023;--line:#35353a;--text:#f5f5f6;--muted:#9b9ba3;--blue:#1791ff;--green:#36d399;--amber:#f2b85b;--red:#ff6f7d;--r:18px}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#000;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}.hidden{display:none!important}
+    .shell{min-height:100vh;display:grid;grid-template-columns:216px minmax(0,1fr)}.sidebar{position:sticky;top:0;height:100vh;background:#121214;border-right:1px solid #333337;padding:18px 13px;display:flex;flex-direction:column}.brand{display:flex;gap:10px;align-items:center;padding:0 6px 24px}.brandmark{width:34px;height:34px;border-radius:10px;background:#178cff;display:grid;place-items:center;font-weight:800}.brand b{font-size:13px;display:block}.brand small{font-size:10px;color:var(--muted)}
+    .nav{display:grid;gap:3px}.nav a{color:#b7b7bd;padding:10px 11px;border-radius:10px;font-size:12px;display:flex;gap:10px;align-items:center}.nav a:hover,.nav a.active{background:#303034;color:#fff}.nav a.active{box-shadow:inset 2px 0 #188fff}.ico{width:16px;text-align:center}.spacer{flex:1}.user{border:1px solid #48484e;border-radius:12px;padding:10px;font-size:10px;color:var(--muted)}
+    .main{min-width:0}.topbar{height:56px;border-bottom:1px solid #343438;background:#111113;display:flex;align-items:center;padding:0 28px;position:sticky;top:0;z-index:20}.crumb{font-size:12px;color:var(--muted)}.crumb b{color:#fff}.page{max-width:1220px;margin:auto;padding:28px}.pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:18px}.pagehead h1{font-size:28px;margin:0 0 4px;letter-spacing:-.04em}.pagehead p{margin:0;color:var(--muted);font-size:12px}.status{display:flex;gap:7px;align-items:center;border:1px solid #285f45;background:#123525;color:#9fe5c4;border-radius:999px;padding:7px 10px;font-size:10px}.status:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green)}
+    .tabs{display:flex;gap:5px;border-bottom:1px solid #29292e;margin-bottom:18px}.tab{border:0;background:transparent;color:var(--muted);padding:11px 14px;border-bottom:2px solid transparent;font-size:12px}.tab.on{color:#fff;border-bottom-color:var(--blue)}
+    .grid{display:grid;gap:14px}.grid2{grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr)}.card{background:linear-gradient(180deg,#1b1b1e,#151517);border:1px solid #3b3b40;border-radius:18px;box-shadow:inset 0 1px rgba(255,255,255,.05),0 18px 50px rgba(0,0,0,.24)}.pad{padding:18px}.hero{padding:22px}.hero h2{font-size:18px;margin:0}.muted{color:var(--muted)}.small{font-size:12px}.tiny{font-size:10px}.label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}.row{display:flex;align-items:center;gap:9px}.between{justify-content:space-between}.wrap{flex-wrap:wrap}
+    .input,.select{width:100%;background:#101012;border:1px solid #3b3b40;border-radius:10px;color:#fff;padding:11px 12px;outline:none}.input:focus,.select:focus{border-color:#188fff;box-shadow:0 0 0 3px rgba(24,143,255,.12)}label{display:block;font-size:11px;color:#c9c9cd;margin-bottom:6px}.field{margin-bottom:14px}.duration{font-size:38px;font-weight:760;letter-spacing:-.05em}.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid #3a3a40;background:#242428;color:#b9b9bf;border-radius:999px;padding:7px 11px;font-size:10px}.chip.on{border-color:#188fff;background:#152c43;color:#fff}
+    .btn{border:1px solid #44444a;background:#29292d;color:#fff;border-radius:10px;padding:10px 13px;font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:7px}.btn:hover{background:#323237}.btn.primary{border-color:#1990ff;background:linear-gradient(#1595ff,#087bdc);box-shadow:0 9px 25px rgba(0,133,255,.22)}.btn.danger{border-color:#66353b;color:#ffadb5;background:#2b181b}.btn:disabled{opacity:.45;cursor:not-allowed}.block{width:100%}.note{border:1px solid #304758;background:#142430;border-radius:11px;padding:11px;font-size:11px;color:#b8d5e8;line-height:1.5}
+    .metric{border:1px solid #35353a;border-radius:12px;padding:13px;background:#111113}.metric small{display:block;color:var(--muted);font-size:9px;margin-bottom:5px}.metric b{font-size:12px}.job,.liveitem,.asset,.track{border:1px solid #37373c;background:#121214;border-radius:12px;padding:12px}.job+.job,.liveitem+.liveitem,.asset+.asset{margin-top:8px}.pill{display:inline-flex;gap:5px;align-items:center;border-radius:999px;padding:5px 8px;border:1px solid #3d3d43;background:#222226;color:#c9c9ce;font-size:9px}.pill.green{color:#94e5bd;border-color:#28563f;background:#102c1f}.pill.blue{color:#9bceff;border-color:#275270;background:#112536}.pill.amber{color:#ffd48e;border-color:#654d28;background:#2d2415}.pill.red{color:#ffb0b8;border-color:#65373c;background:#2d181b}.progress{height:6px;border-radius:999px;background:#29292e;overflow:hidden;margin-top:8px}.progress span{display:block;height:100%;background:#198fff}.list{display:grid;gap:8px}.track{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}.track input{accent-color:#188fff}.track b{font-size:11px}.track small{display:block;color:var(--muted);font-size:9px;margin-top:2px}.track audio{width:150px;height:28px}.empty{padding:26px;text-align:center;color:var(--muted);font-size:11px}
+    .livehero{background:radial-gradient(600px 260px at 0 0,rgba(180,41,79,.13),transparent 60%),linear-gradient(180deg,#1b1b1e,#151517)}.live-dot{width:9px;height:9px;border-radius:50%;background:#f14c63;box-shadow:0 0 0 5px rgba(241,76,99,.12)}.assetdrop{border:1px dashed #515159;border-radius:13px;padding:18px;text-align:center;background:#111113}.assetdrop input{display:none}.uploadbar{height:6px;border-radius:999px;background:#29292e;overflow:hidden;margin-top:10px}.uploadbar span{display:block;height:100%;width:0;background:#188fff}.toggleline{display:flex;justify-content:space-between;align-items:center;gap:20px}.toggle{width:43px;height:24px;border-radius:999px;background:#303036;padding:3px;border:1px solid #47474d}.toggle:after{content:"";display:block;width:16px;height:16px;border-radius:50%;background:#b7b7bd;transition:.2s}.toggle.on{background:#0b77cd;border-color:#168ee9}.toggle.on:after{transform:translateX(18px);background:#fff}
+    .toastbox{position:fixed;right:18px;top:18px;z-index:100;display:grid;gap:8px}.toast{background:#202024;border:1px solid #46464d;border-radius:11px;padding:12px 14px;min-width:280px;box-shadow:0 16px 50px rgba(0,0,0,.4);font-size:11px}.toast.error{border-color:#7c3941}.toast b{display:block;margin-bottom:3px}.section-title{font-size:13px;margin:0 0 12px}
+    @media(max-width:920px){.shell{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.nav{grid-template-columns:repeat(2,1fr)}.spacer,.user{display:none}.grid2{grid-template-columns:1fr}.page{padding:18px}.track{grid-template-columns:auto 1fr}.track audio{grid-column:2/-1;width:100%}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark">M</div><div><b>MediaForge</b><small>Control Center</small></div></div>
+    <nav class="nav">
+      <a href="./index.html#/dashboard"><span class="ico">⌘</span>Dashboard</a>
+      <a href="./index.html#/create"><span class="ico">＋</span>Criar Vídeo</a>
+      <a href="./index.html#/ideas"><span class="ico">✦</span>Ideias</a>
+      <a href="./index.html#/productions"><span class="ico">▣</span>Produções</a>
+      <a href="./index.html#/channels"><span class="ico">◉</span>Canais</a>
+      <a href="./office-music.html" class="active"><span class="ico">♫</span>The Office Music</a>
+      <a href="./index.html#/autoheal"><span class="ico">◇</span>Auto Heal</a>
+      <a href="./index.html#/settings"><span class="ico">⚙</span>Configurações</a>
+    </nav>
+    <div class="spacer"></div><div class="user" id="userBox">Carregando usuário…</div>
+  </aside>
+  <main class="main">
+    <div class="topbar"><div class="crumb">MediaForge / <b>The Office Music</b></div></div>
+    <div class="page">
+      <div class="pagehead"><div><h1>The Office Music</h1><p>Geração musical, biblioteca, publicação 4K e lives em um fluxo separado dos canais de vídeo.</p></div><div class="status">Sistema conectado</div></div>
+      <div class="tabs">
+        <button class="tab on" data-tab="generate">Gerar música</button>
+        <button class="tab" data-tab="live">Live</button>
+        <button class="tab" data-tab="library">Biblioteca</button>
+        <button class="tab" data-tab="assets">Assets</button>
+      </div>
+      <section id="view-generate"></section>
+      <section id="view-live" class="hidden"></section>
+      <section id="view-library" class="hidden"></section>
+      <section id="view-assets" class="hidden"></section>
+    </div>
+  </main>
+</div>
+<div id="toasts" class="toastbox"></div>
+<script src="./office-music.js?v=20260929-2"></script>
+</body>
+</html>
