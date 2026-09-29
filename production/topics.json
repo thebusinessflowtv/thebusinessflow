@@ -24,13 +24,13 @@
       "mfcc_channel_slug": "the-business-flow",
       "mfcc_requested_by": "cfa2b99a-68d0-41db-b5fa-1bda45f0506a",
       "autoheal": {
-        "attempt": 1,
-        "nonce": "2026-09-29T17:11:09.527Z",
-        "error_class": "unknown",
-        "stage": "unknown"
+        "attempt": 2,
+        "nonce": "2026-09-29T17:18:10.821Z",
+        "error_class": "ai_generation",
+        "stage": "script"
       },
       "status": "ready",
-      "scored_at": "2026-09-29T17:11:18.730515+00:00"
+      "scored_at": "2026-09-29T17:18:23.678189+00:00"
     },
     {
       "id": "famous-001",
