@@ -1,21 +1,21 @@
 {
-  "id": "91591616-d501-4378-b86d-a22af8d1d663",
-  "topic": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
+  "id": "b1cc59da-27f6-444d-a826-8fe1cf66d729",
+  "topic": "The Famous American Fast-Food Chain That Went Bankrupt",
   "category": "timely business/technology",
-  "working_angle": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
-  "title_seed": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
+  "working_angle": "The Famous American Fast-Food Chain That Went Bankrupt",
+  "title_seed": "The Famous American Fast-Food Chain That Went Bankrupt",
   "thumbnail_text_seed": "NEW STORY",
   "click_score": 100,
   "click_reason": "MediaForge Auto Heal retry.",
   "objective": "curiosity",
   "upload_requested": false,
-  "mfcc_production_id": "91591616-d501-4378-b86d-a22af8d1d663",
+  "mfcc_production_id": "b1cc59da-27f6-444d-a826-8fe1cf66d729",
   "mfcc_channel_slug": "the-business-flow",
   "mfcc_requested_by": "cfa2b99a-68d0-41db-b5fa-1bda45f0506a",
   "autoheal": {
     "attempt": 1,
-    "nonce": "2026-09-29T04:19:53.127Z",
-    "error_class": "media_collection",
-    "stage": "media"
+    "nonce": "2026-09-29T17:11:09.527Z",
+    "error_class": "unknown",
+    "stage": "unknown"
   }
 }
