@@ -1,0 +1,42 @@
+name: Patch Office Music Navigation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-office-music-nav.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wire dedicated page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('control-center/index.html')
+          s=p.read_text(encoding='utf-8')
+          s=re.sub(r'<script[^>]+src=["\'][^"\']*office-music\.js[^"\']*["\'][^>]*></script>\s*','',s,flags=re.I)
+          tag='<script src="./office-music-nav.js?v=20260929-2"></script>'
+          if 'office-music-nav.js' not in s:
+              if '</body>' in s: s=s.replace('</body>',tag+'\n</body>')
+              else: s+='\n'+tag+'\n'
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control-center/index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: move The Office Music out of regular video creation"
+          git pull --rebase origin main
+          git push origin HEAD:main
