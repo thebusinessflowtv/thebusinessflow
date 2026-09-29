@@ -1,0 +1,119 @@
+{
+  "thesis": "Spirit Airlines went from one of the US's most profitable carriers to filing two bankruptcies in six months and ceasing operations entirely on May 2, 2026—the largest airline collapse in a generation—due to fuel volatility, blocked mergers, and structural cost disadvantages.",
+  "facts": [
+    {
+      "claim": "Spirit filed for Chapter 11 bankruptcy on November 18, 2024, emerged March 12, 2025, then filed a second Chapter 11 on August 29, 2025—both within six months.",
+      "source_url": "https://dwuconsulting.com/dwu-ai/spirit-airlines-financial-profile",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Spirit ceased operations on May 2, 2026, marking the biggest U.S. airline collapse in a generation after filing Chapter 7 liquidation.",
+      "source_url": "https://www.cnbc.com/2026/05/05/spirit-airlines-bankruptcy-costs.html",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "A proposed $3.8 billion merger with JetBlue was blocked by federal antitrust ruling, eliminating Spirit's primary restructuring lifeline.",
+      "source_url": "https://blog.brerpsoft.com/airlines-are-going-broke-in-2026/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Jet fuel prices surged from $2.24 per gallon (budgeted) to $4.51 by April 2026, creating nearly $100 million in unexpected costs in March-April alone.",
+      "source_url": "https://blog.brerpsoft.com/airlines-are-going-broke-in-2026/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Spirit had not been profitable since before the pandemic, losing over $2.5 billion between 2020 and 2025 despite being once-profitable.",
+      "source_url": "https://blog.brerpsoft.com/airlines-are-going-broke-in-2026/",
+      "safe_for_packaging": true
+    },
+    {
+      "claim": "Regulatory opposition blocked mergers with both Frontier and JetBlue, resulting in significant job cuts and furloughs across Spirit's workforce.",
+      "source_url": "https://skift.com/2026/04/22/how-spirit-airlines-fell-apart-a-complete-timeline/",
+      "safe_for_packaging": true
+    }
+  ],
+  "verified_numbers": [
+    {
+      "value": "$217 million",
+      "context": "Wind-down budget filed by Spirit Airlines through February 2028, including employee and aircraft-related expenses.",
+      "source_url": "https://www.cnbc.com/2026/05/05/spirit-airlines-bankruptcy-costs.html"
+    },
+    {
+      "value": "$246 million",
+      "context": "Net loss reported by Spirit in Q2 2025 alone, contradicting earlier profitability projections after emerging from first bankruptcy.",
+      "source_url": "https://dwuconsulting.com/dwu-ai/airline-bankruptcy-restructuring-history"
+    },
+    {
+      "value": "$2.5 billion",
+      "context": "Cumulative losses Spirit Airlines incurred between 2020 and 2025, ending a period of prior profitability.",
+      "source_url": "https://blog.brerpsoft.com/airlines-are-going-broke-in-2026/"
+    },
+    {
+      "value": "59 Airbus A320s + 37 A321s",
+      "context": "Active fleet composition at time of liquidation filing, plus aircraft in storage; assets to be dismantled and sold.",
+      "source_url": "https://www.cnbc.com/2026/05/05/spirit-airlines-bankruptcy-costs.html"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "November 18, 2024",
+      "event": "Spirit Airlines filed for first Chapter 11 bankruptcy protection, marking major U.S. carrier insolvency.",
+      "source_url": "https://dwuconsulting.com/dwu-ai/spirit-airlines-financial-profile"
+    },
+    {
+      "date": "March 12, 2025",
+      "event": "Spirit emerged from first Chapter 11 restructuring after pre-arranged process lasting roughly four months.",
+      "source_url": "https://dwuconsulting.com/dwu-ai/spirit-airlines-financial-profile"
+    },
+    {
+      "date": "August 29, 2025",
+      "event": "Spirit filed second Chapter 11 bankruptcy less than six months after emergence, citing structural challenges and fuel volatility.",
+      "source_url": "https://dwuconsulting.com/dwu-ai/spirit-airlines-financial-profile"
+    },
+    {
+      "date": "May 2, 2026",
+      "event": "Spirit Airlines ceased operations and began Chapter 7 liquidation; company ceased SEC filings thereafter.",
+      "source_url": "https://dwuconsulting.com/dwu-ai/spirit-airlines-financial-profile"
+    }
+  ],
+  "sources": [
+    {
+      "title": "dwuconsulting.com",
+      "url": "https://dwuconsulting.com/dwu-ai/spirit-airlines-financial-profile",
+      "source_type": "web"
+    },
+    {
+      "title": "cnbc.com",
+      "url": "https://www.cnbc.com/2026/05/05/spirit-airlines-bankruptcy-costs.html",
+      "source_type": "web"
+    },
+    {
+      "title": "blog.brerpsoft.com",
+      "url": "https://blog.brerpsoft.com/airlines-are-going-broke-in-2026/",
+      "source_type": "web"
+    },
+    {
+      "title": "skift.com",
+      "url": "https://skift.com/2026/04/22/how-spirit-airlines-fell-apart-a-complete-timeline/",
+      "source_type": "web"
+    },
+    {
+      "title": "dwuconsulting.com",
+      "url": "https://dwuconsulting.com/dwu-ai/airline-bankruptcy-restructuring-history",
+      "source_type": "web"
+    }
+  ],
+  "topic_id": "custom-us-airline-collapse-2026-09",
+  "topic": "The Famous U.S. Airline That Went Bankrupt and Disappeared",
+  "research_model": "claude-haiku-4-5-20251001",
+  "anthropic_usage": {
+    "input_tokens": 13755,
+    "output_tokens": 1591,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "web_search_requests": 1
+  },
+  "estimated_cost_usd": 0.03171,
+  "source_index_repaired": true,
+  "researched_at": "2026-09-28T12:56:36.346475+00:00"
+}
