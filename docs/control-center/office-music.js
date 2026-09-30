@@ -25,9 +25,8 @@
   }
 
   async function invoke(body){
-    const queueAction=body?.action==='create_job'||body?.action==='start_live'||body?.action==='stop_live';
-    const syncAction=body?.action==='sync_job'||body?.action==='sync_live';
-    const functionName=queueAction?'office-music-queue-control':(syncAction?'office-music-sync-control':'office-music-control');
+    const queueAction=body?.action==='create_job'||body?.action==='start_live';
+    const functionName=queueAction?'office-music-queue-control':'office-music-control';
     const {data,error}=await client.functions.invoke(functionName,{body});
     if(error)throw error;
     if(data?.error)throw new Error(data.message||data.error);
