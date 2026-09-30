@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Lives · MediaForge</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
   <style>
     :root{--bg:#050506;--side:#111113;--panel:#18181b;--line:#36363c;--text:#f6f6f7;--muted:#9999a2;--blue:#168ff5;--green:#36d399;--red:#ff6f7d;--amber:#f4bd63;--kick:#53fc18}
@@ -22,10 +22,22 @@
   </aside>
   <main class="main">
     <div class="topbar"><span class="small muted">MediaForge / <b style="color:#fff">Lives</b></span><button id="refresh" class="btn">↻ Atualizar</button></div>
-    <div class="page"><div class="head"><h1>Central de Lives</h1><p>Abra, encerre e acompanhe transmissões do Peter Lofi no YouTube e na Kick em uma tela separada.</p></div><div class="platform-tabs"><button class="tab on" data-platform="youtube">▶ YouTube</button><button class="tab kick" data-platform="kick">● Kick</button></div><div id="content"></div></div>
+    <div class="page">
+      <div class="head"><h1>Central de Lives</h1><p>Abra, encerre e acompanhe transmissões do Peter Lofi no YouTube e na Kick em uma tela separada.</p></div>
+      <div class="platform-tabs"><button class="tab on" data-platform="youtube">▶ YouTube</button><button class="tab kick" data-platform="kick">● Kick</button></div>
+      <div id="content"><div class="card"><b>Carregando Central de Lives…</b><div class="small muted" style="margin-top:6px">Sincronizando músicas, playlists, assets e analytics.</div></div></div>
+    </div>
   </main>
 </div>
 <div id="modalRoot"></div>
-<script src="./lives-v2.js?v=20260930-2"></script>
+<script>
+  (function(){
+    const showBootError=(msg)=>{const el=document.getElementById('content');if(el)el.innerHTML='<div class="card" style="color:#ffb2ba"><b>Falha ao iniciar a Central de Lives</b><div class="small" style="margin-top:7px">'+String(msg||'Erro desconhecido')+'</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Recarregar</button></div>'};
+    window.addEventListener('error',function(e){if(!window.__mediaForgeLiveReady)showBootError(e.message||'Erro ao carregar os módulos da página.');});
+    window.addEventListener('unhandledrejection',function(e){if(!window.__mediaForgeLiveReady)showBootError(e.reason&&e.reason.message?e.reason.message:e.reason);});
+    setTimeout(function(){if(!window.supabase||!window.supabase.createClient)showBootError('A biblioteca do Supabase não carregou. Recarregue a página.');},2500);
+  })();
+</script>
+<script src="./lives-v2.js?v=20260930-4" onload="window.__mediaForgeLiveReady=true" onerror="document.getElementById('content').innerHTML='<div class=\'card\' style=\'color:#ffb2ba\'><b>Não foi possível carregar o módulo de lives.</b><div class=\'small\' style=\'margin-top:7px\'>Atualize a página para tentar novamente.</div></div>'"></script>
 </body>
 </html>
