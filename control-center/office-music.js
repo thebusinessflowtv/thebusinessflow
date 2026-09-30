@@ -50,17 +50,28 @@
     return session;
   }
 
+  async function fetchAllRows(table){
+    const rows=[]; const pageSize=1000;
+    for(let from=0;;from+=pageSize){
+      const {data,error}=await client.from(table).select('*').order('created_at',{ascending:false}).range(from,from+pageSize-1);
+      if(error)throw error;
+      const batch=data||[]; rows.push(...batch);
+      if(batch.length<pageSize)break;
+    }
+    return rows;
+  }
+
   async function loadData(sync=true){
     const masterReleaseP=invoke({action:'health'}).catch(()=>null);
     const youtubePlaylistsP=loadYoutubePlaylistSnapshot();
-    const [jobsR,tracksR,livesR,assetsR]=await Promise.all([
-      client.from('office_music_jobs').select('*').order('created_at',{ascending:false}).limit(30),
-      client.from('office_music_tracks').select('*').order('created_at',{ascending:false}).limit(200),
+    const [jobs,tracks,livesR,assets]=await Promise.all([
+      fetchAllRows('office_music_jobs'),
+      fetchAllRows('office_music_tracks'),
       client.from('office_music_live_sessions').select('*').order('created_at',{ascending:false}).limit(30),
-      client.from('office_music_assets').select('*').order('created_at',{ascending:false}).limit(100)
+      fetchAllRows('office_music_assets')
     ]);
-    for(const r of [jobsR,tracksR,livesR,assetsR]) if(r.error)throw r.error;
-    state.jobs=jobsR.data||[]; state.tracks=tracksR.data||[]; state.lives=livesR.data||[]; state.assets=assetsR.data||[]; state.masterRelease=await masterReleaseP; const yp=await youtubePlaylistsP; state.youtubePlaylists=yp.playlists||[]; state.youtubePlaylistsUpdatedAt=yp.generated_at||null;
+    if(livesR.error)throw livesR.error;
+    state.jobs=jobs; state.tracks=tracks; state.lives=livesR.data||[]; state.assets=assets; state.masterRelease=await masterReleaseP; const yp=await youtubePlaylistsP; state.youtubePlaylists=yp.playlists||[]; state.youtubePlaylistsUpdatedAt=yp.generated_at||null;
     if(sync){
       const jobs=state.jobs.filter(j=>!terminal.has(j.status)).slice(0,5);
       const lives=state.lives.filter(l=>liveActive(l.status)).slice(0,4);
@@ -163,7 +174,7 @@
 
   function tracksPicker(){
     if(!state.tracks.length)return '<div class="empty">Gere pelo menos uma sessão para liberar faixas para live.</div>';
-    return state.tracks.slice(0,80).map((t,i)=>{const u=urlOf(t);return `<label class="track" style="cursor:pointer"><input class="liveTrack" type="checkbox" value="${esc(t.id)}" ${i<10?'checked':''}><div><b>${esc(t.title)}</b><small>${mm(t.duration_seconds)} min${t.bpm?' · '+esc(t.bpm)+' BPM':''}</small></div>${u?`<audio controls preload="none" src="${esc(u)}"></audio>`:'<span class="tiny muted">sem preview</span>'}</label>`}).join('');
+    return state.tracks.map((t,i)=>{const u=urlOf(t);return `<label class="track" style="cursor:pointer"><input class="liveTrack" type="checkbox" value="${esc(t.id)}" ${i<10?'checked':''}><div><b>${esc(t.title)}</b><small>${mm(t.duration_seconds)} min${t.bpm?' · '+esc(t.bpm)+' BPM':''}</small></div>${u?`<audio controls preload="none" src="${esc(u)}"></audio>`:'<span class="tiny muted">sem preview</span>'}</label>`}).join('');
   }
 
   function liveSessionsHtml(){
@@ -174,6 +185,8 @@
   function renderLive(){
     const root=document.getElementById('view-live'); if(!root)return;
     const thumbs=state.assets.filter(a=>a.asset_type==='thumbnail');
+    const liveVisuals=state.assets.filter(a=>a.asset_type==='loop');
+    const defaultLiveVisual=liveVisuals.find(a=>a.is_default)||liveVisuals[0]||null;
     const ytOptions=state.youtubePlaylists.map(p=>{const st=youtubePlaylistStats(p);return `<option value="${esc(p.id)}">${esc(p.title||'Playlist sem nome')} · ${Number(p.item_count||0)} vídeos · ${st.trackCount} faixas reproduzíveis</option>`}).join('');
     const ytUpdated=state.youtubePlaylistsUpdatedAt?fmt(state.youtubePlaylistsUpdatedAt):'ainda não sincronizado';
     root.innerHTML=`<div class="grid grid2">
@@ -182,9 +195,11 @@
           <div class="field"><label>Título da live</label><input id="liveTitle" class="input" maxlength="100" value="The Office Music — Live Office Lounge"></div>
           <div class="field"><label>Descrição da live</label><textarea id="liveDescription" class="input" maxlength="5000" rows="5" style="min-height:110px;resize:vertical;font:inherit" placeholder="Descreva a live, o estilo musical, o canal e inclua links ou chamadas relevantes."></textarea><div class="tiny muted" style="margin-top:5px">Enviada diretamente para a descrição da transmissão no YouTube.</div></div>
           <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><div class="field"><label>Duração</label><select id="liveDuration" class="select"><option value="60">1 hora</option><option value="120">2 horas</option><option value="180">3 horas</option><option value="360">6 horas</option><option value="720">12 horas</option><option value="0">Contínua — até encerrar manualmente</option></select></div><div class="field"><label>Thumbnail</label><select id="liveThumb" class="select"><option value="">Thumbnail padrão</option>${thumbs.map(a=>`<option value="${esc(a.id)}" ${a.is_default?'selected':''}>${esc(a.title||'Thumbnail')}</option>`).join('')}</select></div></div>
+          <div class="field"><label>Visual da live</label><select id="liveVisual" class="select"><option value="">Master visual padrão do canal</option>${liveVisuals.map(a=>`<option value="${esc(a.id)}" ${defaultLiveVisual&&a.id===defaultLiveVisual.id?'selected':''}>${esc(a.title||'Visual salvo')} · ${String(a.mime_type||'').startsWith('image/')?'imagem':'vídeo'}</option>`).join('')}</select><div class="tiny muted" style="margin-top:6px">Escolha um visual já salvo ou envie abaixo uma imagem/vídeo exclusivo para esta live.</div></div>
+          <label class="assetdrop" for="liveVisualFile" style="margin-bottom:14px"><b class="small">Enviar imagem ou vídeo para o visual da live</b><div class="tiny muted" style="margin-top:5px">JPG, PNG, WEBP, MP4 ou MOV · imagem fica fixa · vídeo roda em loop</div><input id="liveVisualFile" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"><div id="liveVisualFileName" class="tiny muted" style="margin-top:8px">Nenhum arquivo selecionado</div><div class="uploadbar"><span id="liveVisualProgress"></span></div></label>
           <div class="field"><div class="row between wrap"><label style="margin:0">Playlist do YouTube</label><button id="reloadYoutubePlaylists" class="btn" type="button">↻ Recarregar</button></div><select id="youtubePlaylist" class="select" style="margin-top:7px"><option value="">Seleção manual / playlist salva do MediaForge</option>${ytOptions}</select><div id="youtubePlaylistInfo" class="tiny muted" style="margin-top:6px">Sincronização automática com o canal a cada hora · último snapshot: ${esc(ytUpdated)}.</div></div>
           <div class="note" style="margin-bottom:12px">Ao escolher uma playlist do YouTube, a ordem dos vídeos da playlist vira a ordem das músicas da live. São reproduzidas as faixas-fonte salvas no MediaForge dos vídeos daquele playlist. Vídeos externos ou antigos sem arquivos-fonte salvos são ignorados.</div>
-          <div class="row between" style="margin:8px 0"><div><b class="small">Seleção manual</b><div class="tiny muted">Usada quando nenhuma playlist do YouTube estiver selecionada.</div></div><div class="row"><button id="selectAll" class="btn">Selecionar tudo</button><button id="clearAll" class="btn">Limpar</button></div></div>
+          <div class="row between" style="margin:8px 0"><div><b class="small">Seleção manual · ${state.tracks.length} músicas disponíveis</b><div class="tiny muted">Todas as músicas geradas e salvas no MediaForge aparecem aqui. Usada quando nenhuma playlist do YouTube estiver selecionada.</div></div><div class="row"><button id="selectAll" class="btn">Selecionar tudo</button><button id="clearAll" class="btn">Limpar</button></div></div>
           <div class="list" style="max-height:420px;overflow:auto">${tracksPicker()}</div>
           <div class="note" style="margin-top:12px">Modo contínuo é encadeado automaticamente para contornar o limite dos runners hospedados. Pode haver uma reconexão curta a cada bloco longo; o botão Encerrar envia um sinal de parada e finaliza a transmissão no YouTube.</div>
           <button id="startLive" class="btn primary block" style="margin-top:14px;min-height:45px" ${state.tracks.length?'':'disabled'}>● Iniciar live</button>
@@ -194,6 +209,9 @@
     </div>`;
     root.querySelector('#selectAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=true);
     root.querySelector('#clearAll').onclick=()=>root.querySelectorAll('.liveTrack').forEach(x=>x.checked=false);
+    const liveVisualFile=root.querySelector('#liveVisualFile');
+    const liveVisualFileName=root.querySelector('#liveVisualFileName');
+    liveVisualFile.onchange=()=>{const f=liveVisualFile.files?.[0];liveVisualFileName.textContent=f?`${f.name} · ${(f.size/1024/1024).toFixed(1)} MB`:'Nenhum arquivo selecionado'};
     root.querySelector('#refreshLives').onclick=refresh;
     const clearLiveLogs=root.querySelector('#clearLiveLogs');
     if(clearLiveLogs)clearLiveLogs.onclick=async()=>{
@@ -221,7 +239,29 @@
       const ids=playlistId?youtubePlaylistTrackIds(playlistId):[...root.querySelectorAll('.liveTrack:checked')].map(x=>x.value);
       if(!ids.length){toast(playlistId?'Playlist sem fontes reproduzíveis':'Selecione músicas',playlistId?'Nenhum vídeo dessa playlist possui faixas-fonte salvas no MediaForge.':'Escolha pelo menos uma faixa para a live.','error');return}
       const btn=root.querySelector('#startLive');btn.disabled=true;btn.textContent='Preparando transmissão…';
-      try{const d=Number(root.querySelector('#liveDuration').value);await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,description:root.querySelector('#liveDescription').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null});toast('Live criada',playlistId?`${ids.length} faixas carregadas da playlist do YouTube.`:'A seleção manual foi enviada para a transmissão.');await refresh()}
+      try{
+        const d=Number(root.querySelector('#liveDuration').value);
+        const visualSelect=root.querySelector('#liveVisual');
+        const file=liveVisualFile.files?.[0]||null;
+        let visualAssetId=visualSelect?.value||null;
+        let explicitLoopUrl='';
+        if(file){
+          btn.textContent='Enviando visual…';
+          const bar=root.querySelector('#liveVisualProgress');
+          await uploadAsset('loop',file,bar);
+          const latest=await fetchAllRows('office_music_assets'); state.assets=latest;
+          const uploaded=latest.find(a=>a.asset_type==='loop'&&a.title===file.name&&a.is_default)||latest.find(a=>a.asset_type==='loop'&&a.is_default);
+          visualAssetId=uploaded?.id||null; explicitLoopUrl=uploaded?assetPublicUrl(uploaded):'';
+        }else if(visualAssetId){
+          await invoke({action:'set_default_asset',asset_id:visualAssetId});
+          const chosen=state.assets.find(a=>a.id===visualAssetId); explicitLoopUrl=chosen?assetPublicUrl(chosen):'';
+        }else{
+          explicitLoopUrl=String(state.masterRelease?.loop_url||'');
+        }
+        btn.textContent='Preparando transmissão…';
+        await invoke({action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title:root.querySelector('#liveTitle').value,description:root.querySelector('#liveDescription').value,thumbnail_asset_id:root.querySelector('#liveThumb').value||null,visual_asset_id:visualAssetId,loop_asset_id:visualAssetId,loop_url:explicitLoopUrl||null});
+        toast('Live criada',playlistId?`${ids.length} faixas carregadas da playlist do YouTube · visual preparado.`:'A seleção manual e o visual foram enviados para a transmissão.');await refresh()
+      }
       catch(e){toast('Falha ao iniciar live',e.message||String(e),'error');btn.disabled=false;btn.textContent='● Iniciar live'}
     };
   }
