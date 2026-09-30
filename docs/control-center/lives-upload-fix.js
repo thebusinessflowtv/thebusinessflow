@@ -4,7 +4,7 @@
   const SB_KEY='sb_publishable_46tbOLOFhKqirGConFVg2w_xRQmmVli';
   const BUCKET='office-music-assets';
   const DIRECT_TUS=`https://${PROJECT_ID}.storage.supabase.co/storage/v1/upload/resumable`;
-  const CURRENT_FREE_LIMIT=50*1024*1024;
+  const FREE_PLAN_LIMIT=50*1024*1024;
   const client=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 
   const fmtBytes=n=>{
@@ -26,9 +26,6 @@
 
   async function uploadVisual(file,bar,status){
     if(!window.tus)throw new Error('O módulo de upload TUS não carregou. Atualize a página.');
-    if(file.size>CURRENT_FREE_LIMIT){
-      throw new Error(`O vídeo selecionado tem ${fmtBytes(file.size)}. O Storage deste projeto está no plano Free e o limite global atual é 50 MB por arquivo. A duração do vídeo pode ser qualquer uma; o bloqueio aqui é apenas o tamanho do arquivo.`);
-    }
     const {data:{session}}=await client.auth.getSession();
     if(!session)throw new Error('Sessão expirada. Entre novamente no MediaForge.');
     const safe=(file.name||'visual').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g,'-').slice(-120);
@@ -42,7 +39,13 @@
         removeFingerprintOnSuccess:true,
         chunkSize:6*1024*1024,
         metadata:{bucketName:BUCKET,objectName:path,contentType:file.type||'application/octet-stream',cacheControl:'3600'},
-        onError:error=>reject(error),
+        onError:error=>{
+          const raw=String(error?.message||error||'Erro desconhecido no Storage');
+          const msg=file.size>FREE_PLAN_LIMIT
+            ? `O Storage recusou ${file.name} (${fmtBytes(file.size)}). Este projeto está atualmente no plano Free, cujo limite global é 50 MB por arquivo. O MediaForge já está preparado para TUS e vídeos de qualquer duração; depois de aumentar o limite global do Storage, este mesmo uploader aceita arquivos grandes automaticamente. Detalhe: ${raw}`
+            : raw;
+          reject(new Error(msg));
+        },
         onProgress:(sent,total)=>{
           const pct=total?Math.round(sent/total*100):0;
           if(bar)bar.style.width=`${pct}%`;
@@ -63,9 +66,7 @@
     return registered.asset;
   }
 
-  function selectedTrackIds(root){
-    return [...root.querySelectorAll('.pick:checked')].map(x=>x.value);
-  }
+  function selectedTrackIds(root){return [...root.querySelectorAll('.pick:checked')].map(x=>x.value);}
 
   async function startLive(root,btn){
     const ids=selectedTrackIds(root);
@@ -85,10 +86,7 @@
       });
       const sessionId=started?.session?.id;
       if(!sessionId)throw new Error('A sessão da live foi criada sem ID.');
-      if(visualId){
-        btn.textContent='Vinculando visual…';
-        await fn('office-music-live-visual',{session_id:sessionId,asset_id:visualId});
-      }
+      if(visualId){btn.textContent='Vinculando visual…';await fn('office-music-live-visual',{session_id:sessionId,asset_id:visualId});}
       alert(kick?'Live da Kick enviada para a fila com o visual selecionado.':'Live do YouTube enviada para a fila com o visual selecionado.');
       setTimeout(()=>document.getElementById('refresh')?.click(),800);
     }catch(e){
@@ -106,35 +104,24 @@
     vf.dataset.liveVisualV2='1';
     const bar=root.querySelector('#visualProgress');
     const status=root.querySelector('#visualFileName');
-    const drop=vf.previousElementSibling;
-    const helper=drop?.querySelector('small');
+    const helper=vf.previousElementSibling?.querySelector('small');
     if(helper)helper.textContent='O upload começa ao selecionar. Imagens ficam fixas; vídeos repetem em loop durante toda a live.';
 
     vf.onchange=async()=>{
-      const file=vf.files?.[0];
-      if(!file)return;
-      root.dataset.visualUploadState='uploading';
-      btn.disabled=true;
-      if(bar)bar.style.width='0%';
+      const file=vf.files?.[0];if(!file)return;
+      root.dataset.visualUploadState='uploading';btn.disabled=true;if(bar)bar.style.width='0%';
       setStatus(status,`${file.name} · ${fmtBytes(file.size)} · preparando upload…`);
       try{
         const asset=await uploadVisual(file,bar,status);
         if(!asset?.id)throw new Error('Upload concluído, mas o asset não foi registrado.');
         let option=[...select.options].find(o=>o.value===String(asset.id));
         if(!option){option=document.createElement('option');option.value=asset.id;option.textContent=`${asset.title||file.name} · enviado agora`;select.appendChild(option);}
-        select.value=String(asset.id);
-        root.dataset.visualUploadState='ready';
-        root.dataset.uploadedVisualId=String(asset.id);
-        setStatus(status,`✓ ${file.name} · ${fmtBytes(file.size)} · upload concluído e selecionado para a live`,'ok');
-        vf.value='';
+        select.value=String(asset.id);root.dataset.visualUploadState='ready';root.dataset.uploadedVisualId=String(asset.id);
+        setStatus(status,`✓ ${file.name} · ${fmtBytes(file.size)} · upload concluído e selecionado para a live`,'ok');vf.value='';
       }catch(e){
-        root.dataset.visualUploadState='error';
-        if(bar)bar.style.width='0%';
-        setStatus(status,`Falha no upload: ${e?.message||e}`,'error');
-        vf.value='';
-      }finally{
-        btn.disabled=false;
-      }
+        root.dataset.visualUploadState='error';if(bar)bar.style.width='0%';
+        setStatus(status,`Falha no upload: ${e?.message||e}`,'error');vf.value='';
+      }finally{btn.disabled=false;}
     };
 
     btn.onclick=e=>{e.preventDefault();e.stopPropagation();startLive(root,btn);};
