@@ -1,0 +1,49 @@
+name: Patch Office Music Same Thumbnail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-office-music-same-thumbnail.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Force selected image as thumbnail in UI payload
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          paths=[Path('control-center/office-music.js'),Path('docs/control-center/office-music.js')]
+          old="await invoke({action:'create_job',duration_minutes:duration,publish:true,privacy:'public',visual_mode:visualMode,visual_asset_id:visualAssetId||null});"
+          new="await invoke({action:'create_job',duration_minutes:duration,publish:true,privacy:'public',visual_mode:visualMode,visual_asset_id:visualAssetId||null,thumbnail_asset_id:visualMode==='image'?visualAssetId:null});"
+          old_copy="Selecione aqui a imagem que ficará fixa do primeiro ao último segundo do vídeo. Você pode enviar novas imagens na aba Assets."
+          new_copy="Selecione aqui a imagem que ficará fixa do primeiro ao último segundo do vídeo. Essa mesma imagem será usada automaticamente como thumbnail no YouTube. Você pode enviar novas imagens na aba Assets."
+          for p in paths:
+              s=p.read_text(encoding='utf-8')
+              if new not in s:
+                  if old not in s: raise SystemExit(f'create_job pattern not found in {p}')
+                  s=s.replace(old,new,1)
+              if new_copy not in s:
+                  if old_copy not in s: raise SystemExit(f'copy pattern not found in {p}')
+                  s=s.replace(old_copy,new_copy,1)
+              p.write_text(s,encoding='utf-8')
+              print('Patched',p)
+          PY
+      - name: Commit changes
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control-center/office-music.js docs/control-center/office-music.js
+          git commit -m "office-music: use selected fixed image as thumbnail" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
