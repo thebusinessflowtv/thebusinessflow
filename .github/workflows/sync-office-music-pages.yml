@@ -8,6 +8,10 @@ on:
       - 'control-center/office-music.js'
       - 'control-center/office-music-nav.js'
       - 'control-center/office-music-playlists.js'
+      - 'control-center/lives.html'
+      - 'control-center/lives.js'
+      - 'control-center/peter-lofi-series.html'
+      - 'control-center/peter-lofi-series.js'
       - '.github/workflows/sync-office-music-pages.yml'
   workflow_dispatch:
 
@@ -26,28 +30,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Sync Office Music files into docs Pages source
+      - name: Sync Peter Lofi files into docs Pages source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p docs/control-center
+
           cp control-center/office-music.html docs/control-center/office-music.html
           cp control-center/office-music.js docs/control-center/office-music.js
           cp control-center/office-music-nav.js docs/control-center/office-music-nav.js
           cp control-center/office-music-playlists.js docs/control-center/office-music-playlists.js
+          cp control-center/lives.html docs/control-center/lives.html
+          cp control-center/lives.js docs/control-center/lives.js
+          cp control-center/peter-lofi-series.html docs/control-center/peter-lofi-series.html
+          cp control-center/peter-lofi-series.js docs/control-center/peter-lofi-series.js
 
-          # Inside the dedicated Office Music page, sidebar navigation should return
-          # to the actual SPA page, while unauthenticated users are still handled
-          # by office-music.js via ./index.html.
+          # Standalone Peter Lofi pages must return to the real MediaForge SPA.
           python - <<'PY'
           from pathlib import Path
-          p = Path('docs/control-center/office-music.html')
-          s = p.read_text(encoding='utf-8')
-          s = s.replace('href="./index.html#/', 'href="./app.html#/')
-          p.write_text(s, encoding='utf-8')
+          for name in ('office-music.html','lives.html','peter-lofi-series.html'):
+              p = Path('docs/control-center') / name
+              s = p.read_text(encoding='utf-8')
+              s = s.replace('href="./index.html#/', 'href="./app.html#/')
+              p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Ensure Office Music bridge loads in the MediaForge SPA
+      - name: Ensure Peter Lofi bridge loads in the MediaForge SPA
         shell: bash
         run: |
           set -euo pipefail
@@ -56,11 +64,13 @@ jobs:
           p = Path('docs/control-center/app.html')
           s = p.read_text(encoding='utf-8')
           old = "const helpers='<script src=\"./retry-failed-production.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./production-status-reconcile.js?v=20260929-status-sync1\"></'+'script>';"
-          new = "const helpers='<script src=\"./retry-failed-production.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./production-status-reconcile.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./office-music-nav.js?v=20260929-pages1\"></'+'script>';"
+          new = "const helpers='<script src=\"./retry-failed-production.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./production-status-reconcile.js?v=20260929-status-sync1\"></'+'script>\\n'\n        +'<script src=\"./office-music-nav.js?v=20260930-pages2\"></'+'script>';"
           if old in s:
               s = s.replace(old, new)
           elif 'office-music-nav.js' not in s:
-              s = s.replace("html=html.replace('</body>',helpers+'\\n</body>');", "helpers += '<script src=\"./office-music-nav.js?v=20260929-pages1\"></'+'script>';\\n      html=html.replace('</body>',helpers+'\\n</body>');")
+              s = s.replace("html=html.replace('</body>',helpers+'\\n</body>');", "helpers += '<script src=\"./office-music-nav.js?v=20260930-pages2\"></'+'script>';\\n      html=html.replace('</body>',helpers+'\\n</body>');")
+          else:
+              s = s.replace('office-music-nav.js?v=20260929-pages1','office-music-nav.js?v=20260930-pages2')
           p.write_text(s, encoding='utf-8')
           PY
 
@@ -68,16 +78,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s docs/control-center/office-music.html
-          test -s docs/control-center/office-music.js
-          test -s docs/control-center/office-music-nav.js
-          test -s docs/control-center/office-music-playlists.js
-          grep -q 'The Office Music' docs/control-center/office-music.html
+          for f in \
+            docs/control-center/office-music.html \
+            docs/control-center/office-music.js \
+            docs/control-center/office-music-nav.js \
+            docs/control-center/office-music-playlists.js \
+            docs/control-center/lives.html \
+            docs/control-center/lives.js \
+            docs/control-center/peter-lofi-series.html \
+            docs/control-center/peter-lofi-series.js; do
+            test -s "$f"
+          done
+
+          grep -q 'Peter Lofi' docs/control-center/lives.html
+          grep -q 'Central de Lives' docs/control-center/lives.html
+          grep -q 'Kick' docs/control-center/lives.js
+          grep -q 'Séries de áudio' docs/control-center/peter-lofi-series.html
           grep -q 'officeMusicProductionsPanel' docs/control-center/office-music-nav.js
           grep -q 'office-music-nav.js' docs/control-center/app.html
+
           node --check docs/control-center/office-music.js
           node --check docs/control-center/office-music-nav.js
           node --check docs/control-center/office-music-playlists.js
+          node --check docs/control-center/lives.js
+          node --check docs/control-center/peter-lofi-series.js
 
       - name: Commit synced Pages files
         shell: bash
@@ -89,6 +113,15 @@ jobs:
           fi
           git config user.name 'The Business Flow Factory'
           git config user.email 'thebusinessflowtv@gmail.com'
-          git add docs/control-center/office-music.html docs/control-center/office-music.js docs/control-center/office-music-nav.js docs/control-center/office-music-playlists.js docs/control-center/app.html
-          git commit -m 'Sync Office Music into GitHub Pages source'
+          git add \
+            docs/control-center/office-music.html \
+            docs/control-center/office-music.js \
+            docs/control-center/office-music-nav.js \
+            docs/control-center/office-music-playlists.js \
+            docs/control-center/lives.html \
+            docs/control-center/lives.js \
+            docs/control-center/peter-lofi-series.html \
+            docs/control-center/peter-lofi-series.js \
+            docs/control-center/app.html
+          git commit -m 'Sync Peter Lofi pages into GitHub Pages source'
           git push origin HEAD:main
