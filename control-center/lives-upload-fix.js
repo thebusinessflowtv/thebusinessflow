@@ -63,9 +63,16 @@
     return registered.asset;
   }
 
-  function selectedTrackIds(root){return [...root.querySelectorAll('.pick:checked')].map(x=>x.value);}
+  function selectedTrackIds(root){
+    const checked=[...root.querySelectorAll('.pick:checked')].map(x=>String(x.value));
+    try{
+      const ordered=JSON.parse(root.dataset.collectionTrackIds||'[]').map(String);
+      if(ordered.length===checked.length&&ordered.every(id=>checked.includes(id)))return ordered;
+    }catch(_){}
+    return checked;
+  }
   function updateCount(root){const c=root.querySelectorAll('.pick:checked').length,total=root.querySelectorAll('.pick').length;const el=root.querySelector('#selectedCount');if(el)el.textContent=`${c} selecionadas de ${total} disponíveis`;}
-  function applyTrackIds(root,ids){const set=new Set((ids||[]).map(String));root.querySelectorAll('.pick').forEach(x=>x.checked=set.has(String(x.value)));updateCount(root);}
+  function applyTrackIds(root,ids){const ordered=(ids||[]).map(String);const set=new Set(ordered);root.querySelectorAll('.pick').forEach(x=>x.checked=set.has(String(x.value)));root.dataset.collectionTrackIds=JSON.stringify(ordered);updateCount(root);}
   function clearOtherSelectors(root,keep){['#ytPlaylist','#playlist','#seriesPlaylist','#hourMix'].forEach(sel=>{if(sel!==keep){const el=root.querySelector(sel);if(el)el.value='';}});}
 
   async function injectCollections(root){
@@ -75,27 +82,30 @@
       const {tracks,jobs}=await catalog();
       if(!root.querySelector('#trackSearch')||root.querySelector('#seriesPlaylist'))return;
       const playable=tracks.filter(t=>trackUrl(t));
+      const position=new Map(playable.map(t=>[String(t.id),Number(t.position||0)]));
       const series=new Map();
       for(const t of playable){
         const m=t.metadata||{},key=String(m.series_key||m.series_request_id||'').trim();if(!key)continue;
         const name=String(m.series_name||m.series_title||m.series_playlist||key).trim();if(!series.has(key))series.set(key,{name,ids:[]});series.get(key).ids.push(String(t.id));
       }
+      for(const g of series.values())g.ids.sort((a,b)=>(position.get(a)||0)-(position.get(b)||0));
       const jobsById=new Map((jobs||[]).map(j=>[String(j.id),j])),mixMap=new Map();
       for(const t of playable){
         if(!t.job_id)continue;const id=String(t.job_id),j=jobsById.get(id);if(!j||String(j.status)!=='completed')continue;
         if(!mixMap.has(id))mixMap.set(id,{job:j,ids:[],seconds:0});const g=mixMap.get(id);g.ids.push(String(t.id));g.seconds+=Number(t.duration_seconds||0);
       }
+      for(const g of mixMap.values())g.ids.sort((a,b)=>(position.get(a)||0)-(position.get(b)||0));
       const hourMixes=[...mixMap.entries()].filter(([,g])=>Number(g.job.requested_duration_minutes||0)>=55&&g.seconds>=3300);
       const holder=document.createElement('div');
-      holder.innerHTML=`<div class="field"><label>SÉRIE / PLAYLIST GERADA</label><select id="seriesPlaylist" class="select"><option value="">Não selecionar por série</option>${[...series.entries()].map(([k,g])=>`<option value="${String(k).replace(/"/g,'&quot;')}">${g.name} · ${g.ids.length} músicas</option>`).join('')}</select><div class="tiny muted" style="margin-top:5px">Seleciona todas as faixas geradas dentro da mesma série/playlist.</div></div><div class="field"><label>MIXES / MÚSICAS DE 1 HORA</label><select id="hourMix" class="select"><option value="">Não usar mix de 1 hora</option>${hourMixes.map(([id,g])=>{const y=g.job.youtube_video_id?` · YouTube ${g.job.youtube_video_id}`:'';return `<option value="${id}">Mix de 1 hora · ${g.ids.length} faixas · ${fmtDate(g.job.created_at)}${y}</option>`}).join('')}</select><div class="tiny muted" style="margin-top:5px">Reproduz, na ordem, todas as faixas do mix de 60 minutos e repete durante a live.</div></div>`;
-      const searchField=search.closest('.field'),parent=searchField?.parentNode;
-      while(holder.firstElementChild)parent?.insertBefore(holder.firstElementChild,searchField);
+      holder.innerHTML=`<div class="field"><label>SÉRIE / PLAYLIST GERADA</label><select id="seriesPlaylist" class="select"><option value="">Não selecionar por série</option>${[...series.entries()].map(([k,g])=>`<option value="${String(k).replace(/"/g,'&quot;')}">${g.name} · ${g.ids.length} músicas</option>`).join('')}</select><div class="tiny muted" style="margin-top:5px">Seleciona todas as faixas geradas dentro da mesma série/playlist.</div></div><div class="field"><label>MIXES / MÚSICAS DE 1 HORA</label><select id="hourMix" class="select"><option value="">Não usar mix de 1 hora</option>${hourMixes.map(([id,g])=>{const y=g.job.youtube_video_id?` · YouTube ${g.job.youtube_video_id}`:'';return `<option value="${id}">Mix de 1 hora · ${g.ids.length} faixas · ${fmtDate(g.job.created_at)}${y}</option>`}).join('')}</select><div class="tiny muted" style="margin-top:5px">Reproduz, na ordem original, todas as faixas do mix de 60 minutos e repete durante a live.</div></div>`;
+      const searchField=search.closest('.field'),parent=searchField?.parentNode;while(holder.firstElementChild)parent?.insertBefore(holder.firstElementChild,searchField);
       const seriesSelect=root.querySelector('#seriesPlaylist'),hourSelect=root.querySelector('#hourMix');
       if(seriesSelect)seriesSelect.onchange=()=>{const g=series.get(String(seriesSelect.value));if(g){applyTrackIds(root,g.ids);clearOtherSelectors(root,'#seriesPlaylist');}};
       if(hourSelect)hourSelect.onchange=()=>{const g=mixMap.get(String(hourSelect.value));if(g){applyTrackIds(root,g.ids);clearOtherSelectors(root,'#hourMix');}};
       const saved=root.querySelector('#playlist'),yt=root.querySelector('#ytPlaylist');
-      if(saved&&!saved.dataset.groupAware){saved.dataset.groupAware='1';const old=saved.onchange;saved.onchange=e=>{clearOtherSelectors(root,'#playlist');if(old)old.call(saved,e);};}
-      if(yt&&!yt.dataset.groupAware){yt.dataset.groupAware='1';const old=yt.onchange;yt.onchange=e=>{clearOtherSelectors(root,'#ytPlaylist');if(old)old.call(yt,e);};}
+      if(saved&&!saved.dataset.groupAware){saved.dataset.groupAware='1';const old=saved.onchange;saved.onchange=e=>{root.dataset.collectionTrackIds='';clearOtherSelectors(root,'#playlist');if(old)old.call(saved,e);};}
+      if(yt&&!yt.dataset.groupAware){yt.dataset.groupAware='1';const old=yt.onchange;yt.onchange=e=>{root.dataset.collectionTrackIds='';clearOtherSelectors(root,'#ytPlaylist');if(old)old.call(yt,e);};}
+      if(!root.dataset.manualPickAware){root.dataset.manualPickAware='1';root.addEventListener('change',e=>{if(e.target?.classList?.contains('pick'))root.dataset.collectionTrackIds='';});}
     }catch(e){
       if(root.querySelector('[data-groups-error]'))return;const note=document.createElement('div');note.dataset.groupsError='1';note.className='note';note.style.marginTop='10px';note.textContent='Não foi possível carregar séries e mixes de 1 hora: '+(e?.message||e);search.closest('.field')?.before(note);
     }
@@ -107,8 +117,7 @@
     const kick=!!document.querySelector('.tab.kick.on'),d=Number(root.querySelector('#duration')?.value||60);
     let title=(root.querySelector('#title')?.value||'Peter Lofi — Live').trim()||'Peter Lofi — Live',description=root.querySelector('#description')?.value||'';
     if(kick){title='[KICK] '+title;description='[platform:kick]\n'+description;}
-    const visualId=root.querySelector('#visual')?.value||null;
-    btn.disabled=true;btn.textContent='Abrindo live…';
+    const visualId=root.querySelector('#visual')?.value||null;btn.disabled=true;btn.textContent='Abrindo live…';
     try{
       const started=await fn('office-music-queue-control',{action:'start_live',track_ids:ids,duration_minutes:d===0?null:d,title,description,thumbnail_asset_id:root.querySelector('#thumb')?.value||null,visual_asset_id:visualId,loop_asset_id:visualId});
       const sessionId=started?.session?.id;if(!sessionId)throw new Error('A sessão da live foi criada sem ID.');
@@ -124,8 +133,7 @@
     const kickNote=[...root.querySelectorAll('.note')].find(n=>n.textContent?.startsWith('Kick:'));if(kickNote)kickNote.innerHTML='<b>Kick:</b> RTMPS em H.264 1080p / 60 FPS, CBR 8000 kbps, keyframe de 2 s e AAC. Imagem fica fixa; vídeo usa a duração completa e repete em loop.';
     if(kick){const ta=root.querySelector('#description'),label=ta?.closest('.field')?.querySelector('label');if(label)label.textContent='DESCRIÇÃO / NOTAS';if(ta&&!ta.nextElementSibling?.matches?.('[data-kick-desc-note]')){const n=document.createElement('div');n.dataset.kickDescNote='1';n.className='tiny muted';n.style.marginTop='5px';n.textContent='A descrição fica registrada no MediaForge. A API pública da Kick não oferece descrição por transmissão; o título pode ser sincronizado via OAuth channel:write.';ta.after(n);}}
     if(vf.dataset.liveVisualV3!=='1'){
-      vf.dataset.liveVisualV3='1';const bar=root.querySelector('#visualProgress'),status=root.querySelector('#visualFileName'),helper=vf.previousElementSibling?.querySelector('small');
-      if(helper)helper.textContent='O upload começa ao selecionar. O arquivo escolhido será exatamente o visual da transmissão: imagem fixa ou vídeo em loop.';
+      vf.dataset.liveVisualV3='1';const bar=root.querySelector('#visualProgress'),status=root.querySelector('#visualFileName'),helper=vf.previousElementSibling?.querySelector('small');if(helper)helper.textContent='O upload começa ao selecionar. O arquivo escolhido será exatamente o visual da transmissão: imagem fixa ou vídeo em loop.';
       vf.onchange=async()=>{
         const file=vf.files?.[0];if(!file)return;root.dataset.visualUploadState='uploading';btn.disabled=true;if(bar)bar.style.width='0%';setStatus(status,`${file.name} · ${fmtBytes(file.size)} · preparando upload…`);
         try{
