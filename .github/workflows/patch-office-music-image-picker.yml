@@ -18,89 +18,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Patch Office Music generator UI
+      - name: Make fixed image selection visible by default
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          paths=[Path('control-center/office-music.js'),Path('docs/control-center/office-music.js')]
-
-          old_links="""      const links=[]; if(j.youtube_url)links.push('<a class=\"btn\" target=\"_blank\" rel=\"noopener\" href=\"'+esc(j.youtube_url)+'\">▶ YouTube</a>'); if(j.github_run_url)links.push('<a class=\"btn\" target=\"_blank\" rel=\"noopener\" href=\"'+esc(j.github_run_url)+'\">⌘ Execução</a>');
-          """
-          new_links="""      const links=[];
-      if(j.youtube_url)links.push('<a class=\"btn\" target=\"_blank\" rel=\"noopener\" href=\"'+esc(j.youtube_url)+'\">▶ YouTube</a>');
-      if(j.github_run_url)links.push('<a class=\"btn\" target=\"_blank\" rel=\"noopener\" href=\"'+esc(j.github_run_url)+'\">⌘ Execução</a>');
-      if(j.status==='completed')links.push('<a class=\"btn\" target=\"_blank\" rel=\"noopener\" href=\"https://github.com/thebusinessflowtv/theofficemusic/releases/tag/office-music-'+esc(j.id)+'\">♫ Faixas separadas no GitHub</a>');
-          """
-
-          old_vars="""    const defaultImage=thumb||images[0]||null;
-    root.innerHTML=`<div class=\"grid grid2\">"""
-          new_vars="""    const defaultImage=thumb||images[0]||null;
-    const defaultImageUrl=defaultImage?assetPublicUrl(defaultImage):'';
-    root.innerHTML=`<div class=\"grid grid2\">"""
-
-          old_visual="""          <div class=\"field\"><label>Visual do vídeo</label><select id=\"visualMode\" class=\"select\"><option value=\"video\">Vídeo em loop — master do GitHub</option><option value=\"image\">Imagem fixa — durante o vídeo inteiro</option></select><div class=\"tiny muted\" style=\"margin-top:6px\">No modo vídeo, usamos o master oficial salvo no GitHub. No modo imagem, a imagem selecionada permanece 100% fixa do início ao fim.</div></div>
-          <div class=\"field hidden\" id=\"fixedImageField\"><label>Imagem fixa</label><select id=\"fixedImage\" class=\"select\" ${images.length?'':'disabled'}>${images.length?images.map(a=>`<option value=\"${esc(a.id)}\" ${defaultImage&&a.id===defaultImage.id?'selected':''}>${esc(a.title||'Imagem')}</option>`).join(''):'<option value=\"\">Nenhuma imagem cadastrada em Assets</option>'}</select><div class=\"tiny muted\" style=\"margin-top:6px\">Você pode enviar novas imagens na aba Assets e depois selecioná-las aqui.</div></div>
-          """
-          new_visual="""          <div class=\"field\"><label>Visual do vídeo</label><select id=\"visualMode\" class=\"select\"><option value=\"image\" ${images.length?'selected':'disabled'}>Imagem fixa — escolher abaixo</option><option value=\"video\" ${images.length?'':'selected'}>Vídeo em loop — master do GitHub</option></select><div class=\"tiny muted\" style=\"margin-top:6px\">Por padrão, o vídeo usa uma única imagem durante toda a duração. Se preferir, você ainda pode usar o master em loop.</div></div>
-          <div class=\"field ${images.length?'':'hidden'}\" id=\"fixedImageField\"><label>Imagem que ficará no vídeo inteiro</label><select id=\"fixedImage\" class=\"select\" ${images.length?'':'disabled'}>${images.length?images.map(a=>`<option value=\"${esc(a.id)}\" ${defaultImage&&a.id===defaultImage.id?'selected':''}>${esc(a.title||'Imagem')}</option>`).join(''):'<option value=\"\">Nenhuma imagem cadastrada em Assets</option>'}</select><div id=\"fixedImagePreview\" style=\"margin-top:10px;border:1px solid #343438;border-radius:12px;overflow:hidden;background:#080809;min-height:120px;display:grid;place-items:center\">${defaultImageUrl?`<img src=\"${esc(defaultImageUrl)}\" alt=\"Preview\" style=\"display:block;width:100%;max-height:260px;object-fit:contain\">`:'<span class=\"tiny muted\">Selecione uma imagem cadastrada em Assets.</span>'}</div><div class=\"tiny muted\" style=\"margin-top:7px\">A imagem selecionada será mantida 100% fixa do primeiro ao último segundo do vídeo. Novas imagens podem ser enviadas na aba Assets.</div></div>
-          """
-
-          old_note="""          <div class=\"note\"><b>Proteção contra repetição ativada.</b> Cada job recebe uma seed própria vinculada ao novo ID. Se não houver músicas novas e únicas suficientes para preencher a duração, a produção falha em vez de repetir uma faixa ou reutilizar áudio antigo.<br><br>Vídeo padrão: <b>GitHub Release office-assets-v1 · office-music-master-loop.mp4</b>${thumb?'<br>Thumbnail padrão: <b>'+esc(thumb.title||'Thumbnail')+'</b>':''}</div>
-          """
-          new_note="""          <div class=\"note\"><b>Proteção contra repetição ativada.</b> Cada job recebe uma seed própria vinculada ao novo ID. Se não houver músicas novas e únicas suficientes para preencher a duração, a produção falha em vez de repetir uma faixa ou reutilizar áudio antigo.<br><br><b>Arquivos preservados:</b> cada música do set é salva individualmente em WAV no GitHub Release do próprio job, junto com o mix final. Assim você pode baixar ou reutilizar qualquer faixa separadamente.<br><br>Vídeo padrão alternativo: <b>GitHub Release office-assets-v1 · office-music-master-loop.mp4</b>${thumb?'<br>Thumbnail padrão: <b>'+esc(thumb.title||'Thumbnail')+'</b>':''}</div>
-          """
-
-          old_flow="""<div class=\"metric\"><small>03</small><b>Visual selecionável</b><div class=\"tiny muted\">Master em vídeo do GitHub ou imagem totalmente fixa.</div></div><div class=\"metric\"><small>04</small><b>Publicação</b><div class=\"tiny muted\">Render 4K + upload resumível + título + descrição + capítulos</div></div>"""
-          new_flow="""<div class=\"metric\"><small>03</small><b>Imagem escolhida por produção</b><div class=\"tiny muted\">Selecione a imagem que ficará fixa durante todo o vídeo ou use o master em loop.</div></div><div class=\"metric\"><small>04</small><b>Arquivos + publicação</b><div class=\"tiny muted\">WAVs individuais no GitHub Release + mix final + render 4K + YouTube.</div></div>"""
-
-          old_handlers="""    const mode=root.querySelector('#visualMode');
-    const fixed=root.querySelector('#fixedImageField');
-    const updateVisual=()=>fixed.classList.toggle('hidden',mode.value!=='image');
-    mode.onchange=updateVisual; updateVisual();
-          """
-          new_handlers="""    const mode=root.querySelector('#visualMode');
-    const fixed=root.querySelector('#fixedImageField');
-    const fixedImage=root.querySelector('#fixedImage');
-    const fixedPreview=root.querySelector('#fixedImagePreview');
-    const updateImagePreview=()=>{
-      if(!fixedPreview||!fixedImage)return;
-      const asset=state.assets.find(a=>a.id===fixedImage.value);
-      const url=asset?assetPublicUrl(asset):'';
-      fixedPreview.innerHTML=url?`<img src=\"${esc(url)}\" alt=\"Preview\" style=\"display:block;width:100%;max-height:260px;object-fit:contain\">`:'<span class=\"tiny muted\">Selecione uma imagem cadastrada em Assets.</span>';
-    };
-    const updateVisual=()=>fixed.classList.toggle('hidden',mode.value!=='image');
-    mode.onchange=()=>{updateVisual();updateImagePreview()};
-    if(fixedImage)fixedImage.onchange=updateImagePreview;
-    updateVisual(); updateImagePreview();
-          """
-
-          for p in paths:
-            s=p.read_text(encoding='utf-8')
-            replacements=[
-              (old_links,new_links,'job links'),
-              (old_vars,new_vars,'image url var'),
-              (old_visual,new_visual,'visual picker'),
-              (old_note,new_note,'generation note'),
-              (old_flow,new_flow,'flow copy'),
-              (old_handlers,new_handlers,'picker handlers'),
-            ]
-            for old,new,label in replacements:
-              if new in s:
-                continue
-              if old not in s:
-                raise SystemExit(f'{label} pattern not found in {p}')
-              s=s.replace(old,new,1)
-            p.write_text(s,encoding='utf-8')
-            print('Patched',p)
-          PY
+          for p in control-center/office-music.js docs/control-center/office-music.js; do
+            sed -i 's#<option value="video">Vídeo em loop — master do GitHub</option><option value="image">Imagem fixa — durante o vídeo inteiro</option>#<option value="image" selected>Imagem fixa — usar no vídeo inteiro</option><option value="video">Vídeo em loop — master do GitHub</option>#' "$p"
+            sed -i 's#class="field hidden" id="fixedImageField"><label>Imagem fixa</label>#class="field" id="fixedImageField"><label>Imagem que será usada no vídeo inteiro</label>#' "$p"
+            sed -i 's#Você pode enviar novas imagens na aba Assets e depois selecioná-las aqui.#Selecione aqui a imagem que ficará fixa do primeiro ao último segundo do vídeo. Você pode enviar novas imagens na aba Assets.#' "$p"
+            sed -i 's#<br><br>Vídeo padrão: #<br><br><b>Arquivos:</b> cada faixa gerada é salva individualmente em WAV no GitHub Release do job, além do mix final.<br><br>Vídeo padrão alternativo: #' "$p"
+          done
+          grep -q 'option value="image" selected' control-center/office-music.js
+          grep -q 'cada faixa gerada é salva individualmente em WAV' control-center/office-music.js
       - name: Commit changes
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add control-center/office-music.js docs/control-center/office-music.js
-          git commit -m "office-music: improve fixed image picker and expose track releases" || exit 0
+          git commit -m "office-music: show fixed image picker by default" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
