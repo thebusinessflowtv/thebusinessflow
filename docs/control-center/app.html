@@ -20,7 +20,7 @@
       let html=await r.text();
       const helpers='<script src="./retry-failed-production.js?v=20260929-status-sync1"></'+'script>\n'
         +'<script src="./production-status-reconcile.js?v=20260929-status-sync1"></'+'script>\n'
-        +'<script src="./office-music-nav.js?v=20260929-pages1"></'+'script>';
+        +'<script src="./office-music-nav.js?v=20260930-pages2"></'+'script>';
       html=html.replace('</body>',helpers+'\n</body>');
       document.open();
       document.write(html);
