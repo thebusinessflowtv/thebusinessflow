@@ -1,0 +1,2 @@
+MediaForge Worker redeploy trigger.
+Reason: refresh GITHUB_WORKFLOW_TOKEN after MEDIAFORGE_GITHUB_TOKEN rotation on 2026-09-30.
