@@ -1,0 +1,103 @@
+name: MediaForge — Patch GitHub Queue Transport
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-mediaforge-github-queue.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Worker transport
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('cloudflare/mediaforge-worker/src/index.js')
+          s=p.read_text(encoding='utf-8')
+
+          helper="""
+async function githubQueueFile(env, path, payload, message) {
+  if (!env.GITHUB_WORKFLOW_TOKEN) throw new Error('GITHUB_WORKFLOW_TOKEN não configurado no Worker.');
+  const repo = env.GITHUB_REPO || 'thebusinessflowtv/theofficemusic';
+  const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+    method: 'PUT',
+    headers: {
+      'authorization': `Bearer ${env.GITHUB_WORKFLOW_TOKEN}`,
+      'accept': 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+      'user-agent': 'MediaForge-Cloudflare-Worker',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: message || `mediaforge: queue ${path}`,
+      content: base64Utf8(JSON.stringify(payload, null, 2)),
+      branch: 'main',
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GitHub queue falhou (${res.status}): ${text.slice(0, 500)}`);
+  }
+  return res.json();
+}
+"""
+          anchor='async function getCatalog(env) {'
+          if 'async function githubQueueFile' not in s:
+              i=s.find(anchor)
+              if i<0: raise SystemExit('anchor not found')
+              s=s[:i]+helper+'\n'+s[i:]
+
+          old_start="""      await githubDispatch(env, 'peter-lofi-kick-live.yml', {
+        session_id: id,
+        track_urls_b64: base64Utf8(JSON.stringify(urls)),
+        duration_minutes: String(duration),
+        title,
+        description,
+        thumbnail_url: '',
+        loop_url: visualUrl,
+        segment_index: '1',
+      });"""
+          new_start="""      await githubQueueFile(env, `control/kick-live-queue/${id}.json`, {
+        session_id: id,
+        track_urls_b64: base64Utf8(JSON.stringify(urls)),
+        duration_minutes: String(duration),
+        title,
+        description,
+        thumbnail_url: '',
+        loop_url: visualUrl,
+        segment_index: '1',
+        requested_at: now,
+      }, `mediaforge: queue Kick live ${id}`);"""
+          if old_start in s:
+              s=s.replace(old_start,new_start,1)
+
+          old_stop="""      await githubDispatch(env, 'peter-lofi-kick-stop.yml', { session_id: id });"""
+          new_stop="""      await githubQueueFile(env, `control/kick-live-stop/${id}.json`, {
+        stop: true,
+        session_id: id,
+        requested_at: new Date().toISOString(),
+      }, `mediaforge: stop Kick live ${id}`);"""
+          if old_stop in s:
+              s=s.replace(old_stop,new_stop,1)
+
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add cloudflare/mediaforge-worker/src/index.js
+          git commit -m 'mediaforge: queue Kick start stop via repository files'
+          git pull --rebase origin main
+          git push origin HEAD:main
