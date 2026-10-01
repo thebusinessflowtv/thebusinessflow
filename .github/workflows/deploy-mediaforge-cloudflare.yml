@@ -128,6 +128,7 @@ jobs:
             echo 'MediaForge API URL already published.'
           else
             git commit -m 'mediaforge: publish Cloudflare backend URL'
+            git restore cloudflare/mediaforge-worker/wrangler.jsonc || true
             git pull --rebase origin main
             git push origin HEAD:main
           fi
