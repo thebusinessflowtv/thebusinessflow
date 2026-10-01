@@ -14,9 +14,6 @@ CREATE TABLE IF NOT EXISTS assets (
 CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status);
 
--- Hard safety guard for the Cloudflare R2 Standard free tier.
--- Cloudflare currently includes 10 GB-month/month; MediaForge reserves 1 GB of headroom
--- and refuses new uploads when ready + in-progress declared storage would exceed 9 GB.
 CREATE TRIGGER IF NOT EXISTS trg_assets_r2_free_tier_guard
 BEFORE INSERT ON assets
 WHEN NEW.status IN ('uploading','ready')
@@ -47,3 +44,12 @@ CREATE TABLE IF NOT EXISTS live_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_live_sessions_created_at ON live_sessions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_live_sessions_status ON live_sessions(status);
+
+CREATE TABLE IF NOT EXISTS live_session_assets (
+  session_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  PRIMARY KEY (session_id, role)
+);
+
+CREATE INDEX IF NOT EXISTS idx_live_session_assets_session ON live_session_assets(session_id);
