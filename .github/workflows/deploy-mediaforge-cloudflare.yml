@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   deploy:
@@ -21,6 +21,8 @@ jobs:
       MEDIAFORGE_GITHUB_TOKEN: ${{ secrets.MEDIAFORGE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -80,8 +82,18 @@ jobs:
       - name: Apply D1 schema
         run: npx wrangler d1 execute mediaforge-control --remote --file=schema.sql --yes
 
-      - name: Deploy Worker
-        run: npx wrangler deploy
+      - name: Deploy Worker and resolve URL
+        run: |
+          set -euo pipefail
+          npx wrangler deploy 2>&1 | tee /tmp/mediaforge-deploy.txt
+          WORKER_URL="$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/mediaforge-deploy.txt | tail -1 || true)"
+          if [ -z "$WORKER_URL" ]; then
+            echo '::error::Worker deployed but workers.dev URL could not be resolved from Wrangler output.'
+            cat /tmp/mediaforge-deploy.txt
+            exit 1
+          fi
+          echo "WORKER_URL=$WORKER_URL" >> "$GITHUB_ENV"
+          echo "Resolved Worker URL: $WORKER_URL"
 
       - name: Configure Worker secrets
         run: |
@@ -91,7 +103,36 @@ jobs:
           printf '%s' "$MEDIAFORGE_SESSION_SECRET" | npx wrangler secret put SESSION_SECRET
           printf '%s' "$MEDIAFORGE_GITHUB_TOKEN" | npx wrangler secret put GITHUB_WORKFLOW_TOKEN
 
-      - name: Final health instructions
+      - name: Verify Worker health
         run: |
-          echo 'MediaForge Cloudflare backend deployed.'
-          echo 'Open the Worker URL printed by Wrangler above and append /api/health.'
+          set -euo pipefail
+          sleep 4
+          curl --retry 5 --retry-all-errors -fsS "$WORKER_URL/api/health" | tee /tmp/mediaforge-health.json
+          grep -q '"supabase":false' /tmp/mediaforge-health.json
+
+      - name: Publish Worker URL to MediaForge Pages config
+        run: |
+          set -euo pipefail
+          CONFIG="window.MEDIAFORGE_CONFIG = { API_URL: '${WORKER_URL}' };"
+          printf '%s\n' "$CONFIG" > "$GITHUB_WORKSPACE/control-center/mediaforge-config.js"
+          printf '%s\n' "$CONFIG" > "$GITHUB_WORKSPACE/docs/control-center/mediaforge-config.js"
+          cd "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control-center/mediaforge-config.js docs/control-center/mediaforge-config.js
+          if git diff --cached --quiet; then
+            echo 'MediaForge API URL already published.'
+          else
+            git commit -m 'mediaforge: publish Cloudflare backend URL'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "### MediaForge Cloudflare backend" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Worker: $WORKER_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Health: $WORKER_URL/api/health" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Storage: Cloudflare R2 / mediaforge-live-assets" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Database: Cloudflare D1 / mediaforge-control" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Supabase dependency for Lives: removed" >> "$GITHUB_STEP_SUMMARY"
