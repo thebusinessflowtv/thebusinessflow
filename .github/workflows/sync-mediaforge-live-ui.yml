@@ -1,0 +1,36 @@
+name: MediaForge — Sync Live UI Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/control-center/lives-cloudflare.js'
+      - 'docs/control-center/lives-platform-badges.js'
+      - '.github/workflows/sync-mediaforge-live-ui.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mediaforge-sync-live-ui
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sync Pages live UI into source copy
+        run: |
+          set -euo pipefail
+          cp docs/control-center/lives-cloudflare.js control-center/lives-cloudflare.js
+          cp docs/control-center/lives-platform-badges.js control-center/lives-platform-badges.js
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control-center/lives-cloudflare.js control-center/lives-platform-badges.js
+          git diff --cached --quiet && exit 0
+          git commit -m "mediaforge: sync live UI source"
+          git pull --rebase origin main
+          git push origin HEAD:main
