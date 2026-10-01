@@ -1,0 +1,12 @@
+{
+  "name": "mediaforge-cloudflare-worker",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "db:apply": "wrangler d1 execute mediaforge-control --remote --file=schema.sql --yes"
+  },
+  "devDependencies": {
+    "wrangler": "^4.44.0"
+  }
+}
