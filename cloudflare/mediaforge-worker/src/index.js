@@ -104,6 +104,32 @@ async function githubDispatch(env, workflow, inputs) {
   }
 }
 
+
+async function githubQueueFile(env, path, payload, message) {
+  if (!env.GITHUB_WORKFLOW_TOKEN) throw new Error('GITHUB_WORKFLOW_TOKEN não configurado no Worker.');
+  const repo = env.GITHUB_REPO || 'thebusinessflowtv/theofficemusic';
+  const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+    method: 'PUT',
+    headers: {
+      'authorization': `Bearer ${env.GITHUB_WORKFLOW_TOKEN}`,
+      'accept': 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+      'user-agent': 'MediaForge-Cloudflare-Worker',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: message || `mediaforge: queue ${path}`,
+      content: base64Utf8(JSON.stringify(payload, null, 2)),
+      branch: 'main',
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GitHub queue falhou (${res.status}): ${text.slice(0, 500)}`);
+  }
+  return res.json();
+}
+
 async function getCatalog(env) {
   const repo = env.GITHUB_REPO || 'thebusinessflowtv/theofficemusic';
   const url = `https://raw.githubusercontent.com/${repo}/main/control/mediaforge-catalog.json?ts=${Date.now()}`;
@@ -295,7 +321,7 @@ async function handleApi(request, env, url) {
       await env.DB.prepare(`INSERT INTO live_sessions(id,platform,status,title,description,duration_minutes,track_ids_json,visual_asset_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)`)
         .bind(id, 'kick', 'queued', title, description, duration, JSON.stringify(trackIds), visualId || null, now).run();
 
-      await githubDispatch(env, 'peter-lofi-kick-live.yml', {
+      await githubQueueFile(env, `control/kick-live-queue/${id}.json`, {
         session_id: id,
         track_urls_b64: base64Utf8(JSON.stringify(urls)),
         duration_minutes: String(duration),
@@ -304,7 +330,8 @@ async function handleApi(request, env, url) {
         thumbnail_url: '',
         loop_url: visualUrl,
         segment_index: '1',
-      });
+        requested_at: now,
+      }, `mediaforge: queue Kick live ${id}`);
       return json({ ok: true, session: { id, platform: 'kick', status: 'queued', title, description, duration_minutes: duration, visual_asset_id: visualId || null, created_at: now } }, 200, cors);
     } catch (e) {
       return json({ error: 'start_live_failed', message: e.message }, 502, cors);
@@ -316,7 +343,11 @@ async function handleApi(request, env, url) {
     const row = await env.DB.prepare(`SELECT * FROM live_sessions WHERE id=?`).bind(id).first();
     if (!row) return json({ error: 'session_not_found' }, 404, cors);
     try {
-      await githubDispatch(env, 'peter-lofi-kick-stop.yml', { session_id: id });
+      await githubQueueFile(env, `control/kick-live-stop/${id}.json`, {
+        stop: true,
+        session_id: id,
+        requested_at: new Date().toISOString(),
+      }, `mediaforge: stop Kick live ${id}`);
       await env.DB.prepare(`UPDATE live_sessions SET status='stopping' WHERE id=?`).bind(id).run();
       return json({ ok: true, session_id: id, status: 'stopping' }, 200, cors);
     } catch (e) {
