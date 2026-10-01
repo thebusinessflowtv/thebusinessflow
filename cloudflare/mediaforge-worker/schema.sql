@@ -14,6 +14,20 @@ CREATE TABLE IF NOT EXISTS assets (
 CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status);
 
+-- Hard safety guard for the Cloudflare R2 Standard free tier.
+-- Cloudflare currently includes 10 GB-month/month; MediaForge reserves 1 GB of headroom
+-- and refuses new uploads when ready + in-progress declared storage would exceed 9 GB.
+CREATE TRIGGER IF NOT EXISTS trg_assets_r2_free_tier_guard
+BEFORE INSERT ON assets
+WHEN NEW.status IN ('uploading','ready')
+  AND (
+    COALESCE((SELECT SUM(size_bytes) FROM assets WHERE status IN ('uploading','ready')), 0)
+    + NEW.size_bytes
+  ) > 9000000000
+BEGIN
+  SELECT RAISE(ABORT, 'mediaforge_r2_free_tier_guard_9gb');
+END;
+
 CREATE TABLE IF NOT EXISTS live_sessions (
   id TEXT PRIMARY KEY,
   platform TEXT NOT NULL,
