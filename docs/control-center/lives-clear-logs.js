@@ -1,68 +1,94 @@
 (()=>{
-  const TOKEN_KEY='mediaforge_token';
-  const apiBase=()=>String(window.MEDIAFORGE_CONFIG?.API_URL||localStorage.getItem('mediaforge_api_url')||'').replace(/\/$/,'');
-  const token=()=>localStorage.getItem(TOKEN_KEY)||'';
+  const STORAGE_KEY='mediaforge_hidden_live_logs_v1';
 
-  async function clearLogs(force=false){
-    const base=apiBase();
-    if(!base)throw new Error('Backend Cloudflare ainda não foi configurado.');
-    const res=await fetch(base+'/api/live-sessions',{
-      method:'DELETE',
-      headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},
-      body:JSON.stringify({force})
-    });
-    let data={};
-    try{data=await res.json();}catch(_){data={};}
-    if(res.status===401){
-      localStorage.removeItem(TOKEN_KEY);
-      location.replace('./secure.html');
-      throw new Error('Sessão expirada.');
-    }
-    if(res.status===409)return {...data,blocked:true};
-    if(!res.ok)throw new Error(data?.message||data?.error||`HTTP ${res.status}`);
-    return data;
+  function readHidden(){
+    try{return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').map(String));}
+    catch(_){return new Set();}
   }
 
-  function installButton(){
+  function writeHidden(set){
+    localStorage.setItem(STORAGE_KEY,JSON.stringify([...set]));
+  }
+
+  function getRecentGrid(){
+    const refresh=document.getElementById('refreshSessions');
+    const head=refresh?.closest('.row.between');
+    return head?.nextElementSibling?.classList?.contains('grid')?head.nextElementSibling:null;
+  }
+
+  function applyHidden(){
+    const hidden=readHidden();
+    const cards=[...document.querySelectorAll('.livecard[data-live]')];
+    let visible=0;
+    for(const card of cards){
+      const hide=hidden.has(String(card.dataset.live||''));
+      card.style.display=hide?'none':'';
+      if(!hide)visible++;
+    }
+
+    const grid=getRecentGrid();
+    if(grid){
+      let note=grid.querySelector('.cleared-logs-note');
+      if(cards.length&&visible===0){
+        if(!note){
+          note=document.createElement('div');
+          note.className='card cleared-logs-note';
+          note.innerHTML='<span class="small muted">Logs limpos. Novas lives aparecerão normalmente aqui.</span>';
+          grid.appendChild(note);
+        }
+      }else if(note){
+        note.remove();
+      }
+    }
+
+    const restore=document.getElementById('restoreLiveLogs');
+    if(restore)restore.style.display=hidden.size?'inline-flex':'none';
+  }
+
+  function installButtons(){
     const refresh=document.getElementById('refreshSessions');
     if(!refresh||document.getElementById('clearLiveLogs'))return;
+
     const actions=document.createElement('div');
     actions.className='row';
-    const btn=document.createElement('button');
-    btn.id='clearLiveLogs';
-    btn.className='btn danger';
-    btn.type='button';
-    btn.textContent='🗑 Limpar logs';
-    btn.title='Remove os registros de lives recentes do painel';
+
+    const clear=document.createElement('button');
+    clear.id='clearLiveLogs';
+    clear.className='btn danger';
+    clear.type='button';
+    clear.textContent='🗑 Limpar logs';
+    clear.title='Limpa os registros exibidos em Lives recentes';
+
+    const restore=document.createElement('button');
+    restore.id='restoreLiveLogs';
+    restore.className='btn';
+    restore.type='button';
+    restore.textContent='↶ Restaurar';
+    restore.style.display='none';
+
     refresh.parentNode.insertBefore(actions,refresh);
-    actions.appendChild(btn);
+    actions.appendChild(clear);
+    actions.appendChild(restore);
     actions.appendChild(refresh);
 
-    btn.onclick=async()=>{
-      if(!confirm('Limpar todos os registros de lives recentes?'))return;
-      const original=btn.textContent;
-      btn.disabled=true;
-      btn.textContent='Limpando…';
-      try{
-        let result=await clearLogs(false);
-        if(result?.blocked){
-          const count=Number(result.active_count||0);
-          const ok=confirm(`Existem ${count} sessão(ões) ativa(s) ou na fila. Limpar os logs NÃO encerra transmissões; apenas remove os registros do painel. Deseja limpar mesmo assim?`);
-          if(!ok)return;
-          result=await clearLogs(true);
-        }
-        alert(`${Number(result?.deleted||0)} registro(s) removido(s) dos logs.`);
-        document.getElementById('refreshSessions')?.click();
-      }catch(e){
-        alert('Falha ao limpar logs: '+(e?.message||e));
-      }finally{
-        const current=document.getElementById('clearLiveLogs');
-        if(current){current.disabled=false;current.textContent=original;}
-      }
+    clear.onclick=()=>{
+      const cards=[...document.querySelectorAll('.livecard[data-live]')];
+      if(!cards.length){alert('Não há logs para limpar.');return;}
+      if(!confirm('Limpar os registros atuais de Lives recentes? Isso remove apenas os logs da visualização e não encerra nenhuma transmissão.'))return;
+      const hidden=readHidden();
+      cards.forEach(card=>hidden.add(String(card.dataset.live||'')));
+      writeHidden(hidden);
+      applyHidden();
+    };
+
+    restore.onclick=()=>{
+      localStorage.removeItem(STORAGE_KEY);
+      applyHidden();
     };
   }
 
+  function sync(){installButtons();applyHidden();}
   const target=document.getElementById('content');
-  if(target)new MutationObserver(()=>queueMicrotask(installButton)).observe(target,{childList:true,subtree:true});
-  installButton();
+  if(target)new MutationObserver(()=>queueMicrotask(sync)).observe(target,{childList:true,subtree:true});
+  sync();
 })();
