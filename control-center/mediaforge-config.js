@@ -1,0 +1,1 @@
+window.MEDIAFORGE_CONFIG = window.MEDIAFORGE_CONFIG || { API_URL: '' };
