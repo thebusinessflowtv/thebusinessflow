@@ -22,7 +22,7 @@
   <main class="main">
     <div class="topbar"><span class="small muted">MediaForge / <b style="color:#fff">Lives</b> <span class="badge">SEM SUPABASE</span></span><div class="top-actions"><button id="refresh" class="btn">↻ Atualizar</button><button id="logout" class="btn">Sair</button></div></div>
     <div class="page">
-      <div class="head"><h1>Central de Lives</h1><p>Kick com catálogo no GitHub, controle no Cloudflare D1 e imagens/vídeos grandes no Cloudflare R2.</p></div>
+      <div class="head"><h1>Central de Lives</h1><p>Kick + YouTube com catálogo no GitHub, controle no Cloudflare D1 e imagens/vídeos grandes no Cloudflare R2.</p></div>
       <div class="platform-tabs"><button class="tab" data-platform="youtube">▶ YouTube</button><button class="tab kick on" data-platform="kick">● Kick</button></div>
       <div id="content"><div class="card"><b>Carregando Central de Lives…</b><div class="small muted" style="margin-top:6px">Sincronizando catálogo GitHub, R2 e sessões.</div></div></div>
     </div>
@@ -30,8 +30,9 @@
 </div>
 <script src="./mediaforge-config.js?v=20261001-5"></script>
 <script>document.getElementById('logout').onclick=()=>{localStorage.removeItem('mediaforge_token');location.replace('./secure.html')};</script>
-<script src="./lives-cloudflare.js?v=20261001-5"></script>
+<script src="./lives-cloudflare.js?v=20261001-7"></script>
 <script src="./lives-created-at.js?v=20261001-5"></script>
 <script src="./lives-clear-logs.js?v=20261001-1"></script>
+<script src="./lives-platform-badges.js?v=20261001-1"></script>
 </body>
 </html>
