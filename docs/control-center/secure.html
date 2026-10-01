@@ -24,15 +24,16 @@
   <div id="message" class="msg"></div>
   <div class="foot">Sessão protegida pelo MediaForge Cloudflare Worker · Supabase não utilizado nas Lives</div>
 </main></div>
-<script src="./mediaforge-config.js?v=20261001-1"></script>
+<script src="./mediaforge-config.js?v=20261001-3"></script>
 <script>
   const TOKEN_KEY='mediaforge_token';
+  const DEFAULT_API='https://mediaforge-api.guilhermeodsgn.workers.dev';
   const $=id=>document.getElementById(id);
-  function base(){return (window.MEDIAFORGE_CONFIG?.API_URL||localStorage.getItem('mediaforge_api_url')||'').replace(/\/$/,'')}
+  function base(){return (window.MEDIAFORGE_CONFIG?.API_URL||localStorage.getItem('mediaforge_api_url')||DEFAULT_API).replace(/\/$/,'')}
   function msg(text,type='error'){const e=$('message');e.textContent=text;e.className='msg on '+type}
   function busy(on){$('submit').disabled=on;$('submit').textContent=on?'Entrando…':'Entrar'}
   async function request(path,opt={}){const r=await fetch(base()+path,opt);let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d.message||d.error||`HTTP ${r.status}`);return d}
-  async function verify(){const api=base();if(!api){$('setup').classList.add('on');return false}const t=localStorage.getItem(TOKEN_KEY);if(!t)return false;try{await request('/api/me',{headers:{authorization:`Bearer ${t}`}});location.replace('./lives.html');return true}catch(_){localStorage.removeItem(TOKEN_KEY);return false}}
+  async function verify(){const api=base();if(!api){$('setup').classList.add('on');return false}$('setup').classList.remove('on');const t=localStorage.getItem(TOKEN_KEY);if(!t)return false;try{await request('/api/me',{headers:{authorization:`Bearer ${t}`}});location.replace('./lives.html');return true}catch(_){localStorage.removeItem(TOKEN_KEY);return false}}
   $('form').onsubmit=async e=>{e.preventDefault();busy(true);try{const manual=$('apiUrl')?.value.trim();if(manual){localStorage.setItem('mediaforge_api_url',manual.replace(/\/$/,''));}if(!base())throw new Error('O backend Cloudflare ainda não foi implantado.');const d=await request('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});localStorage.setItem(TOKEN_KEY,d.token);msg('Acesso autorizado. Abrindo Lives…','ok');location.replace('./lives.html')}catch(e){msg(e.message);busy(false)}};
   verify();
 </script>
