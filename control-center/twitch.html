@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Twitch · MediaForge</title>
+  <style>
+    :root{--bg:#050506;--panel:#18181b;--line:#36363c;--text:#f6f6f7;--muted:#9999a2;--purple:#9146ff;--green:#36d399}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#000;color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:inherit;text-decoration:none}
+    .shell{min-height:100vh;display:grid;grid-template-columns:216px 1fr}.sidebar{height:100vh;position:sticky;top:0;background:#121214;border-right:1px solid #343438;padding:18px 13px;display:flex;flex-direction:column}.brand{display:flex;gap:10px;align-items:center;padding:0 6px 24px}.brandmark{width:34px;height:34px;border-radius:10px;background:#178cff;display:grid;place-items:center;font-weight:800}.brand b{font-size:13px}.brand small{display:block;font-size:10px;color:var(--muted)}.nav{display:grid;gap:3px}.nav a{padding:10px 11px;border-radius:10px;color:#b7b7bd;font-size:12px}.nav a:hover,.nav a.active{background:#303034;color:#fff}.spacer{flex:1}.main{min-width:0}.topbar{height:56px;border-bottom:1px solid #343438;background:#111113;display:flex;align-items:center;justify-content:space-between;padding:0 28px}.page{max-width:1150px;margin:auto;padding:28px}.head h1{margin:0 0 5px;font-size:28px}.head p{margin:0;color:var(--muted);font-size:12px}.tabs{display:flex;gap:8px;margin:20px 0}.tab{border:1px solid #3a3a40;background:#18181b;color:#aaa;border-radius:11px;padding:10px 16px}.tab.on{box-shadow:inset 0 0 0 1px var(--purple);color:#d9c7ff;background:#26163f}.card{border:1px solid #39393f;background:linear-gradient(180deg,#1b1b1e,#141416);border-radius:16px;padding:16px}.row{display:flex;align-items:center;gap:8px}.between{justify-content:space-between}.muted{color:var(--muted)}.small{font-size:12px}.tiny{font-size:10px}.pill{font-size:9px;border:1px solid #4b4b50;border-radius:999px;padding:5px 8px}.pill.live{background:#12311f;border-color:#2c6b47;color:#8ff2bb}.pill.starting{background:#302715;border-color:#655329;color:#ffd995}.pill.failed,.pill.completed{background:#32191d;border-color:#6b343b;color:#ffb4bc}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.metric{padding:12px;border:1px solid #33343a;border-radius:12px;background:#101012}.metric small{display:block;color:var(--muted);font-size:9px;margin-bottom:5px}.metric b{font-size:15px}.btn{border:1px solid #45454b;background:#28282c;color:#fff;border-radius:10px;padding:9px 12px;font-size:11px;cursor:pointer}.btn.primary{background:#24123e;border-color:#9146ff;color:#e5d7ff}.note{background:#171124;border:1px solid #51327d;border-radius:12px;padding:12px;color:#cdb7ef;font-size:11px;line-height:1.55;margin-top:12px}
+    @media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.metrics{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+<script>
+  if(!localStorage.getItem('mediaforge_token')) location.replace('./secure.html');
+</script>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark">M</div><div><b>MediaForge</b><small>Control Center</small></div></div>
+    <nav class="nav"><a href="./index.html#/dashboard">⌘ Dashboard</a><a href="./office-music.html">♫ Peter Lofi</a><a href="./peter-lofi-series.html">≋ Séries de áudio</a><a class="active" href="./lives.html">● Lives</a></nav>
+    <div class="spacer"></div><div class="tiny muted">Twitch · status em tempo real pelo GitHub</div>
+  </aside>
+  <main class="main">
+    <div class="topbar"><span class="small muted">MediaForge / <b style="color:#fff">Twitch</b></span><div class="row"><button id="refresh" class="btn">↻ Atualizar</button><button id="logout" class="btn">Sair</button></div></div>
+    <div class="page">
+      <div class="head"><h1>Twitch</h1><p>Estado da transmissão Peter Lofi na Twitch, sincronizado com o encoder do The Office Music.</p></div>
+      <div class="tabs"><a class="tab" href="./lives.html">▶ YouTube / ● Kick</a><span class="tab on">◆ Twitch</span></div>
+      <div id="content"><div class="card">Carregando Twitch…</div></div>
+    </div>
+  </main>
+</div>
+<script>
+(()=>{
+  const RAW='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main';
+  const el=document.getElementById('content');
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt=d=>{try{return d?new Date(d).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—'}catch(_){return d||'—'}};
+  async function get(path){const r=await fetch(`${RAW}/${path}?v=${Date.now()}`,{cache:'no-store'});return r.ok?await r.json():null}
+  async function load(){
+    try{
+      const active=await get('control/twitch-active.json');
+      if(!active?.session_id){el.innerHTML='<div class="card"><b>Nenhuma live Twitch registrada.</b><div class="small muted" style="margin-top:6px">Quando o encoder iniciar, o status aparecerá aqui automaticamente.</div></div>';return}
+      const result=await get(`control/twitch-live-results/${active.session_id}.json`)||active;
+      const st=String(result.status||active.status||'unknown');
+      const online=st==='live'&&result.encoder_connected!==false;
+      el.innerHTML=`<div class="card"><div class="row between"><div><b style="font-size:18px">◆ ${esc(result.title||active.title||'Peter Lofi Gaming Radio')}</b><div class="tiny muted" style="margin-top:5px">Sessão ${esc(active.session_id)} · ${fmt(result.live_at||result.updated_at||active.updated_at)}</div></div><span class="pill ${esc(st)}">${online?'AO VIVO':esc(st.toUpperCase())}</span></div><div class="metrics"><div class="metric"><small>ENCODER</small><b>${result.encoder_connected===false?'OFFLINE':'ONLINE'}</b></div><div class="metric"><small>RESOLUÇÃO</small><b>${esc(result.encoder_resolution||'1920x1080')}</b></div><div class="metric"><small>FPS</small><b>${esc(result.encoder_fps||30)}</b></div><div class="metric"><small>BITRATE</small><b>${esc(result.encoder_bitrate_kbps||6000)} kbps</b></div></div><div class="note"><b>Ingest Twitch:</b> ${result.twitch_ingest_verified?'conexão aceita e encoder estável.':'aguardando confirmação do encoder.'}</div><div class="row" style="margin-top:12px">${result.github_run_url?`<a class="btn primary" target="_blank" href="${esc(result.github_run_url)}">Abrir GitHub Run</a>`:''}<a class="btn" href="./lives.html">Voltar para Lives</a></div></div>`;
+    }catch(e){el.innerHTML='<div class="card" style="color:#ffb2ba"><b>Falha ao carregar Twitch</b><div class="small" style="margin-top:6px">'+esc(e.message||e)+'</div></div>'}
+  }
+  document.getElementById('refresh').onclick=load;
+  document.getElementById('logout').onclick=()=>{localStorage.removeItem('mediaforge_token');location.replace('./secure.html')};
+  load();setInterval(()=>{if(document.visibilityState==='visible')load()},10000);
+})();
+</script>
+</body>
+</html>
