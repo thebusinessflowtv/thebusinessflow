@@ -80,7 +80,44 @@
   async function uploadPart(assetId,uploadId,partNumber,blob,retries=3){let last;for(let i=0;i<retries;i++)try{return await api(`/api/uploads/part?asset_id=${encodeURIComponent(assetId)}&upload_id=${encodeURIComponent(uploadId)}&part_number=${partNumber}`,{method:'PUT',body:blob,headers:{'content-type':'application/octet-stream'}})}catch(e){last=e;await new Promise(r=>setTimeout(r,1000*(i+1)));}throw last;}
   async function uploadAsset(file,kind){if(!file)return;const isThumb=kind==='thumbnail',status=document.getElementById(isThumb?'thumbUploadStatus':'uploadStatus'),bar=document.getElementById(isThumb?'thumbUploadBar':'uploadBar'),btn=document.getElementById('start');btn.disabled=true;bar.style.width='0%';status.textContent=`${file.name} · ${fmtBytes(file.size)} · preparando upload…`;let init=null;try{init=await api('/api/uploads/init',{method:'POST',body:JSON.stringify({name:file.name,title:file.name,mime_type:file.type||'application/octet-stream',size_bytes:file.size,asset_type:kind})});const chunk=Number(init.chunk_size||50*1024*1024),count=Math.ceil(file.size/chunk),results=new Array(count);let done=0,next=0;async function worker(){while(true){const idx=next++;if(idx>=count)return;const start=idx*chunk,end=Math.min(file.size,start+chunk),blob=file.slice(start,end),p=await uploadPart(init.asset_id,init.upload_id,idx+1,blob);results[idx]=p;done+=blob.size;const pct=Math.round(done/file.size*100);bar.style.width=`${pct}%`;status.textContent=`${file.name} · ${pct}%`;}}await Promise.all(Array.from({length:Math.min(3,count)},()=>worker()));const completed=await api('/api/uploads/complete',{method:'POST',body:JSON.stringify({asset_id:init.asset_id,upload_id:init.upload_id,parts:results})}),asset=completed.asset;catalog.assets=[asset,...(catalog.assets||[]).filter(a=>a.id!==asset.id)];drafts[activePlatform][isThumb?'thumbnail':'visual']=String(asset.id);render();const s=document.getElementById(isThumb?'thumbUploadStatus':'uploadStatus');if(s)s.textContent=`✓ ${file.name} selecionado.`;}catch(e){if(init)try{await api('/api/uploads/abort',{method:'POST',body:JSON.stringify({asset_id:init.asset_id,upload_id:init.upload_id})})}catch(_){}if(status){status.textContent=`Falha no upload: ${e.message}`;status.style.color='#ff9ca6';}bar.style.width='0%';}finally{const b=document.getElementById('start');if(b)b.disabled=false;}}
 
-  async function startLive(){captureDraft();const btn=document.getElementById('start'),ids=orderedSelection(),d=drafts[activePlatform];if(!ids.length){alert('Selecione pelo menos uma música, série ou faixa longa.');return;}btn.disabled=true;btn.textContent='Abrindo live…';try{await api('/api/live/start',{method:'POST',body:JSON.stringify({platform:activePlatform,track_ids:ids,duration_minutes:Number(d.duration||0),title:d.title.trim(),description:d.description,visual_asset_id:d.visual||null,thumbnail_asset_id:activePlatform==='youtube'?(d.thumbnail||null):null})});alert(`Live do ${platformName(activePlatform)} enviada com ${ids.length} faixa${ids.length===1?'':'s'}.`);await loadSessions();}catch(e){alert('Falha ao iniciar: '+e.message);}finally{btn.disabled=false;btn.textContent=`${platformIcon(activePlatform)} Iniciar no ${platformName(activePlatform)}`;}}
+  async function waitForLiveConfirmation(id,platform,btn){
+    const started=Date.now(),timeout=120000;
+    while(Date.now()-started<timeout){
+      await new Promise(r=>setTimeout(r,3000));
+      const detail=await api(`/api/live/${encodeURIComponent(id)}`);
+      const st=String(detail?.session?.status||'').toLowerCase();
+      if(btn)btn.textContent=st==='queued'?'Na fila…':st==='starting'?'Conectando encoder…':st==='reconnecting'?'Reconectando…':'Confirmando live…';
+      if(st==='live')return detail;
+      if(st==='failed'||st==='completed')throw new Error(detail?.session?.error_message||`A live terminou com status ${st} antes de ficar online.`);
+    }
+    return null;
+  }
+
+  async function startLive(){
+    captureDraft();
+    const btn=document.getElementById('start'),ids=orderedSelection(),d=drafts[activePlatform],platformAtStart=activePlatform;
+    if(!ids.length){alert('Selecione pelo menos uma música, série ou faixa longa.');return;}
+    btn.disabled=true;btn.textContent='Enviando comando…';
+    try{
+      const launch=await api('/api/live/start',{method:'POST',body:JSON.stringify({platform:platformAtStart,track_ids:ids,duration_minutes:Number(d.duration||0),title:d.title.trim(),description:d.description,visual_asset_id:d.visual||null,thumbnail_asset_id:platformAtStart==='youtube'?(d.thumbnail||null):null})});
+      const id=launch?.session?.id;
+      if(!id)throw new Error('O MediaForge não retornou o ID da sessão.');
+      btn.textContent='Inicializando encoder…';
+      await loadSessions();
+      const confirmed=await waitForLiveConfirmation(id,platformAtStart,btn);
+      await loadSessions();
+      if(confirmed){
+        alert(`✓ Live do ${platformName(platformAtStart)} confirmada e online.`);
+      }else{
+        alert(`A live do ${platformName(platformAtStart)} foi iniciada e continua sendo verificada. Ela aparecerá como AO VIVO assim que o encoder for confirmado.`);
+      }
+    }catch(e){
+      await loadSessions().catch(()=>{});
+      alert('Falha ao iniciar: '+e.message);
+    }finally{
+      btn.disabled=false;btn.textContent=`${platformIcon(platformAtStart)} Iniciar no ${platformName(platformAtStart)}`;
+    }
+  }
   async function stopLive(id){if(!confirm('Encerrar esta live agora?'))return;try{await api(`/api/live/${encodeURIComponent(id)}/stop`,{method:'POST',body:'{}'});closeModal();await loadSessions();}catch(e){alert('Falha ao encerrar: '+e.message);}}
 
   function closeModal(){document.getElementById('liveModal')?.remove();}
