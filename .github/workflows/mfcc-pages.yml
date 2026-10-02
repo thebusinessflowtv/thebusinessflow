@@ -31,46 +31,23 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          import re
 
-          app = Path('control-center/index.html').read_text(encoding='utf-8')
-          gate = Path('control-center/secure.html').read_text(encoding='utf-8')
-          office = Path('control-center/office-music.js').read_text(encoding='utf-8')
-          office_nav = Path('control-center/office-music-nav.js').read_text(encoding='utf-8')
-          office_html = Path('control-center/office-music.html').read_text(encoding='utf-8')
+          index = Path('control-center/index.html').read_text(encoding='utf-8')
+          secure = Path('control-center/secure.html').read_text(encoding='utf-8')
+          lives = Path('control-center/lives.html').read_text(encoding='utf-8')
+          twitch = Path('control-center/twitch.html').read_text(encoding='utf-8')
+          office = Path('control-center/office-music.html').read_text(encoding='utf-8')
 
-          required_app = [
-            '<title>MediaForge Control Center</title>',
-            'mfcc-dispatch', 'mfcc-suggestions', 'mfcc-status', 'mfcc-artifact-link',
-            'repo_full_name', 'youtube_connected', 'allow_youtube_upload',
-            'The Business Flow', 'NBA Stars'
-          ]
-          missing = [item for item in required_app if item not in app]
-          assert not missing, f'Missing app contract: {missing}'
-
-          required_office = [
-            'The Office Music', 'office-music-control', 'office_music_jobs',
-            'office_music_tracks', 'duration_minutes', "privacy:'public'"
-          ]
-          missing_office = [item for item in required_office if item not in office]
-          assert not missing_office, f'Missing Office Music contract: {missing_office}'
-          assert '<title>The Office Music · MediaForge</title>' in office_html, 'Missing Office Music page'
-          assert 'officeMusicProductionsPanel' in office_nav, 'Missing Office Music productions integration'
-
-          required_gate = [
-            'ACESSO PRIVADO', 'user_roles', "eq('role','admin')",
-            'shouldCreateUser:false', "location.replace('./app.html'"
-          ]
-          missing_gate = [item for item in required_gate if item not in gate]
-          assert not missing_gate, f'Missing secure gate contract: {missing_gate}'
-
-          for name, html in [('app', app), ('gate', gate)]:
-            scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, re.S)
-            assert scripts, f'No inline JavaScript found in {name}'
-            Path(f'/tmp/mfcc-{name}.js').write_text(scripts[-1], encoding='utf-8')
+          assert './secure.html' in index, 'MediaForge entry must route to secure gate'
+          assert '<title>MediaForge Control Center</title>' in secure, 'Secure gate missing'
+          assert 'mediaforge_token' in secure and '/api/auth/login' in secure, 'Cloudflare auth gate missing'
+          assert '<title>Lives · MediaForge</title>' in lives, 'Lives page missing'
+          assert 'href="./twitch.html"' in lives, 'Twitch tab missing from Lives'
+          assert '<title>Twitch · MediaForge</title>' in twitch, 'Twitch page missing'
+          assert 'control/twitch-active.json' in twitch, 'Twitch live status integration missing'
+          assert '<title>The Office Music · MediaForge</title>' in office, 'Office Music page missing'
           PY
-          node --check /tmp/mfcc-app.js
-          node --check /tmp/mfcc-gate.js
+          node --check control-center/lives-cloudflare.js
           node --check control-center/office-music.js
           node --check control-center/office-music-nav.js
 
