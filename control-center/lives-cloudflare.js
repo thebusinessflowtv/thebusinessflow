@@ -1,6 +1,7 @@
 (()=>{
   const API=(window.MEDIAFORGE_CONFIG?.API_URL||localStorage.getItem('mediaforge_api_url')||'').replace(/\/$/,'');
   const TOKEN_KEY='mediaforge_token';
+  const TWITCH_RAW='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control';
   let catalog=null,sessions=[],loading=false,activePlatform='kick';
   const selectedSeriesIds=new Set(),selectedMixIds=new Set(),manualTrackIds=new Set(),excludedTrackIds=new Set();
   const drafts={
@@ -12,8 +13,8 @@
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmtBytes=n=>{n=Number(n||0);if(n>=1024**3)return `${(n/1024**3).toFixed(2)} GB`;if(n>=1024**2)return `${(n/1024**2).toFixed(1)} MB`;if(n>=1024)return `${(n/1024).toFixed(1)} KB`;return `${n} B`;};
   const fmtDate=d=>{try{return new Date(d).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}catch(_){return d||''}};
-  const platformName=p=>p==='youtube'?'YouTube':'Kick';
-  const platformIcon=p=>p==='youtube'?'▶':'●';
+  const platformName=p=>p==='youtube'?'YouTube':p==='twitch'?'Twitch':'Kick';
+  const platformIcon=p=>p==='youtube'?'▶':p==='twitch'?'◈':'●';
 
   async function api(path,opt={}){
     if(!API)throw new Error('Backend Cloudflare ainda não foi configurado.');
@@ -25,6 +26,39 @@
     if(!res.ok)throw new Error(data?.message||data?.error||`HTTP ${res.status}`);return data;
   }
 
+  async function rawJson(path){
+    try{
+      const r=await fetch(`${TWITCH_RAW}/${path}?v=${Date.now()}`,{cache:'no-store'});
+      return r.ok?await r.json():null;
+    }catch(_){return null}
+  }
+
+  async function mergeTwitchSession(base){
+    const list=[...(base||[])];
+    const active=await rawJson('twitch-active.json');
+    if(!active?.session_id)return list;
+    const result=await rawJson(`twitch-live-results/${active.session_id}.json`)||active;
+    const exists=list.some(x=>String(x.platform)==='twitch'&&String(x.id)===String(active.session_id));
+    if(!exists){
+      list.unshift({
+        id:String(active.session_id),
+        platform:'twitch',
+        title:result.title||active.title||'Peter Lofi Gaming Radio',
+        description:result.description||'',
+        status:result.status||active.status||'unknown',
+        created_at:result.live_at||result.updated_at||active.updated_at,
+        duration_minutes:0,
+        github_run_url:result.github_run_url||active.github_run_url||'',
+        encoder_resolution:result.encoder_resolution||'1920x1080',
+        encoder_fps:result.encoder_fps||30,
+        encoder_bitrate_kbps:result.encoder_bitrate_kbps||4500,
+        encoder_connected:result.encoder_connected!==false,
+        _external_twitch:true
+      });
+    }
+    return list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  }
+
   function captureDraft(){const d=drafts[activePlatform],ids=['title','description','duration','visual','thumbnail'];for(const id of ids){const el=document.getElementById(id);if(el)d[id]=el.value;}}
   function selectedIds(){return [...document.querySelectorAll('.pick:checked')].map(x=>x.value);}
   function groupTracks(){const out=new Set();for(const s of catalog?.series||[])if(selectedSeriesIds.has(String(s.id)))for(const id of s.track_ids||[])out.add(String(id));for(const m of catalog?.hour_mixes||[])if(selectedMixIds.has(String(m.id)))for(const id of m.track_ids||[])out.add(String(id));return out;}
@@ -34,7 +68,7 @@
   function orderedSelection(){const checked=new Set(selectedIds());return (catalog?.tracks||[]).filter(t=>checked.has(String(t.id))).map(t=>String(t.id));}
   function groupBox(type,items){const cls=type==='series'?'seriesPick':'mixPick',chosen=type==='series'?selectedSeriesIds:selectedMixIds;if(!items.length)return '<div class="tiny muted">Nenhuma opção disponível.</div>';return `<div style="display:grid;gap:6px;border:1px solid #44444a;background:#0f0f11;border-radius:10px;padding:8px;max-height:190px;overflow:auto">${items.map(x=>{const subtitle=type==='series'?`${(x.track_ids||[]).length} faixas · ${fmtDate(x.created_at||x.completed_at)}`:`${Math.round((x.duration_seconds||0)/60)} min · ${fmtDate(x.created_at||x.completed_at)}`;return `<label style="display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:center;padding:9px 10px;border:1px solid #2c2c30;background:#151518;border-radius:8px;cursor:pointer"><input class="${cls}" type="checkbox" value="${esc(x.id)}" ${chosen.has(String(x.id))?'checked':''}><span><b class="small">${esc(x.name)}</b><span class="tiny muted" style="display:block;margin-top:2px">${esc(subtitle)}</span></span></label>`;}).join('')}</div>`;}
 
-  function liveCards(){return sessions.map(s=>`<div class="card livecard" data-live="${esc(s.id)}" style="cursor:pointer"><div class="row between"><div><b>${platformIcon(s.platform)} ${esc(s.title)}</b><div class="tiny muted" style="margin-top:5px">${platformName(s.platform)} · ${fmtDate(s.created_at)} · ${s.duration_minutes===0?'contínua':`${s.duration_minutes||0} min`}</div></div><span class="pill ${esc(s.status)}">${esc(s.status)}</span></div>${s.description?`<div class="tiny muted" style="margin-top:7px">${esc(s.description)}</div>`:''}<div class="row" style="margin-top:12px"><button class="btn viewLive" data-id="${esc(s.id)}">Ver detalhes / Analytics</button>${['queued','starting','live','reconnecting','stopping'].includes(String(s.status))?`<button class="btn danger stopLive" data-id="${esc(s.id)}">Encerrar</button>`:''}</div></div>`).join('')||'<div class="card"><span class="small muted">Nenhuma live registrada neste backend ainda.</span></div>';}
+  function liveCards(){return sessions.map(s=>{const isTw=String(s.platform)==='twitch';return `<div class="card livecard" data-live="${esc(s.id)}" data-platform="${esc(s.platform)}" style="cursor:${isTw?'default':'pointer'}"><div class="row between"><div><b>${isTw?'<img src="./assets/twitch-glitch.svg" alt="Twitch" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px">':platformIcon(s.platform)+' '}${esc(s.title)}</b><div class="tiny muted" style="margin-top:5px">${platformName(s.platform)} · ${fmtDate(s.created_at)} · ${s.duration_minutes===0?'contínua':`${s.duration_minutes||0} min`}</div></div><span class="pill ${esc(s.status)}">${esc(s.status)}</span></div>${s.description?`<div class="tiny muted" style="margin-top:7px">${esc(s.description)}</div>`:''}<div class="row" style="margin-top:12px">${isTw?`<a class="btn viewTwitch" href="./twitch.html">Ver Twitch / Analytics</a>`:`<button class="btn viewLive" data-id="${esc(s.id)}">Ver detalhes / Analytics</button>${['queued','starting','live','reconnecting','stopping'].includes(String(s.status))?`<button class="btn danger stopLive" data-id="${esc(s.id)}">Encerrar</button>`:''}`}</div></div>`;}).join('')||'<div class="card"><span class="small muted">Nenhuma live registrada neste backend ainda.</span></div>';}
 
   function render(){
     if(!API){root().innerHTML='<div class="card"><b>Backend Cloudflare ainda não implantado</b></div>';return;}
@@ -74,7 +108,7 @@
     document.getElementById('start').onclick=startLive;document.getElementById('refreshSessions').onclick=loadSessions;
     document.querySelectorAll('.stopLive').forEach(b=>b.onclick=e=>{e.stopPropagation();stopLive(b.dataset.id)});
     document.querySelectorAll('.viewLive').forEach(b=>b.onclick=e=>{e.stopPropagation();openLive(b.dataset.id)});
-    document.querySelectorAll('.livecard').forEach(c=>c.onclick=()=>openLive(c.dataset.live));
+    document.querySelectorAll('.livecard').forEach(c=>{if(c.dataset.platform!=='twitch')c.onclick=()=>openLive(c.dataset.live);});
   }
 
   async function uploadPart(assetId,uploadId,partNumber,blob,retries=3){let last;for(let i=0;i<retries;i++)try{return await api(`/api/uploads/part?asset_id=${encodeURIComponent(assetId)}&upload_id=${encodeURIComponent(uploadId)}&part_number=${partNumber}`,{method:'PUT',body:blob,headers:{'content-type':'application/octet-stream'}})}catch(e){last=e;await new Promise(r=>setTimeout(r,1000*(i+1)));}throw last;}
@@ -125,8 +159,8 @@
 
   async function openLive(id){closeModal();const wrap=document.createElement('div');wrap.id='liveModal';wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;display:grid;place-items:center;padding:22px';wrap.innerHTML='<div class="card" style="width:min(980px,96vw);max-height:90vh;overflow:auto"><b>Carregando live…</b></div>';document.body.appendChild(wrap);wrap.onclick=e=>{if(e.target===wrap)closeModal()};try{const d=await api(`/api/live/${encodeURIComponent(id)}`),s=d.session,selected=new Set((s.track_ids||[]).map(String)),tracks=catalog?.tracks||[];wrap.innerHTML=`<div class="card" style="width:min(1050px,96vw);max-height:90vh;overflow:auto"><div class="row between"><div><b style="font-size:18px">${platformIcon(s.platform)} ${esc(s.title)}</b><div class="tiny muted" style="margin-top:5px">${platformName(s.platform)} · ${fmtDate(s.created_at)} · ${esc(s.status)}</div></div><button id="closeLiveModal" class="btn">✕ Fechar</button></div><div style="height:14px"></div>${analyticsHtml(d)}<div class="card" style="margin-top:10px"><div class="row between"><div><b>Transmissão</b><div class="tiny muted" style="margin-top:4px">${esc(s.encoder_resolution||'1920x1080')} · ${esc(s.encoder_fps||60)} FPS · ${esc(s.encoder_bitrate_kbps||8000)} kbps</div></div>${s.github_run_url?`<a class="btn" target="_blank" href="${esc(s.github_run_url)}">Abrir GitHub Run</a>`:''}</div>${d.now_playing?`<div class="note" style="margin-top:10px"><b>Tocando agora:</b> ${esc(d.now_playing.title||d.now_playing.track_id)} · desde ${fmtDate(d.now_playing.started_at)}</div>`:'<div class="tiny muted" style="margin-top:10px">A faixa atual aparecerá aqui nas lives iniciadas pelo novo engine.</div>'}</div><div class="card" style="margin-top:10px"><div class="row between"><div><b>Músicas da live</b><div class="tiny muted" style="margin-top:4px">Adicione ou remova faixas. A alteração entra após a faixa atual terminar.</div></div><span id="detailCount" class="pill">${selected.size} faixas</span></div><input id="detailSearch" class="input" style="margin-top:10px" placeholder="Buscar música"><div id="detailTracks" class="tracklist" style="max-height:320px">${tracks.map(t=>`<label class="track detailTrack" data-search="${esc(`${t.title} ${t.collection_name||''} ${t.style||''}`.toLowerCase())}"><input class="detailPick" type="checkbox" value="${esc(t.id)}" ${selected.has(String(t.id))?'checked':''}><span><b class="small">${esc(t.title)}</b><span class="tiny muted" style="display:block">${esc(t.collection_name||t.style||'Faixa')}</span></span><span class="tiny muted">${Math.round((t.duration_seconds||0)/60*10)/10} min</span></label>`).join('')}</div><div class="row" style="margin-top:10px"><button id="saveLiveTracks" class="btn">Salvar nova playlist</button>${['queued','starting','live','reconnecting','stopping'].includes(String(s.status))?`<button id="modalStop" class="btn danger">Encerrar live</button>`:''}</div></div><div class="tiny muted" style="margin-top:10px">Analytics atualizados: ${d.analytics_generated_at?fmtDate(d.analytics_generated_at):'ainda aguardando primeira coleta'}.</div></div>`;document.getElementById('closeLiveModal').onclick=closeModal;document.getElementById('detailSearch').oninput=e=>{const q=e.target.value.trim().toLowerCase();document.querySelectorAll('.detailTrack').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'grid':'none')};document.querySelectorAll('.detailPick').forEach(x=>x.onchange=()=>{const n=document.querySelectorAll('.detailPick:checked').length;document.getElementById('detailCount').textContent=`${n} faixas`;});document.getElementById('saveLiveTracks').onclick=async()=>{const ids=[...document.querySelectorAll('.detailPick:checked')].map(x=>x.value);if(!ids.length){alert('A live precisa manter pelo menos uma música.');return;}const b=document.getElementById('saveLiveTracks');b.disabled=true;b.textContent='Salvando…';try{await api(`/api/live/${encodeURIComponent(id)}/tracks`,{method:'PATCH',body:JSON.stringify({track_ids:ids})});alert('Playlist atualizada. A nova seleção entra após a faixa atual terminar.');await loadSessions();await openLive(id);}catch(e){alert('Falha ao atualizar playlist: '+e.message);}finally{b.disabled=false;b.textContent='Salvar nova playlist';}};document.getElementById('modalStop')?.addEventListener('click',()=>stopLive(id));}catch(e){wrap.innerHTML=`<div class="card"><b>Falha ao carregar a live</b><div class="small muted" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="document.getElementById('liveModal')?.remove()">Fechar</button></div>`;}}
 
-  async function loadSessions(){try{captureDraft();const x=await api('/api/live-sessions');sessions=x.sessions||[];render();}catch(e){console.error(e);}}
-  async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [c,s]=await Promise.all([api('/api/catalog'),api('/api/live-sessions')]);catalog=c;sessions=s.sessions||[];render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
+  async function loadSessions(){try{captureDraft();const x=await api('/api/live-sessions');sessions=await mergeTwitchSession(x.sessions||[]);render();}catch(e){console.error(e);}}
+  async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [c,ls]=await Promise.all([api('/api/catalog'),api('/api/live-sessions')]);catalog=c;sessions=await mergeTwitchSession(ls.sessions||[]);render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
   document.querySelectorAll('.platform-tabs .tab').forEach(tab=>tab.onclick=()=>{captureDraft();activePlatform=tab.dataset.platform||'kick';render();});
   document.getElementById('refresh')?.addEventListener('click',load);load();setInterval(()=>{if(document.visibilityState==='visible'&&catalog)loadSessions();},15000);
 })();
