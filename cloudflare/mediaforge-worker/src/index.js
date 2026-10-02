@@ -25,6 +25,14 @@ async function githubQueueFile(env,path,payload,message){
   const res=await fetch(api,{method:'PUT',headers:githubHeaders(env),body:JSON.stringify(body)});
   if(!res.ok){const text=await res.text();throw new Error(`GitHub queue falhou (${res.status}): ${text.slice(0,500)}`);}return res.json();
 }
+async function githubDispatchWorkflow(env,workflow,inputs){
+  if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('GITHUB_WORKFLOW_TOKEN não configurado no Worker.');
+  const repo=env.GITHUB_REPO||'thebusinessflowtv/theofficemusic';
+  const api=`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`;
+  const res=await fetch(api,{method:'POST',headers:githubHeaders(env),body:JSON.stringify({ref:'main',inputs})});
+  if(!res.ok){const text=await res.text();throw new Error(`GitHub dispatch falhou (${res.status}): ${text.slice(0,500)}`);}
+  return true;
+}
 async function fetchGithubJson(env,path){
   const repo=env.GITHUB_REPO||'thebusinessflowtv/theofficemusic';
   try{const r=await fetch(`https://raw.githubusercontent.com/${repo}/main/${path}?ts=${Date.now()}`,{headers:{'user-agent':'MediaForge-Cloudflare-Worker'}});return r.ok?await r.json():null;}catch(_){return null;}
@@ -80,8 +88,26 @@ async function handleApi(request,env,url){
       if(thumbId)await env.DB.prepare(`INSERT OR REPLACE INTO live_session_assets(session_id,role,asset_id) VALUES(?,?,?)`).bind(id,'thumbnail',thumbId).run();
       await githubQueueFile(env,`control/live-playlists/${id}.json`,{session_id:id,platform,updated_at:now,tracks:manifest},`mediaforge: playlist ${id}`);
       const queue=platform==='youtube'?`control/youtube-live-queue/${id}.json`:`control/kick-live-queue/${id}.json`;
-      await githubQueueFile(env,queue,{session_id:id,track_urls_b64:base64Utf8(JSON.stringify(manifest.map(t=>t.url))),duration_minutes:String(duration),title,description,thumbnail_url:thumbnailUrl,loop_url:visualUrl,segment_index:'1',requested_at:now},`mediaforge: queue ${platform} live ${id}`);
-      return json({ok:true,session:{id,platform,status:'queued',title,description,duration_minutes:duration,track_ids:trackIds,visual_asset_id:visualId||null,thumbnail_asset_id:thumbId||null,created_at:now}},200,cors);
+      const queuePayload={session_id:id,track_urls_b64:base64Utf8(JSON.stringify(manifest.map(t=>t.url))),duration_minutes:String(duration),title,description,thumbnail_url:thumbnailUrl,loop_url:visualUrl,segment_index:'1',requested_at:now,dispatch_mode:platform==='kick'?'direct':'bridge'};
+      await githubQueueFile(env,queue,queuePayload,`mediaforge: queue ${platform} live ${id}`);
+      let launchMode='bridge';
+      if(platform==='kick'){
+        const inputs={session_id:id,track_urls_b64:queuePayload.track_urls_b64,duration_minutes:String(duration),title,description,thumbnail_url:thumbnailUrl,loop_url:visualUrl,segment_index:'1'};
+        try{
+          await githubDispatchWorkflow(env,'peter-lofi-kick-live.yml',inputs);
+          launchMode='direct';
+          await env.DB.prepare(`UPDATE live_sessions SET status='starting' WHERE id=?`).bind(id).run();
+        }catch(dispatchErr){
+          console.log('Direct Kick dispatch failed; falling back to queue bridge:',dispatchErr?.message||String(dispatchErr));
+          queuePayload.dispatch_mode='bridge';
+          queuePayload.direct_dispatch_error=dispatchErr?.message||String(dispatchErr);
+          await githubQueueFile(env,queue,queuePayload,`mediaforge: fallback kick bridge ${id}`);
+          launchMode='bridge-fallback';
+          await env.DB.prepare(`UPDATE live_sessions SET status='starting' WHERE id=?`).bind(id).run();
+        }
+      }
+      const finalStatus=platform==='kick'?'starting':'queued';
+      return json({ok:true,launch_mode:launchMode,session:{id,platform,status:finalStatus,title,description,duration_minutes:duration,track_ids:trackIds,visual_asset_id:visualId||null,thumbnail_asset_id:thumbId||null,created_at:now}},200,cors);
     }catch(e){return json({error:'start_live_failed',message:e.message},502,cors);}
   }
 
