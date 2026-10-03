@@ -96,7 +96,7 @@
       </div>
       <div style="height:7px;background:#29292e;border-radius:999px;overflow:hidden;margin-top:10px"><span style="display:block;height:100%;width:${pct}%;background:#9146ff"></span></div>
       <div class="row wrap" style="margin-top:12px">
-        <a class="btn" href="./twitch-dj-catalog-scanner.user.js" target="_blank" rel="noopener">1. Instalar scanner</a>
+        <a class="btn" href="./twitch-dj-catalog-scanner.user.js?v=20261003-2" target="_blank" rel="noopener">1. Instalar scanner</a>
         <button id="startDjCatalogScan" class="btn twitch">2. Iniciar verificação das 215</button>
         ${s?.id?'<button id="refreshDjCatalogScan" class="btn">↻ Atualizar resultado</button>':''}
       </div>
