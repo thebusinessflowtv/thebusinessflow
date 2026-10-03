@@ -646,8 +646,8 @@ async function handleApi(request,env,url){
       if(!preset)return json({error:'invalid_series_key',message:'Selecione um preset musical válido.'},400,cors);
       const id=crypto.randomUUID(),now=new Date().toISOString(),name=(playlistName||preset.name||seriesKey).slice(0,80);
       await env.DB.prepare(`INSERT INTO music_generation_jobs(id,series_key,playlist_name,duration_minutes,status,progress,phase,created_at,updated_at) VALUES(?,?,?,?, 'queued',0,'Na fila',?,?)`).bind(id,seriesKey,name,duration,now,now).run();
-      await githubDispatchWorkflow(env,'peter-lofi-generate-playlist.yml',{request_id:id,series_key:seriesKey,playlist_name:name,duration_minutes:String(duration)});
-      return json({ok:true,job:{id,series_key:seriesKey,playlist_name:name,duration_minutes:duration,status:'queued',progress:0,phase:'Na fila',created_at:now}},200,cors);
+      if(String(env.LOCAL_RUNTIME||'')!=='1')await githubDispatchWorkflow(env,'peter-lofi-generate-playlist.yml',{request_id:id,series_key:seriesKey,playlist_name:name,duration_minutes:String(duration)});
+      return json({ok:true,job:{id,series_key:seriesKey,playlist_name:name,duration_minutes:duration,status:'queued',progress:0,phase:String(env.LOCAL_RUNTIME||'')==='1'?'Na fila da OVH':'Na fila',created_at:now},execution:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-local':'github-actions'},200,cors);
     }catch(e){return json({error:'music_generate_failed',message:e.message},502,cors);}
   }
 
@@ -749,6 +749,11 @@ async function handleApi(request,env,url){
     if(!['start','stop','restart','skip','previous'].includes(action)||!OVH_SLOTS.includes(slot))return json({error:'invalid_ovh_control'},400,cors);
     const state=await ovhState(env),svc=state?.services?.[slot]||{},sessionId=String(b.session_id||svc.session_id||'');
     if(action==='stop'&&slot.startsWith('youtube-')&&sessionId){
+      if(String(env.LOCAL_RUNTIME||'')==='1'){
+        const stopped=await stopYoutubeLocal(env,{sessionId,slot,title:String(svc.title||'')});
+        await env.DB.prepare(`UPDATE live_sessions SET status='stopping' WHERE id=?`).bind(sessionId).run().catch(()=>{});
+        return json({ok:true,action:'stop',runtime_slot:slot,session_id:sessionId,mode:'youtube-ovh-local',command:stopped.command},200,cors);
+      }
       await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-stop.yml',{session_id:sessionId,runtime_slot:slot});
       return json({ok:true,action:'stop',runtime_slot:slot,session_id:sessionId,mode:'youtube-controlled-stop'},200,cors);
     }
@@ -764,7 +769,7 @@ async function handleApi(request,env,url){
       asset=await readAsset(env,assetId);
       if(!asset||asset.status!=='ready')return json({error:'visual_asset_not_ready'},404,cors);
       if(asset.asset_type!=='loop')return json({error:'visual_asset_invalid_type'},400,cors);
-      loopUrl=assetPublicUrl(request,asset);
+      loopUrl=assetRuntimeUrl(request,asset,env);
     }
     if(!loopUrl)return json({error:'loop_url_required',message:'Selecione ou envie um vídeo antes de aplicar.'},400,cors);
     const state=await ovhState(env),svc=state?.services?.[slot]||{},sessionId=String(b.session_id||svc.session_id||'');
@@ -811,8 +816,8 @@ async function handleApi(request,env,url){
         manifest=trackManifest(tracks);if(manifest.length!==trackIds.length)return json({error:'no_playable_tracks'},400,cors);
       }
       const visualId=b.visual_asset_id?String(b.visual_asset_id):'',thumbId=b.thumbnail_asset_id?String(b.thumbnail_asset_id):'';let visualUrl='',thumbnailUrl='';
-      if(visualId){const a=await readAsset(env,visualId);if(!a||a.status!=='ready')return json({error:'visual_not_ready'},400,cors);visualUrl=assetPublicUrl(request,a);}
-      if(thumbId){const a=await readAsset(env,thumbId);if(!a||a.status!=='ready'||!String(a.mime_type||'').startsWith('image/'))return json({error:'thumbnail_not_ready',message:'A thumbnail do YouTube precisa ser uma imagem pronta.'},400,cors);thumbnailUrl=assetPublicUrl(request,a);}
+      if(visualId){const a=await readAsset(env,visualId);if(!a||a.status!=='ready')return json({error:'visual_not_ready'},400,cors);visualUrl=assetRuntimeUrl(request,a,env);}
+      if(thumbId){const a=await readAsset(env,thumbId);if(!a||a.status!=='ready'||!String(a.mime_type||'').startsWith('image/'))return json({error:'thumbnail_not_ready',message:'A thumbnail do YouTube precisa ser uma imagem pronta.'},400,cors);thumbnailUrl=assetPublicUrl(request,a,env);}
       const id=crypto.randomUUID(),title=String(b.title||'Peter Lofi — Live').trim()||'Peter Lofi — Live',description=String(b.description||''),duration=Math.max(0,Math.min(10080,Number(b.duration_minutes??0)||0)),now=new Date().toISOString();
       let slot=platform;
       if(platform==='youtube'){
@@ -830,6 +835,10 @@ async function handleApi(request,env,url){
       const common={session_id:id,platform,runtime_slot:slot,title,description,duration_minutes:duration,loop_url:visualUrl,playlist_key:playlistKey||null,tracks:manifest,shuffle:true,repeat:true,requested_at:now,source:'mediaforge'};
       if(platform==='youtube'){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
+        if(String(env.LOCAL_RUNTIME||'')==='1'){
+          const local=await prepareYoutubeLocal(request,env,{sessionId:id,slot,title,description,thumbnailUrl,durationMinutes:duration,loopUrl:visualUrl,tracks:manifest,playlistKey});
+          return json({ok:true,launch_mode:'ovh-youtube-local',youtube:local.result,command_id:local.command.id,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
+        }
         await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-prepare.yml',{session_id:id,runtime_slot:slot,title,description,thumbnail_url:thumbnailUrl,duration_minutes:String(duration)});
         return json({ok:true,launch_mode:'ovh-youtube-prepare',session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
       }
@@ -844,7 +853,8 @@ async function handleApi(request,env,url){
     try{
       const rt=await runtimeForSession(env,id),slot=rt?.runtime_slot||String(row.platform);
       if(String(row.platform)==='youtube'){
-        await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-stop.yml',{session_id:id,runtime_slot:String(slot||'')});
+        if(String(env.LOCAL_RUNTIME||'')==='1')await stopYoutubeLocal(env,{sessionId:id,slot:String(slot||''),title:row.title});
+        else await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-stop.yml',{session_id:id,runtime_slot:String(slot||'')});
       }else{
         await issueOvhCommand(env,{action:'stop',platform:row.platform,runtime_slot:slot,session_id:id,title:row.title,source:'mediaforge'});
       }
