@@ -411,7 +411,7 @@
       const html=pageHead(title,subtitle)+'<div class="card module-login"><h3>Conectar streaming</h3><p>Esta área usa a sessão segura do MediaForge Cloudflare Worker.</p><a class="btn primary" href="./secure.html?return='+encodeURIComponent(ret)+'">Conectar</a></div>';
       app.innerHTML=shell(html,path);wireShell();return;
     }
-    const html=pageHead(title,subtitle)+'<div class="module-frame"><iframe id="mediaForgeModuleFrame" scrolling="no" src="'+esc(src)+(src.includes('?')?'&':'?')+'embed=1&embedv=5" title="'+esc(title)+'"></iframe></div>';
+    const html=pageHead(title,subtitle)+'<div class="module-frame"><iframe id="mediaForgeModuleFrame" scrolling="no" src="'+esc(src)+(src.includes('?')?'&':'?')+'embed=1&embedv=6" title="'+esc(title)+'"></iframe></div>';
     app.innerHTML=shell(html,path);wireShell();
     const frame=document.getElementById('mediaForgeModuleFrame');
     const resize=()=>{try{
