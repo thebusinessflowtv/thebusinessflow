@@ -228,7 +228,7 @@ async function handleApi(request,env,url){
     if(!total)return json({error:'reference_manifest_unavailable',message:'As referências da playlist Gaming ainda não estão disponíveis.'},503,cors);
     const id=crypto.randomUUID(),bridgeToken=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),tokenHash=await sha256hex(bridgeToken),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+6*60*60*1000).toISOString();
     await env.DB.prepare(`INSERT INTO dj_catalog_scans(id,token_hash,status,total,processed,allowed,restricted,not_found,ambiguous,error_count,created_at,updated_at,expires_at) VALUES(?,?,'pending',?,0,0,0,0,0,0,?,?,?)`).bind(id,tokenHash,total,created,created,expires).run();
-    const origin=new URL(request.url).origin,launchUrl=`https://www.twitch.tv/dj-signup#mediaforge_scan=${encodeURIComponent(id)}&mediaforge_token=${encodeURIComponent(bridgeToken)}&mediaforge_api=${encodeURIComponent(origin)}`;
+    const origin=new URL(request.url).origin,launchUrl=`https://dashboard.twitch.tv/u/peterlofi/dj#mediaforge_scan=${encodeURIComponent(id)}&mediaforge_token=${encodeURIComponent(bridgeToken)}&mediaforge_api=${encodeURIComponent(origin)}`;
     return json({ok:true,scan:{id,status:'pending',total,processed:0,allowed:0,restricted:0,not_found:0,ambiguous:0,error_count:0,created_at:created,updated_at:created,expires_at:expires},launch_url:launchUrl,install_url:'https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js'},200,cors);
   }
   if(url.pathname==='/api/dj-catalog/scans'&&request.method==='GET'){
