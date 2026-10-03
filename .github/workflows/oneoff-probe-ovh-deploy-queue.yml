@@ -1,5 +1,5 @@
 name: One-off — Probe OVH Deploy Queue
-# trigger: 2026-10-03T05:00Z all-platform hot-swap rollout
+# trigger: 2026-10-03T05:06Z deploy-agent diagnosis
 
 on:
   push:
