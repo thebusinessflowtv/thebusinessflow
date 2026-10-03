@@ -53,6 +53,18 @@ function ovhAgentAllowed(request,env){
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
 async function getYoutubeStations(env){return (await fetchGithubJson(env,'control/youtube-stations.json'))||{stations:[]};}
 async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/music-library.json'))||{version:1,playlists:[]};}
+async function getPeterLofiSeriesConfig(env){return (await fetchGithubJson(env,'config/peter_lofi_series.json'))||{series:[]};}
+async function syncMusicGenerationJob(env,row){
+  if(!row)return null;
+  if(['completed','failed'].includes(String(row.status||'')))return row;
+  const remote=await fetchGithubJson(env,`control/generated-playlists/${row.id}.json`);
+  if(!remote)return row;
+  const status=String(remote.status||row.status||'queued'),progress=Math.max(0,Math.min(100,Number(remote.progress??row.progress??0))),phase=String(remote.phase||row.phase||''),err=String(remote.error_message||remote.error||'');
+  await env.DB.prepare(`UPDATE music_generation_jobs SET status=?,progress=?,phase=?,github_run_id=?,github_run_url=?,release_tag=?,master_audio_url=?,error=?,updated_at=?,completed_at=?,result_json=? WHERE id=?`).bind(
+    status,progress,phase,remote.github_run_id?String(remote.github_run_id):row.github_run_id||null,remote.github_run_url||row.github_run_url||null,remote.release_tag||row.release_tag||null,remote.master_audio_url||row.master_audio_url||null,err||null,new Date().toISOString(),remote.completed_at||row.completed_at||null,JSON.stringify(remote),row.id
+  ).run();
+  return {...row,...remote,status,progress,phase,error:err||null,result_json:JSON.stringify(remote)};
+}
 async function issueOvhCommand(env,command){
   const now=new Date().toISOString(),id=String(command.id||crypto.randomUUID()),path=`control/ovh-commands/${id}.json`;
   const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
@@ -158,6 +170,45 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/auth/login'&&request.method==='POST'){const b=await bodyJson(request),email=String(b.email||'').trim().toLowerCase(),password=String(b.password||'');if(!env.ADMIN_EMAIL||!env.ADMIN_PASSWORD||!env.SESSION_SECRET)return json({error:'auth_not_configured'},503,cors);if(email!==String(env.ADMIN_EMAIL).trim().toLowerCase()||password!==String(env.ADMIN_PASSWORD))return json({error:'invalid_credentials',message:'E-mail ou senha inválidos.'},401,cors);return json({ok:true,token:await signSession(email,env.SESSION_SECRET),user:{email,role:'admin'}},200,cors);}
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
+  if(url.pathname==='/api/music/presets'&&request.method==='GET'){
+    const cfg=await getPeterLofiSeriesConfig(env);
+    const presets=(cfg.series||[]).map(s=>({index:s.index,key:s.key,name:s.name,playlist:s.playlist||s.name,description:s.description||'',genre:(s.music_dna?.style_pool||[])[0]||'Lofi',moods:s.music_dna?.mood||[]}));
+    return json({presets},200,cors);
+  }
+
+  if(url.pathname==='/api/music/generate'&&request.method==='POST'){
+    try{
+      const b=await bodyJson(request),seriesKey=String(b.series_key||'').trim(),playlistName=String(b.playlist_name||'').trim();
+      const duration=Math.max(30,Math.min(180,Number(b.duration_minutes||60)));
+      const cfg=await getPeterLofiSeriesConfig(env),preset=(cfg.series||[]).find(s=>String(s.key)===seriesKey);
+      if(!preset)return json({error:'invalid_series_key',message:'Selecione um preset musical válido.'},400,cors);
+      const id=crypto.randomUUID(),now=new Date().toISOString(),name=(playlistName||preset.name||seriesKey).slice(0,80);
+      await env.DB.prepare(`INSERT INTO music_generation_jobs(id,series_key,playlist_name,duration_minutes,status,progress,phase,created_at,updated_at) VALUES(?,?,?,?, 'queued',0,'Na fila',?,?)`).bind(id,seriesKey,name,duration,now,now).run();
+      await githubDispatchWorkflow(env,'peter-lofi-generate-playlist.yml',{request_id:id,series_key:seriesKey,playlist_name:name,duration_minutes:String(duration)});
+      return json({ok:true,job:{id,series_key:seriesKey,playlist_name:name,duration_minutes:duration,status:'queued',progress:0,phase:'Na fila',created_at:now}},200,cors);
+    }catch(e){return json({error:'music_generate_failed',message:e.message},502,cors);}
+  }
+
+  if(url.pathname==='/api/music/jobs'&&request.method==='GET'){
+    const q=await env.DB.prepare(`SELECT * FROM music_generation_jobs ORDER BY created_at DESC LIMIT 30`).all();
+    const rows=[];
+    for(const raw of q.results||[]){
+      const row=await syncMusicGenerationJob(env,raw);
+      let result=null;try{result=row?.result_json?JSON.parse(row.result_json):null}catch(_){}
+      rows.push({...row,result});
+    }
+    return json({jobs:rows},200,cors);
+  }
+
+  const musicJobMatch=url.pathname.match(/^\/api\/music\/jobs\/([^/]+)$/);
+  if(musicJobMatch&&request.method==='GET'){
+    let row=await env.DB.prepare(`SELECT * FROM music_generation_jobs WHERE id=?`).bind(musicJobMatch[1]).first();
+    if(!row)return json({error:'music_job_not_found'},404,cors);
+    row=await syncMusicGenerationJob(env,row);
+    let result=null;try{result=row?.result_json?JSON.parse(row.result_json):null}catch(_){}
+    return json({job:{...row,result}},200,cors);
+  }
+
 
   if(url.pathname==='/api/ovh/deploy'&&request.method==='POST'){
     const b=await bodyJson(request),action=String(b.action||''),requested=String(b.request_id||'').trim();let target=String(b.target||'');
