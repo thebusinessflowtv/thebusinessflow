@@ -67,6 +67,7 @@ async function syncMusicGenerationJob(env,row){
 }
 async function issueOvhCommand(env,command){
   const now=new Date().toISOString(),id=String(command.id||crypto.randomUUID()),path=`control/ovh-commands/${id}.json`;
+  if(String(command?.source||'')==='mediaforge-visual-switch') command={...command,action:'set_visual'};
   const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
   await env.DB.prepare(`INSERT OR REPLACE INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at,claimed_at,completed_at,error) VALUES(?,?,?,?, 'pending', ?,NULL,NULL,NULL)`).bind(id,String(payload.runtime_slot||''),String(payload.action||''),JSON.stringify(payload),now).run();
   try{
