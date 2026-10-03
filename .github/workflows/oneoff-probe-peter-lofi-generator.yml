@@ -29,3 +29,5 @@ jobs:
           jq -e '.presets | length > 0' /tmp/presets.json >/dev/null
           jq -e '.jobs | type=="array"' /tmp/jobs.json >/dev/null
           echo "PETER_LOFI_GENERATOR_API_OK"
+
+# retrigger 1791000669496
