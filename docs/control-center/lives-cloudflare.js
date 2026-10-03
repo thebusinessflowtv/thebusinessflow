@@ -3,12 +3,12 @@
   const TOKEN_KEY='mediaforge_token';
   const TWITCH_RAW='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control';
   const requestedPlatform=new URLSearchParams(location.search).get('platform');
-  let catalog=null,sessions=[],ovh=null,loading=false,activePlatform=['youtube','kick','twitch'].includes(requestedPlatform)?requestedPlatform:'kick';
+  let catalog=null,musicLibrary={playlists:[]},sessions=[],ovh=null,loading=false,activePlatform=['youtube','kick','twitch'].includes(requestedPlatform)?requestedPlatform:'kick';
   const selectedSeriesIds=new Set(),selectedMixIds=new Set(),manualTrackIds=new Set(),excludedTrackIds=new Set();
   const drafts={
-    kick:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:''},
-    twitch:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:''},
-    youtube:{title:'Peter Lofi Radio 🎧 Lofi Beats for Work, Study, Focus & Relax 🔴 Live',description:'Lofi beats for work, study, focus and relaxation. Live on Peter Lofi.',duration:'0',visual:'',thumbnail:''}
+    kick:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:'',playlist:'gaming-radio'},
+    twitch:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:'',playlist:'gaming-radio'},
+    youtube:{title:'Peter Lofi Radio 🎧 Lofi Beats for Work, Study, Focus & Relax 🔴 Live',description:'Lofi beats for work, study, focus and relaxation. Live on Peter Lofi.',duration:'0',visual:'',thumbnail:'',playlist:'deep-house-radio'}
   };
   const root=()=>document.getElementById('content');
   const token=()=>localStorage.getItem(TOKEN_KEY)||'';
@@ -61,7 +61,7 @@
     return list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
   }
 
-  function captureDraft(){const d=drafts[activePlatform],ids=['title','description','duration','visual','thumbnail'];for(const id of ids){const el=document.getElementById(id);if(el)d[id]=el.value;}}
+  function captureDraft(){const d=drafts[activePlatform],ids=['title','description','duration','visual','thumbnail','playlist'];for(const id of ids){const el=document.getElementById(id);if(el)d[id]=el.value;}}
   function selectedIds(){return [...document.querySelectorAll('.pick:checked')].map(x=>x.value);}
   function groupTracks(){const out=new Set();for(const s of catalog?.series||[])if(selectedSeriesIds.has(String(s.id)))for(const id of s.track_ids||[])out.add(String(id));for(const m of catalog?.hour_mixes||[])if(selectedMixIds.has(String(m.id)))for(const id of m.track_ids||[])out.add(String(id));return out;}
   function combinedSelection(){const out=groupTracks();for(const id of manualTrackIds)out.add(String(id));for(const id of excludedTrackIds)out.delete(String(id));return out;}
@@ -75,6 +75,11 @@
     return filtered.map(s=>`<div class="card livecard" data-live="${esc(s.id)}" data-platform="${esc(s.platform)}" style="cursor:pointer"><div class="row between"><div><b>${platformIcon(s.platform)} ${esc(s.title)}</b><div class="tiny muted" style="margin-top:5px">${platformName(s.platform)} · ${s.runtime==='ovh'?'<span style="color:#8ff2bb">OVH</span> · ':''}${fmtDate(s.created_at||s.live_at)} · ${Number(s.duration_minutes||0)===0?'contínua':`${s.duration_minutes||0} min`}</div></div><span class="pill ${esc(s.status)}">${esc(String(s.status)==='live'?'AO VIVO':String(s.status||'').toUpperCase())}</span></div>${s.description?`<div class="tiny muted" style="margin-top:7px">${esc(s.description)}</div>`:''}<div class="row" style="margin-top:12px"><button class="btn viewLive" data-id="${esc(s.id)}">Ver detalhes / Analytics</button>${['queued','starting','live','reconnecting','stopping'].includes(String(s.status))?`<button class="btn danger stopLive" data-id="${esc(s.id)}">Encerrar</button>`:''}</div></div>`).join('')||'<div class="card"><span class="small muted">Nenhuma live registrada nesta plataforma ainda.</span></div>';
   }
 
+  function canonicalPlaylistOptions(selected=''){
+    const list=musicLibrary?.playlists||[];
+    return list.map(p=>`<option value="${esc(p.key)}" ${String(selected)===String(p.key)?'selected':''}>${esc(p.name)} · ${esc(p.track_count||0)} faixas · ${esc(p.genre||'Lofi')}</option>`).join('');
+  }
+
   function youtubeSlotOptions(){
     const list=ovh?.youtube_slots||[];
     if(!list.length)return '<option value="">Slots OVH ainda não sincronizados</option>';
@@ -83,7 +88,7 @@
 
   function render(){
     if(!API){root().innerHTML='<div class="card"><b>Backend Cloudflare ainda não implantado</b></div>';return;}
-    const d=drafts[activePlatform],tracks=catalog?.tracks||[],series=catalog?.series||[],mixes=catalog?.hour_mixes||[],assets=catalog?.assets||[],images=assets.filter(a=>String(a.mime_type||'').startsWith('image/'));
+    const d=drafts[activePlatform],tracks=catalog?.tracks||[],series=catalog?.series||[],mixes=catalog?.hour_mixes||[],playlists=musicLibrary?.playlists||[],assets=catalog?.assets||[],images=assets.filter(a=>String(a.mime_type||'').startsWith('image/'));
     document.querySelectorAll('.platform-tabs .tab').forEach(t=>t.classList.toggle('on',t.dataset.platform===activePlatform));
     root().innerHTML=`<div class="grid grid2"><section class="card">
       <div class="row between"><div><b>Configurar live do ${platformName(activePlatform)}</b><div class="tiny muted" style="margin-top:4px">Encoder OVH · catálogo GitHub · controle D1 · mídia R2.</div></div><span class="pill live">${activePlatform.toUpperCase()}</span></div>
@@ -91,11 +96,8 @@
       <div class="field"><label>DESCRIÇÃO</label><textarea id="description" class="input" rows="4">${esc(d.description)}</textarea><div class="tiny muted" style="margin-top:5px">${activePlatform==='kick'?'A Kick permite alterar o título da transmissão via API; a descrição permanece registrada no MediaForge.':'No YouTube, título e descrição são enviados para a transmissão.'}</div></div>
       <div class="field"><label>DURAÇÃO</label><select id="duration" class="select"><option value="0" ${d.duration==='0'?'selected':''}>Contínua</option><option value="60" ${d.duration==='60'?'selected':''}>1 hora</option><option value="120" ${d.duration==='120'?'selected':''}>2 horas</option><option value="240" ${d.duration==='240'?'selected':''}>4 horas</option><option value="480" ${d.duration==='480'?'selected':''}>8 horas</option></select></div>
       ${activePlatform==='youtube'?`<div class="field"><label>SLOT OVH DO YOUTUBE</label><select id="youtubeSlot" class="select"><option value="">Selecione um slot disponível</option>${youtubeSlotOptions()}</select><div class="tiny muted" style="margin-top:5px">Cada live simultânea do YouTube usa um stream reutilizável provisionado na VPS.</div></div>`:''}
-      <div class="field"><label>SÉRIES / PLAYLISTS GERADAS — SELEÇÃO MÚLTIPLA</label>${groupBox('series',series)}<div id="seriesCount" class="tiny muted" style="margin-top:6px"></div></div>
-      <div class="field"><label>FAIXAS LONGAS / MÚSICAS DE 1 HORA — SELEÇÃO MÚLTIPLA</label>${groupBox('mix',mixes)}<div id="mixCount" class="tiny muted" style="margin-top:6px"></div></div>
-      <div class="row" style="margin-top:10px"><button id="selectAll" class="btn">Selecionar todas</button><button id="clearAll" class="btn">Limpar tudo</button><span id="selectedCount" class="tiny muted"></span></div>
-      <div class="field"><label>BUSCAR MÚSICA</label><input id="trackSearch" class="input" placeholder="Buscar por nome, série ou estilo"></div>
-      <div id="trackList" class="tracklist">${tracks.map(t=>`<label class="track" data-search="${esc(`${t.title} ${t.collection_name||''} ${t.style||''}`.toLowerCase())}"><input class="pick" type="checkbox" value="${esc(t.id)}"><span><b class="small">${esc(t.title)}</b><span class="tiny muted" style="display:block;margin-top:2px">${esc(t.collection_name||t.style||'Faixa')} · ${Math.round((t.duration_seconds||0)/60*10)/10} min · ${fmtDate(t.created_at||t.completed_at)}</span></span><span class="pill">${t.source==='peter_lofi_series'?'série':'faixa'}</span></label>`).join('')}</div>
+      <div class="field"><label>PLAYLIST DE MÚSICA</label><select id="playlist" class="select"><option value="">Selecione uma playlist</option>${canonicalPlaylistOptions(d.playlist)}</select><div class="tiny muted" style="margin-top:6px">As lives rodam faixa por faixa. Ao terminar todas as músicas, a playlist continua novamente em shuffle sem compartilhar posição com as outras plataformas.</div></div>
+      <div id="playlistSummary" class="note">${(()=>{const p=playlists.find(x=>String(x.key)===String(d.playlist));return p?`<b>${esc(p.name)}</b> · ${esc(p.track_count)} faixas · ${esc(p.genre||'Lofi')}`:'Escolha uma playlist do catálogo PeterLofi.'})()}</div>
     </section><aside class="grid"><section class="card">
       <b>Visual da transmissão</b><div class="tiny muted" style="margin-top:5px">Imagem = fixa. Vídeo = duração completa em loop.</div>
       <div class="field"><label>VISUAL JÁ ENVIADO</label><select id="visual" class="select"><option value="">Sem visual personalizado</option>${assets.filter(a=>a.asset_type!=='thumbnail').map(a=>`<option value="${esc(a.id)}" ${d.visual===String(a.id)?'selected':''}>${esc(a.title)} · ${fmtBytes(a.size_bytes)}</option>`).join('')}</select></div>
@@ -108,19 +110,14 @@
   }
 
   function bind(){
-    document.querySelectorAll('.seriesPick').forEach(x=>x.onchange=()=>{x.checked?selectedSeriesIds.add(String(x.value)):selectedSeriesIds.delete(String(x.value));applySelection();});
-    document.querySelectorAll('.mixPick').forEach(x=>x.onchange=()=>{x.checked?selectedMixIds.add(String(x.value)):selectedMixIds.delete(String(x.value));applySelection();});
-    document.querySelectorAll('.pick').forEach(x=>x.onchange=()=>{const id=String(x.value);if(x.checked){manualTrackIds.add(id);excludedTrackIds.delete(id);}else{manualTrackIds.delete(id);excludedTrackIds.add(id);}updateCount();});
-    document.getElementById('selectAll').onclick=()=>{for(const t of catalog?.tracks||[])manualTrackIds.add(String(t.id));excludedTrackIds.clear();applySelection();};
-    document.getElementById('clearAll').onclick=()=>{selectedSeriesIds.clear();selectedMixIds.clear();manualTrackIds.clear();excludedTrackIds.clear();applySelection();};
-    document.getElementById('trackSearch').oninput=e=>{const q=e.target.value.trim().toLowerCase();document.querySelectorAll('#trackList .track').forEach(el=>el.style.display=!q||el.dataset.search.includes(q)?'grid':'none');};
-    ['title','description','duration','visual','thumbnail'].forEach(id=>document.getElementById(id)?.addEventListener('change',captureDraft));
-    document.getElementById('visualFile').onchange=e=>uploadAsset(e.target.files?.[0],'loop');
+    ['title','description','duration','visual','thumbnail','playlist'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{captureDraft();if(id==='playlist')render();}));
+    document.getElementById('visualFile')?.addEventListener('change',e=>uploadAsset(e.target.files?.[0],'loop'));
     document.getElementById('thumbFile')?.addEventListener('change',e=>uploadAsset(e.target.files?.[0],'thumbnail'));
-    document.getElementById('start').onclick=startLive;document.getElementById('refreshSessions').onclick=loadSessions;
+    document.getElementById('start').onclick=startLive;
+    document.getElementById('refreshSessions').onclick=loadSessions;
     document.querySelectorAll('.stopLive').forEach(b=>b.onclick=e=>{e.stopPropagation();stopLive(b.dataset.id)});
     document.querySelectorAll('.viewLive').forEach(b=>b.onclick=e=>{e.stopPropagation();openLive(b.dataset.id)});
-    document.querySelectorAll('.livecard').forEach(c=>c.onclick=()=>openLive(c.dataset.live));
+    document.querySelectorAll('.livecard').forEach(card=>card.onclick=()=>openLive(card.dataset.live));
   }
 
   async function uploadPart(assetId,uploadId,partNumber,blob,retries=3){let last;for(let i=0;i<retries;i++)try{return await api(`/api/uploads/part?asset_id=${encodeURIComponent(assetId)}&upload_id=${encodeURIComponent(uploadId)}&part_number=${partNumber}`,{method:'PUT',body:blob,headers:{'content-type':'application/octet-stream'}})}catch(e){last=e;await new Promise(r=>setTimeout(r,1000*(i+1)));}throw last;}
@@ -141,24 +138,20 @@
 
   async function startLive(){
     captureDraft();
-    const btn=document.getElementById('start'),ids=orderedSelection(),d=drafts[activePlatform],platformAtStart=activePlatform;
-    if(!ids.length){alert('Selecione pelo menos uma música, série ou faixa longa.');return;}
+    const btn=document.getElementById('start'),d=drafts[activePlatform],platformAtStart=activePlatform,playlistKey=document.getElementById('playlist')?.value||d.playlist||'';
+    if(!playlistKey){alert('Selecione uma playlist de música.');return;}
     btn.disabled=true;btn.textContent='Enviando comando…';
     try{
       const youtubeSlot=platformAtStart==='youtube'?(document.getElementById('youtubeSlot')?.value||''):null;
       if(platformAtStart==='youtube'&&!youtubeSlot)throw new Error('Selecione um slot OVH do YouTube que esteja livre.');
-      const launch=await api('/api/live/start',{method:'POST',body:JSON.stringify({platform:platformAtStart,track_ids:ids,duration_minutes:Number(d.duration||0),title:d.title.trim(),description:d.description,visual_asset_id:d.visual||null,thumbnail_asset_id:platformAtStart==='youtube'?(d.thumbnail||null):null,youtube_slot:youtubeSlot})});
+      const launch=await api('/api/live/start',{method:'POST',body:JSON.stringify({platform:platformAtStart,playlist_key:playlistKey,duration_minutes:Number(d.duration||0),title:d.title.trim(),description:d.description,visual_asset_id:d.visual||null,thumbnail_asset_id:platformAtStart==='youtube'?(d.thumbnail||null):null,youtube_slot:youtubeSlot})});
       const id=launch?.session?.id;
       if(!id)throw new Error('O MediaForge não retornou o ID da sessão.');
       btn.textContent='Inicializando encoder…';
       await loadSessions();
       const confirmed=await waitForLiveConfirmation(id,platformAtStart,btn);
       await loadSessions();
-      if(confirmed){
-        alert(`✓ Live do ${platformName(platformAtStart)} confirmada e online.`);
-      }else{
-        alert(`A live do ${platformName(platformAtStart)} foi iniciada e continua sendo verificada. Ela aparecerá como AO VIVO assim que o encoder for confirmado.`);
-      }
+      alert(confirmed?`✓ Live do ${platformName(platformAtStart)} confirmada e online.`:`A live do ${platformName(platformAtStart)} foi iniciada e continua sendo verificada.`);
     }catch(e){
       await loadSessions().catch(()=>{});
       alert('Falha ao iniciar: '+e.message);
@@ -176,10 +169,28 @@
     const item=a.data||{},live=item.liveStreamingDetails||{},stats=item.statistics||{};return `<div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:8px"><div class="card"><div class="tiny muted">CONCORRENTES</div><b>${esc(live.concurrentViewers??'—')}</b></div><div class="card"><div class="tiny muted">VISUALIZAÇÕES</div><b>${esc(stats.viewCount??'—')}</b></div><div class="card"><div class="tiny muted">OVH</div><b>${esc(svc.status||d.session.status)}</b></div><div class="card"><div class="tiny muted">RESTARTS</div><b>${esc(svc.restarts??0)}</b></div></div>`;
   }
 
-  async function openLive(id){closeModal();const wrap=document.createElement('div');wrap.id='liveModal';wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;display:grid;place-items:center;padding:22px';wrap.innerHTML='<div class="card" style="width:min(980px,96vw);max-height:90vh;overflow:auto"><b>Carregando live…</b></div>';document.body.appendChild(wrap);wrap.onclick=e=>{if(e.target===wrap)closeModal()};try{const d=await api(`/api/live/${encodeURIComponent(id)}`),s=d.session,selected=new Set((s.track_ids||[]).map(String)),tracks=catalog?.tracks||[];wrap.innerHTML=`<div class="card" style="width:min(1050px,96vw);max-height:90vh;overflow:auto"><div class="row between"><div><b style="font-size:18px">${platformIcon(s.platform)} ${esc(s.title)}</b><div class="tiny muted" style="margin-top:5px">${platformName(s.platform)} · ${fmtDate(s.created_at)} · ${esc(s.status)}</div></div><button id="closeLiveModal" class="btn">✕ Fechar</button></div><div style="height:14px"></div>${analyticsHtml(d)}<div class="card" style="margin-top:10px"><div class="row between"><div><b>Transmissão</b><div class="tiny muted" style="margin-top:4px">${esc(s.encoder_resolution||'1920x1080')} · ${esc(s.encoder_fps||60)} FPS · ${esc(s.encoder_bitrate_kbps||8000)} kbps</div></div>${s.github_run_url?`<a class="btn" target="_blank" href="${esc(s.github_run_url)}">Abrir GitHub Run</a>`:''}</div>${d.now_playing?`<div class="note" style="margin-top:10px"><b>Tocando agora:</b> ${esc(d.now_playing.title||d.now_playing.track_id)} · desde ${fmtDate(d.now_playing.started_at)}</div>`:'<div class="tiny muted" style="margin-top:10px">A faixa atual aparecerá aqui nas lives iniciadas pelo novo engine.</div>'}</div><div class="card" style="margin-top:10px"><div class="row between"><div><b>Músicas da live</b><div class="tiny muted" style="margin-top:4px">Adicione ou remova faixas. A alteração entra após a faixa atual terminar.</div></div><span id="detailCount" class="pill">${selected.size} faixas</span></div><input id="detailSearch" class="input" style="margin-top:10px" placeholder="Buscar música"><div id="detailTracks" class="tracklist" style="max-height:320px">${tracks.map(t=>`<label class="track detailTrack" data-search="${esc(`${t.title} ${t.collection_name||''} ${t.style||''}`.toLowerCase())}"><input class="detailPick" type="checkbox" value="${esc(t.id)}" ${selected.has(String(t.id))?'checked':''}><span><b class="small">${esc(t.title)}</b><span class="tiny muted" style="display:block">${esc(t.collection_name||t.style||'Faixa')}</span></span><span class="tiny muted">${Math.round((t.duration_seconds||0)/60*10)/10} min</span></label>`).join('')}</div><div class="row" style="margin-top:10px"><button id="saveLiveTracks" class="btn">Salvar nova playlist</button>${['queued','starting','live','reconnecting','stopping'].includes(String(s.status))?`<button id="modalStop" class="btn danger">Encerrar live</button>`:''}</div></div><div class="tiny muted" style="margin-top:10px">Analytics atualizados: ${d.analytics_generated_at?fmtDate(d.analytics_generated_at):'ainda aguardando primeira coleta'}.</div></div>`;document.getElementById('closeLiveModal').onclick=closeModal;document.getElementById('detailSearch').oninput=e=>{const q=e.target.value.trim().toLowerCase();document.querySelectorAll('.detailTrack').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'grid':'none')};document.querySelectorAll('.detailPick').forEach(x=>x.onchange=()=>{const n=document.querySelectorAll('.detailPick:checked').length;document.getElementById('detailCount').textContent=`${n} faixas`;});document.getElementById('saveLiveTracks').onclick=async()=>{const ids=[...document.querySelectorAll('.detailPick:checked')].map(x=>x.value);if(!ids.length){alert('A live precisa manter pelo menos uma música.');return;}const b=document.getElementById('saveLiveTracks');b.disabled=true;b.textContent='Salvando…';try{await api(`/api/live/${encodeURIComponent(id)}/tracks`,{method:'PATCH',body:JSON.stringify({track_ids:ids})});alert('Playlist atualizada. A nova seleção entra após a faixa atual terminar.');await loadSessions();await openLive(id);}catch(e){alert('Falha ao atualizar playlist: '+e.message);}finally{b.disabled=false;b.textContent='Salvar nova playlist';}};document.getElementById('modalStop')?.addEventListener('click',()=>stopLive(id));}catch(e){wrap.innerHTML=`<div class="card"><b>Falha ao carregar a live</b><div class="small muted" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="document.getElementById('liveModal')?.remove()">Fechar</button></div>`;}}
+  async function openLive(id){
+    closeModal();
+    const wrap=document.createElement('div');wrap.id='liveModal';wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;display:grid;place-items:center;padding:22px';
+    wrap.innerHTML='<div class="card" style="width:min(980px,96vw);max-height:90vh;overflow:auto"><b>Carregando live…</b></div>';
+    document.body.appendChild(wrap);wrap.onclick=e=>{if(e.target===wrap)closeModal()};
+    try{
+      const d=await api(`/api/live/${encodeURIComponent(id)}`),s=d.session,slot=s.runtime_slot||d.ovh_service?.runtime_slot||s.platform;
+      const options=canonicalPlaylistOptions('');
+      wrap.innerHTML=`<div class="card" style="width:min(980px,96vw);max-height:90vh;overflow:auto"><div class="row between"><div><b style="font-size:18px">${platformIcon(s.platform)} ${esc(s.title)}</b><div class="tiny muted" style="margin-top:5px">${platformName(s.platform)} · OVH · ${esc(s.status)}</div></div><button id="closeLiveModal" class="btn">✕ Fechar</button></div><div style="height:14px"></div>${analyticsHtml(d)}
+      <div class="card" style="margin-top:10px"><div class="row between wrap"><div><b>Tocando agora</b><div class="tiny muted" style="margin-top:4px">${d.now_playing?esc(d.now_playing.title||d.now_playing.track_id):'Aguardando informação do encoder'}</div></div><div class="row"><button id="prevTrack" class="btn">↶ Anterior</button><button id="nextTrack" class="btn">↷ Próxima</button></div></div></div>
+      <div class="card" style="margin-top:10px"><b>Playlist da live</b><div class="tiny muted" style="margin-top:4px">Trocar a playlist afeta somente esta plataforma. A música atual é interrompida e uma faixa da nova playlist começa.</div><div class="row wrap" style="margin-top:10px"><select id="livePlaylistSelect" class="select" style="flex:1;min-width:260px"><option value="">Selecione uma playlist</option>${options}</select><button id="applyLivePlaylist" class="btn primary">Aplicar playlist</button></div></div>
+      <div class="row" style="margin-top:12px">${['queued','starting','live','reconnecting','stopping'].includes(String(s.status))?`<button id="modalStop" class="btn danger">Encerrar live</button>`:''}</div></div>`;
+      document.getElementById('closeLiveModal').onclick=closeModal;
+      document.getElementById('nextTrack').onclick=()=>api('/api/ovh/control',{method:'POST',body:JSON.stringify({action:'skip',runtime_slot:slot,session_id:id})}).then(()=>setTimeout(()=>openLive(id),1800)).catch(e=>alert('Falha: '+e.message));
+      document.getElementById('prevTrack').onclick=()=>api('/api/ovh/control',{method:'POST',body:JSON.stringify({action:'previous',runtime_slot:slot,session_id:id})}).then(()=>setTimeout(()=>openLive(id),1800)).catch(e=>alert('Falha: '+e.message));
+      document.getElementById('applyLivePlaylist').onclick=async()=>{const playlistKey=document.getElementById('livePlaylistSelect').value;if(!playlistKey){alert('Selecione uma playlist.');return;}const b=document.getElementById('applyLivePlaylist');b.disabled=true;b.textContent='Aplicando…';try{await api('/api/ovh/playlist',{method:'POST',body:JSON.stringify({runtime_slot:slot,session_id:id,playlist_key:playlistKey})});setTimeout(()=>openLive(id),2200)}catch(e){alert('Falha ao trocar playlist: '+e.message);b.disabled=false;b.textContent='Aplicar playlist';}};
+      document.getElementById('modalStop')?.addEventListener('click',()=>stopLive(id));
+    }catch(e){wrap.innerHTML=`<div class="card"><b>Falha ao carregar a live</b><div class="small muted" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="document.getElementById('liveModal')?.remove()">Fechar</button></div>`;}
+  }
 
   async function loadSessions(){try{captureDraft();const [x,o]=await Promise.all([api('/api/live-sessions'),api('/api/ovh/status')]);sessions=x.sessions||[];ovh=o;render();}catch(e){console.error(e);}}
-  async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [cat,ls,o]=await Promise.all([api('/api/catalog'),api('/api/live-sessions'),api('/api/ovh/status')]);catalog=cat;sessions=ls.sessions||[];ovh=o;render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
+  async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [cat,lib,ls,o]=await Promise.all([api('/api/catalog'),api('/api/music-library'),api('/api/live-sessions'),api('/api/ovh/status')]);catalog=cat;musicLibrary=lib||{playlists:[]};sessions=ls.sessions||[];ovh=o;render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
   document.querySelectorAll('.platform-tabs .tab[data-platform]').forEach(tab=>tab.onclick=e=>{e.preventDefault();captureDraft();activePlatform=tab.dataset.platform||'kick';history.replaceState(null,'',`?platform=${activePlatform}`);render();});
   document.getElementById('refresh')?.addEventListener('click',load);load();setInterval(()=>{if(document.visibilityState==='visible'&&catalog)loadSessions();},15000);
 })();
