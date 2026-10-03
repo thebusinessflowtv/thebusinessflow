@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mediaforge-api-ovh",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-30",
+  "vars": {
+    "GITHUB_REPO": "thebusinessflowtv/theofficemusic",
+    "FRONTEND_ORIGIN": "https://146.59.156.224:8443",
+    "LOCAL_RUNTIME": "1"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mediaforge-control",
+      "database_id": "00000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "mediaforge-live-assets"
+    }
+  ]
+}
