@@ -23,8 +23,16 @@
     .toastbox{position:fixed;right:18px;top:18px;z-index:100;display:grid;gap:8px}.toast{background:#202024;border:1px solid #46464d;border-radius:11px;padding:12px 14px;min-width:280px;box-shadow:0 16px 50px rgba(0,0,0,.4);font-size:11px}.toast.error{border-color:#7c3941}.toast b{display:block;margin-bottom:3px}.section-title{font-size:13px;margin:0 0 12px}
     @media(max-width:920px){.shell{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.nav{grid-template-columns:repeat(2,1fr)}.spacer,.user{display:none}.grid2{grid-template-columns:1fr}.page{padding:18px}.track{grid-template-columns:auto 1fr}.track audio{grid-column:2/-1;width:100%}}
   </style>
-<link rel="stylesheet" href="./module-embed.css?v=20261003-1">
-<script>if(new URLSearchParams(location.search).get('embed')==='1')document.documentElement.classList.add('mf-embed');</script>
+<link rel="stylesheet" href="./module-embed.css?v=20261003-content-only2">
+<script>if(new URLSearchParams(location.search).get('embed')==='1'){document.documentElement.classList.add('mf-embed','office-music-embed');}</script>
+<style id="mfEmbedHardReset">
+html.mf-embed,html.mf-embed body{margin:0!important;padding:0!important;min-height:0!important;background:#000!important;background-image:none!important;overflow-x:hidden!important}
+html.mf-embed .shell{display:block!important;min-height:0!important;width:100%!important;background:#000!important}
+html.mf-embed .sidebar,html.mf-embed .topbar,html.mf-embed .brand,html.mf-embed .user{display:none!important}
+html.mf-embed .main{display:block!important;width:100%!important;min-height:0!important;background:#000!important}
+html.mf-embed .page{width:100%!important;max-width:none!important;margin:0!important;padding:0!important;background:#000!important}
+html.mf-embed .head,html.mf-embed .pagehead{display:none!important}
+</style>
 </head>
 <body>
 <script>if(new URLSearchParams(location.search).get('embed')!=='1')location.replace('./app.html#/peter-lofi/music');</script>
