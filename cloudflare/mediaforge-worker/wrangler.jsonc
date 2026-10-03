@@ -5,7 +5,8 @@
   "compatibility_date": "2026-09-30",
   "vars": {
     "GITHUB_REPO": "thebusinessflowtv/theofficemusic",
-    "FRONTEND_ORIGIN": "https://thebusinessflowtv.github.io"
+    "FRONTEND_ORIGIN": "https://thebusinessflowtv.github.io",
+    "OVH_AGENT_IPS": "146.59.156.224,2001:41d0:305:2100::1:7dfb"
   },
   "d1_databases": [
     {
