@@ -339,6 +339,9 @@ async function handleApi(request,env,url){
         restarts:Number(s.restarts||0),
         hot_swap:s.hot_swap===true,
         visual_revision:s.visual_revision??null,
+        playlist_key:s.playlist_key||null,
+        playlist_track_count:Number(s.playlist_track_count||0),
+        dj_import:s.dj_import||null,
         now_playing:s.now_playing?{state:s.now_playing.state||null,track_id:s.now_playing.track_id||null,title:s.now_playing.title||null,started_at:s.now_playing.started_at||null}:null
       };
     }
@@ -512,6 +515,29 @@ async function handleApi(request,env,url){
     const library=await getMusicLibrary(env);
     return json(library,200,cors);
   }
+  if(url.pathname==='/api/twitch-dj/import-archive'&&request.method==='POST'){
+    const b=await bodyJson(request),assetId=String(b.asset_id||'');
+    const asset=await readAsset(env,assetId);
+    if(!asset||asset.status!=='ready')return json({error:'dj_archive_not_ready'},404,cors);
+    if(asset.asset_type!=='dj_archive')return json({error:'invalid_dj_archive_type'},400,cors);
+    const manifest=await fetchGithubJson(env,'control/twitch-dj-supplied-2026-10-03.json');
+    if(!manifest||!Array.isArray(manifest.tracks)||!manifest.tracks.length)return json({error:'dj_manifest_unavailable'},503,cors);
+    const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)==='twitch-dj-mixed');
+    if(!playlist)return json({error:'twitch_dj_playlist_missing'},503,cors);
+    const allowedPlatforms=Array.isArray(playlist.allowed_platforms)?playlist.allowed_platforms.map(x=>String(x).toLowerCase()):[];
+    if(!allowedPlatforms.includes('twitch')||allowedPlatforms.some(x=>x!=='twitch'))return json({error:'twitch_dj_platform_lock_invalid'},409,cors);
+    const baseTracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`twitch-dj-original-${i+1}`),title:String(t.title||'Peter Lofi'),url:String(t.url),duration_seconds:Number(t.duration_seconds||0),source:'peter_lofi_original'}));
+    const state=await ovhState(env),svc=state?.services?.twitch||{};
+    if(svc.hot_swap!==true)return json({error:'twitch_hot_swap_not_ready',message:'Importação bloqueada para proteger a live: o runtime Twitch ainda não confirmou hot-swap.'},409,cors);
+    const cmd=await issueOvhCommand(env,{action:'import_twitch_dj_archive',runtime_slot:'twitch',platform:'twitch',session_id:String(svc.session_id||''),title:String(svc.title||''),playlist_key:'twitch-dj-mixed',archive_asset_id:asset.id,archive_url:assetPublicUrl(request,asset),manifest_url:'https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/twitch-dj-supplied-2026-10-03.json',base_tracks:baseTracks,shuffle:true,repeat:true,source:'mediaforge-twitch-dj-import'});
+    return json({ok:true,mode:'twitch_only_hot_import',rtmp_restart:false,asset:{id:asset.id,title:asset.title,size_bytes:asset.size_bytes},expected_unique_tracks:Number(manifest.unique_audio_files||manifest.tracks.length),command:cmd},202,cors);
+  }
+
+  if(url.pathname==='/api/twitch-dj/status'&&request.method==='GET'){
+    const state=await ovhState(env),svc=state?.services?.twitch||{};
+    return json({playlist_key:String(svc.playlist_key||''),playlist_track_count:Number(svc.playlist_track_count||0),dj_import:svc.dj_import||null,status:String(svc.status||'unknown'),hot_swap:svc.hot_swap===true,now_playing:svc.now_playing||null},200,cors);
+  }
+
   if(url.pathname==='/api/ovh/playlist'&&request.method==='POST'){
     const b=await bodyJson(request),slot=String(b.runtime_slot||''),playlistKey=String(b.playlist_key||'');
     if(!OVH_SLOTS.includes(slot))return json({error:'invalid_runtime_slot'},400,cors);
@@ -563,8 +589,8 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/assets'&&request.method==='GET'){const q=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' ORDER BY created_at DESC`).all();return json({assets:(q.results||[]).map(a=>({id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,metadata:JSON.parse(a.metadata_json||'{}'),public_url:assetPublicUrl(request,a)}))},200,cors);}
 
   if(url.pathname==='/api/uploads/init'&&request.method==='POST'){
-    const b=await bodyJson(request),name=safeName(b.name),mime=String(b.mime_type||'application/octet-stream'),size=Math.max(0,Number(b.size_bytes||0)),assetId=crypto.randomUUID(),token=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),day=new Date().toISOString().slice(0,10),assetType=['thumbnail','loop','audio'].includes(String(b.asset_type))?String(b.asset_type):'loop',key=`${assetType==='thumbnail'?'thumb':assetType==='audio'?'audio':'live'}/${day}/${assetId}-${name}`,upload=await env.MEDIA.createMultipartUpload(key,{httpMetadata:{contentType:mime}}),now=new Date().toISOString();
-    await env.DB.prepare(`INSERT INTO assets(id,title,asset_type,r2_key,mime_type,size_bytes,status,download_token,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(assetId,b.title||b.name||name,assetType,key,mime,size,'uploading',token,JSON.stringify({live_visual:assetType==='loop',youtube_thumbnail:assetType==='thumbnail',dj_audio:assetType==='audio',loop_forever:assetType==='loop',source:'r2_upload'}),now).run();
+    const b=await bodyJson(request),name=safeName(b.name),mime=String(b.mime_type||'application/octet-stream'),size=Math.max(0,Number(b.size_bytes||0)),assetId=crypto.randomUUID(),token=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),day=new Date().toISOString().slice(0,10),assetType=['thumbnail','loop','audio','dj_archive'].includes(String(b.asset_type))?String(b.asset_type):'loop',key=`${assetType==='thumbnail'?'thumb':assetType==='audio'?'audio':assetType==='dj_archive'?'twitch-dj':'live'}/${day}/${assetId}-${name}`,upload=await env.MEDIA.createMultipartUpload(key,{httpMetadata:{contentType:mime}}),now=new Date().toISOString();
+    await env.DB.prepare(`INSERT INTO assets(id,title,asset_type,r2_key,mime_type,size_bytes,status,download_token,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(assetId,b.title||b.name||name,assetType,key,mime,size,'uploading',token,JSON.stringify({live_visual:assetType==='loop',youtube_thumbnail:assetType==='thumbnail',dj_audio:assetType==='audio',twitch_dj_archive:assetType==='dj_archive',platform_lock:assetType==='dj_archive'?['twitch']:null,loop_forever:assetType==='loop',source:'r2_upload'}),now).run();
     return json({ok:true,asset_id:assetId,upload_id:upload.uploadId,chunk_size:50*1024*1024},200,cors);
   }
   if(url.pathname==='/api/uploads/part'&&request.method==='PUT'){const assetId=url.searchParams.get('asset_id')||'',uploadId=url.searchParams.get('upload_id')||'',partNumber=Number(url.searchParams.get('part_number')||0);if(!assetId||!uploadId||partNumber<1)return json({error:'bad_upload_part'},400,cors);const asset=await readAsset(env,assetId);if(!asset||asset.status!=='uploading')return json({error:'asset_not_uploading'},404,cors);const part=await env.MEDIA.resumeMultipartUpload(asset.r2_key,uploadId).uploadPart(partNumber,request.body);return json({partNumber:part.partNumber,etag:part.etag},200,cors);}
