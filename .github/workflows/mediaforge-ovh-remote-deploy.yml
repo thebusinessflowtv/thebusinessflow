@@ -1,9 +1,7 @@
 name: MediaForge — OVH Remote Deploy Bridge
 
 on:
-  push:
-    paths:
-      - 'control/ovh-deploy-request.json'
+  # OVH deploy commands are local now; this is emergency fallback only.
   workflow_dispatch:
 
 permissions:
