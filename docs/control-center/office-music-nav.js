@@ -1,7 +1,7 @@
 (()=>{
-  const href='./office-music.html';
-  const seriesHref='./peter-lofi-series.html';
-  const livesHref='./lives.html';
+  const href='#/peter-lofi';
+  const seriesHref='#/peter-lofi-series';
+  const livesHref='#/lives';
   const SB_URL='https://fykwalznmcrjgnyveagy.supabase.co';
   const SB_KEY='sb_publishable_46tbOLOFhKqirGConFVg2w_xRQmmVli';
   let officeClient=null;
@@ -62,7 +62,7 @@
     }catch(e){const root=document.getElementById('officeMusicProdRows');if(root)root.innerHTML='<div class="small muted">Não foi possível carregar as produções agora. <a href="'+href+'" style="color:#fff;text-decoration:underline">Abra o console Peter Lofi</a>.</div>';console.warn('Peter Lofi productions:',e)}finally{loadingProductions=false}
   }
 
-  function patch(){patchNav();keepOfficeOutOfRegularVideoCreator();patchProductions()}
+  function patch(){keepOfficeOutOfRegularVideoCreator();patchProductions()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',patch);else patch();
   window.addEventListener('hashchange',()=>setTimeout(patch,0));
   new MutationObserver(()=>patch()).observe(document.documentElement,{childList:true,subtree:true});
