@@ -241,6 +241,41 @@ async function handleApi(request,env,url){
     if(!row)return json({error:'dj_scan_not_found'},404,cors);
     return json({scan:await djScanSummary(env,row,true)},200,cors);
   }
+  const djAudioMatch=url.pathname.match(/^\/api\/dj-catalog\/scans\/([^/]+)\/audio-source$/);
+  if(djAudioMatch&&request.method==='POST'){
+    const scanId=djAudioMatch[1],b=await bodyJson(request),position=Number(b.position||0),assetId=String(b.asset_id||''),source=String(b.acquisition_source||'').trim(),note=String(b.acquisition_note||'').trim();
+    if(!Number.isInteger(position)||position<1)return json({error:'invalid_position'},400,cors);
+    const result=await env.DB.prepare(`SELECT * FROM dj_catalog_results WHERE scan_id=? AND position=?`).bind(scanId,position).first();
+    if(!result)return json({error:'dj_result_not_found'},404,cors);
+    if(String(result.status)!=='allowed')return json({error:'track_not_allowed',message:'Somente faixas Allowed podem receber fonte de áudio para o modo DJ.'},409,cors);
+    const asset=await readAsset(env,assetId);
+    if(!asset||asset.status!=='ready')return json({error:'audio_asset_not_ready'},404,cors);
+    if(asset.asset_type!=='audio'||!String(asset.mime_type||'').startsWith('audio/'))return json({error:'audio_asset_invalid_type'},400,cors);
+    const now=new Date().toISOString();
+    await env.DB.prepare(`INSERT INTO dj_catalog_audio_sources(scan_id,position,asset_id,acquisition_source,acquisition_note,verified_owned,created_at,updated_at)
+      VALUES(?,?,?,?,?,1,?,?)
+      ON CONFLICT(scan_id,position) DO UPDATE SET asset_id=excluded.asset_id,acquisition_source=excluded.acquisition_source,acquisition_note=excluded.acquisition_note,verified_owned=1,updated_at=excluded.updated_at`)
+      .bind(scanId,position,assetId,source||'user_licensed_copy',note,now,now).run();
+    return json({ok:true,scan_id:scanId,position,asset:{id:asset.id,title:asset.title,public_url:assetPublicUrl(request,asset)}},200,cors);
+  }
+
+  const djMixedMatch=url.pathname.match(/^\/api\/dj-catalog\/scans\/([^/]+)\/mixed-playlist$/);
+  if(djMixedMatch&&request.method==='GET'){
+    const scanId=djMixedMatch[1],library=await getMusicLibrary(env),gaming=(library.playlists||[]).find(p=>String(p.key)==='gaming-radio');
+    const original=(gaming?.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`gaming-radio-${i+1}`),title:String(t.title||'Track'),artists:'Peter Lofi',url:String(t.url),duration_seconds:Number(t.duration_seconds||0),source:'peter_lofi_original',dj_catalog_required:false}));
+    const q=await env.DB.prepare(`SELECT r.position,r.spotify_id,r.title,r.artists,r.matched_title,r.matched_artists,r.checked_at,s.asset_id,a.title AS asset_title,a.mime_type,a.status AS asset_status,a.download_token
+      FROM dj_catalog_results r
+      JOIN dj_catalog_audio_sources s ON s.scan_id=r.scan_id AND s.position=r.position AND s.verified_owned=1
+      JOIN assets a ON a.id=s.asset_id
+      WHERE r.scan_id=? AND r.status='allowed' AND a.status='ready' AND a.asset_type='audio'
+      ORDER BY r.position`).bind(scanId).all();
+    const allowed=(q.results||[]).map(r=>({id:`twitch-dj-${scanId}-${r.position}`,title:String(r.matched_title||r.title||r.asset_title||'DJ Track'),artists:String(r.matched_artists||r.artists||''),url:`${new URL(request.url).origin}/media/${r.asset_id}/${r.download_token}`,duration_seconds:0,source:'twitch_dj_catalog_licensed_copy',dj_catalog_required:true,dj_scan_id:scanId,dj_position:Number(r.position),catalog_checked_at:r.checked_at}));
+    const mixed=[];let i=0,j=0;
+    while(i<original.length||j<allowed.length){if(i<original.length)mixed.push(original[i++]);if(j<allowed.length)mixed.push(allowed[j++]);}
+    const scan=await env.DB.prepare(`SELECT * FROM dj_catalog_scans WHERE id=?`).bind(scanId).first();
+    const pending=await env.DB.prepare(`SELECT COUNT(*) AS n FROM dj_catalog_results r LEFT JOIN dj_catalog_audio_sources s ON s.scan_id=r.scan_id AND s.position=r.position AND s.verified_owned=1 WHERE r.scan_id=? AND r.status='allowed' AND s.asset_id IS NULL`).bind(scanId).first();
+    return json({playlist:{key:'twitch-dj-mixed',name:'Twitch DJ Mixed',platform:'twitch',mode:'live_interactive_dj_performance_only',automated_radio_allowed:false,shuffle:true,repeat:false,original_count:original.length,dj_allowed_with_audio_count:allowed.length,dj_allowed_missing_audio_count:Number(pending?.n||0),track_count:mixed.length,tracks:mixed},scan:scan?await djScanSummary(env,scan,false):null},200,cors);
+  }
   if(url.pathname==='/api/music/presets'&&request.method==='GET'){
     const cfg=await getPeterLofiSeriesConfig(env);
     const presets=(cfg.series||[]).map(s=>({index:s.index,key:s.key,name:s.name,playlist:s.playlist||s.name,description:s.description||'',genre:(s.music_dna?.style_pool||[])[0]||'Lofi',moods:s.music_dna?.mood||[]}));
@@ -365,8 +400,8 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/assets'&&request.method==='GET'){const q=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' ORDER BY created_at DESC`).all();return json({assets:(q.results||[]).map(a=>({id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,metadata:JSON.parse(a.metadata_json||'{}'),public_url:assetPublicUrl(request,a)}))},200,cors);}
 
   if(url.pathname==='/api/uploads/init'&&request.method==='POST'){
-    const b=await bodyJson(request),name=safeName(b.name),mime=String(b.mime_type||'application/octet-stream'),size=Math.max(0,Number(b.size_bytes||0)),assetId=crypto.randomUUID(),token=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),day=new Date().toISOString().slice(0,10),assetType=['thumbnail','loop'].includes(String(b.asset_type))?String(b.asset_type):'loop',key=`${assetType==='thumbnail'?'thumb':'live'}/${day}/${assetId}-${name}`,upload=await env.MEDIA.createMultipartUpload(key,{httpMetadata:{contentType:mime}}),now=new Date().toISOString();
-    await env.DB.prepare(`INSERT INTO assets(id,title,asset_type,r2_key,mime_type,size_bytes,status,download_token,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(assetId,b.title||b.name||name,assetType,key,mime,size,'uploading',token,JSON.stringify({live_visual:assetType==='loop',youtube_thumbnail:assetType==='thumbnail',loop_forever:assetType==='loop',source:'r2_upload'}),now).run();
+    const b=await bodyJson(request),name=safeName(b.name),mime=String(b.mime_type||'application/octet-stream'),size=Math.max(0,Number(b.size_bytes||0)),assetId=crypto.randomUUID(),token=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),day=new Date().toISOString().slice(0,10),assetType=['thumbnail','loop','audio'].includes(String(b.asset_type))?String(b.asset_type):'loop',key=`${assetType==='thumbnail'?'thumb':assetType==='audio'?'audio':'live'}/${day}/${assetId}-${name}`,upload=await env.MEDIA.createMultipartUpload(key,{httpMetadata:{contentType:mime}}),now=new Date().toISOString();
+    await env.DB.prepare(`INSERT INTO assets(id,title,asset_type,r2_key,mime_type,size_bytes,status,download_token,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(assetId,b.title||b.name||name,assetType,key,mime,size,'uploading',token,JSON.stringify({live_visual:assetType==='loop',youtube_thumbnail:assetType==='thumbnail',dj_audio:assetType==='audio',loop_forever:assetType==='loop',source:'r2_upload'}),now).run();
     return json({ok:true,asset_id:assetId,upload_id:upload.uploadId,chunk_size:50*1024*1024},200,cors);
   }
   if(url.pathname==='/api/uploads/part'&&request.method==='PUT'){const assetId=url.searchParams.get('asset_id')||'',uploadId=url.searchParams.get('upload_id')||'',partNumber=Number(url.searchParams.get('part_number')||0);if(!assetId||!uploadId||partNumber<1)return json({error:'bad_upload_part'},400,cors);const asset=await readAsset(env,assetId);if(!asset||asset.status!=='uploading')return json({error:'asset_not_uploading'},404,cors);const part=await env.MEDIA.resumeMultipartUpload(asset.r2_key,uploadId).uploadPart(partNumber,request.body);return json({partNumber:part.partNumber,etag:part.etag},200,cors);}
