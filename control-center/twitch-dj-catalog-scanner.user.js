@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MediaForge — Twitch DJ Catalog Scanner
 // @namespace    https://thebusinessflowtv.github.io/thebusinessflow/
-// @version      1.0.4
+// @version      1.0.5
 // @description  Verifica automaticamente uma lista MediaForge no Twitch DJ Music Catalog pela própria interface autenticada, sem enviar cookies/OAuth da Twitch ao MediaForge.
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @run-at       document-idle
@@ -100,22 +100,56 @@
     throw new Error('Campo de pesquisa do DJ Catalog não encontrado');
   }
 
+  function stateOf(text){
+    const s=norm(text);
+    if(/\b(nao permitido|not allowed|restrito|restricted|bloqueado|blocked)\b/.test(s))return 'restricted';
+    if(/\b(permitido|permitted|allowed)\b/.test(s))return 'allowed';
+    return '';
+  }
+  function cleanLines(text){
+    return String(text||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  }
+  function isStateLine(line){return !!stateOf(line);}
+  function isDurationLine(line){return /^\d{1,2}:\d{2}$/.test(String(line||'').trim());}
+  function candidateFromStateElement(el){
+    const st=stateOf(el.innerText||el.textContent||'');if(!st)return null;
+    let node=el,best=null;
+    for(let depth=0;depth<7&&node;depth++,node=node.parentElement){
+      const full=String(node.innerText||node.textContent||'').trim();
+      if(!full||full.length>700)continue;
+      const lines=cleanLines(full);
+      if(lines.length<3||lines.length>9)continue;
+      const stateIdx=lines.findIndex(isStateLine);
+      if(stateIdx<0)continue;
+      const useful=lines.filter(x=>!isStateLine(x)&&!isDurationLine(x));
+      if(useful.length<2)continue;
+      const cand={status:st,title:useful[0],artists:useful[1],full,depth};
+      if(!best||depth<best.depth)best=cand;
+    }
+    return best;
+  }
   function rowCandidates(){
-    const out=[];
-    const rows=[...document.querySelectorAll('tr,[role="row"]')].filter(visible);
-    for(const row of rows){
-      const cells=[...row.querySelectorAll('td,[role="cell"],[role="gridcell"]')].filter(visible).map(x=>String(x.innerText||x.textContent||'').trim()).filter(Boolean);
-      const full=String(row.innerText||row.textContent||'').trim();
-      const stateText=norm(cells[cells.length-1]||full);
-      let status='';
-      if(/\b(permitido|permitted|allowed)\b/.test(stateText))status='allowed';
-      if(/\b(restrito|restricted|bloqueado|blocked|nao permitido|not allowed)\b/.test(stateText))status='restricted';
-      if(!status)continue;
-      const title=cells[0]||'';
-      const artists=cells[1]||'';
-      if(title)out.push({status,title,artists,full});
+    const out=[],seen=new Set();
+    const all=[...document.querySelectorAll('body *')].filter(visible);
+    for(const el of all){
+      const txt=String(el.innerText||el.textContent||'').trim();
+      if(!txt||txt.length>40||!stateOf(txt))continue;
+      const cand=candidateFromStateElement(el);if(!cand)continue;
+      const key=[cand.status,norm(cand.title),norm(cand.artists)].join('|');
+      if(seen.has(key))continue;seen.add(key);out.push(cand);
     }
     return out;
+  }
+  function versionWords(text){
+    const s=norm(text),keys=['remix','remastered','remaster','edit','mix','version','acoustic','live','radio','extended','vip','instrumental'];
+    return new Set(keys.filter(k=>new RegExp('\\b'+k+'\\b').test(s)));
+  }
+  function versionCompatible(referenceTitle,resultTitle){
+    const A=versionWords(referenceTitle),B=versionWords(resultTitle);
+    if(!A.size&&!B.size)return true;
+    if(A.size!==B.size)return false;
+    for(const x of A)if(!B.has(x))return false;
+    return true;
   }
 
   async function waitForResults(ref,previousText,timeout=12000){
@@ -124,10 +158,16 @@
       const rows=rowCandidates();
       const changed=String(document.body.innerText||'')!==previousText;
       if(changed&&rows.length){
-        const scored=rows.map(r=>({...r,score:sim(ref.title,r.title)*0.72+sim(ref.artists,r.artists)*0.28})).sort((a,b)=>b.score-a.score);
+        const scored=rows.map(r=>{
+          const titleScore=sim(ref.title,r.title),artistScore=sim(ref.artists,r.artists),versionOk=versionCompatible(ref.title,r.title);
+          return {...r,titleScore,artistScore,versionOk,score:titleScore*0.72+artistScore*0.28};
+        }).sort((a,b)=>b.score-a.score);
         const best=scored[0];
-        if(best&&sim(ref.title,best.title)>=0.68&&best.score>=0.55){
-          return {status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{source:'twitch_dashboard_dom'}};
+        if(best&&best.titleScore>=0.68&&best.score>=0.55&&best.versionOk){
+          return {status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',version_match:true}};
+        }
+        if(best&&best.titleScore>=0.68&&best.score>=0.55&&!best.versionOk){
+          return {status:'ambiguous',matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',reason:'different_version_or_remix',candidate_status:best.status}};
         }
       }
       await sleep(250);
