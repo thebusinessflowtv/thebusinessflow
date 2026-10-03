@@ -221,6 +221,26 @@ async function handleApi(request,env,url){
     }
   }
 
+  if(url.pathname==='/api/ovh/public-health'&&request.method==='GET'){
+    const state=await ovhState(env);
+    if(!state)return json({runtime:'ovh',status:'unknown',services:{}},200,cors);
+    const services={};
+    for(const slot of OVH_SLOTS){
+      const s=(state.services||{})[slot]||{};
+      services[slot]={
+        status:s.status||'unknown',
+        updated_at:s.updated_at||null,
+        fps:s.fps??null,
+        video_bitrate_kbps:s.video_bitrate_kbps??null,
+        restarts:Number(s.restarts||0),
+        hot_swap:s.hot_swap===true,
+        visual_revision:s.visual_revision??null,
+        now_playing:s.now_playing?{state:s.now_playing.state||null,track_id:s.now_playing.track_id||null,title:s.now_playing.title||null,started_at:s.now_playing.started_at||null}:null
+      };
+    }
+    return json({runtime:'ovh',reported_at:state.reported_at||null,stored_at:state.stored_at||null,host:state.host?{load_1m:state.host.load_1m??null,memory_percent:state.host.memory_percent??null,disk_percent:state.host.disk_percent??null,uptime_seconds:state.host.uptime_seconds??null}:null,services},200,cors);
+  }
+
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
   if(url.pathname==='/api/dj-catalog/scans'&&request.method==='POST'){
