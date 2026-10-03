@@ -1,0 +1,58 @@
+name: One-off — Verify Live Visual Hot Swap
+
+on:
+  push:
+    paths:
+      - '.github/workflows/oneoff-verify-live-visual-hot-swap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://mediaforge-api.guilhermeodsgn.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Re-apply current visuals through MediaForge
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+
+          mkdir -p control
+          : > /tmp/hotswap.ndjson
+
+          post_visual() {
+            slot="$1"
+            url="$2"
+            body="$(jq -nc --arg slot "$slot" --arg url "$url" '{runtime_slot:$slot,loop_url:$url}')"
+            response="$(curl -fsS -X POST -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$body" "$API/api/ovh/visual")"
+            jq -nc --arg slot "$slot" --argjson response "$response" '{runtime_slot:$slot,response:$response}' >> /tmp/hotswap.ndjson
+          }
+
+          post_visual "kick" "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136"
+          post_visual "twitch" "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136"
+          post_visual "youtube-deep-house" "https://mediaforge-api.guilhermeodsgn.workers.dev/media/a26f2e7f-4203-4788-a3ce-6d6b2052f4dc/c64b196cedad4d05977d887f1be30505023124926b4144dc935c1142fe1b4109"
+          post_visual "youtube-rainy" "https://mediaforge-api.guilhermeodsgn.workers.dev/media/998ca654-bb42-4c35-99c6-04ac2ebad84c/b6bf0c5819a04630b36f61314ed6de7566e4b48b72df41c59093a5bd7c0f9ab0"
+
+          jq -s '{requested_at:(now|todateiso8601),requests:.}' /tmp/hotswap.ndjson > control/visual-hot-swap-request-results.json
+          cat control/visual-hot-swap-request-results.json
+
+      - name: Commit results
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/visual-hot-swap-request-results.json
+          git commit -m "test: execute live visual hot-swap requests" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
