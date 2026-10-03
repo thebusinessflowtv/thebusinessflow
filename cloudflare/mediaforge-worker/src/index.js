@@ -42,6 +42,14 @@ function resolveTracks(catalog,ids){const map=new Map((catalog.tracks||[]).map(t
 function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:String(t.title||'Faixa'),url:String(t.url||''),duration_seconds:Number(t.duration_seconds||0),collection_name:t.collection_name||'',style:t.style||''})).filter(t=>t.url);}
 
 const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
+const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
+const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service'];
+function ovhAgentAllowed(request,env){
+  const ip=request.headers.get('cf-connecting-ip')||'';
+  const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
+  return {ok:allowed.includes(ip),ip};
+}
+
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
 async function getYoutubeStations(env){return (await fetchGithubJson(env,'control/youtube-stations.json'))||{stations:[]};}
 async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/music-library.json'))||{version:1,playlists:[]};}
@@ -126,9 +134,56 @@ async function handleApi(request,env,url){
     return json({ok:true,id,status},200,cors);
   }
 
+  if(url.pathname==='/api/ovh/deploy-agent/commands'&&request.method==='GET'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_deploy_agent',ip:gate.ip},403,cors);
+    const limit=Math.max(1,Math.min(20,Number(url.searchParams.get('limit')||5)));
+    const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_deploy_commands WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-120 seconds')) ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
+    const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
+    if(commands.length){
+      const now=new Date().toISOString();
+      for(const cmd of commands)await env.DB.prepare(`UPDATE ovh_deploy_commands SET status='claimed',claimed_at=? WHERE id=?`).bind(now,String(cmd.id)).run();
+    }
+    return json({commands},200,cors);
+  }
+  if(url.pathname==='/api/ovh/deploy-agent/ack'&&request.method==='POST'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_deploy_agent',ip:gate.ip},403,cors);
+    const b=await bodyJson(request),id=String(b.id||''),status=String(b.status||'completed'),now=new Date().toISOString();
+    if(!id)return json({error:'id_required'},400,cors);
+    if(!['completed','failed'].includes(status))return json({error:'invalid_status'},400,cors);
+    const result=b.result&&typeof b.result==='object'?b.result:{};
+    await env.DB.prepare(`UPDATE ovh_deploy_commands SET status=?,completed_at=?,error=?,result_json=? WHERE id=?`).bind(status,now,String(b.error||''),JSON.stringify(result),id).run();
+    return json({ok:true,id,status},200,cors);
+  }
+
   if(url.pathname==='/api/auth/login'&&request.method==='POST'){const b=await bodyJson(request),email=String(b.email||'').trim().toLowerCase(),password=String(b.password||'');if(!env.ADMIN_EMAIL||!env.ADMIN_PASSWORD||!env.SESSION_SECRET)return json({error:'auth_not_configured'},503,cors);if(email!==String(env.ADMIN_EMAIL).trim().toLowerCase()||password!==String(env.ADMIN_PASSWORD))return json({error:'invalid_credentials',message:'E-mail ou senha inválidos.'},401,cors);return json({ok:true,token:await signSession(email,env.SESSION_SECRET),user:{email,role:'admin'}},200,cors);}
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
+
+  if(url.pathname==='/api/ovh/deploy'&&request.method==='POST'){
+    const b=await bodyJson(request),action=String(b.action||''),target=String(b.target||''),requested=String(b.request_id||'').trim();
+    if(!OVH_DEPLOY_ACTIONS.includes(action))return json({error:'invalid_deploy_action'},400,cors);
+    if(['deploy_service','rollback_service'].includes(action)&&!OVH_DEPLOY_TARGETS.includes(target))return json({error:'invalid_deploy_target'},400,cors);
+    if(action==='deploy_all')target='all';
+    if(action==='deploy_host_agent')target='host-agent';
+    if(action==='health_check')target=target&&OVH_DEPLOY_TARGETS.includes(target)?target:'all';
+    const id=/^[A-Za-z0-9._:-]{8,128}$/.test(requested)?requested:crypto.randomUUID(),now=new Date().toISOString();
+    const existing=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
+    if(existing)return json({ok:true,command:{...existing,result:existing.result_json?JSON.parse(existing.result_json):null},deduplicated:true},200,cors);
+    const payload={id,action,target,requested_at:now,requested_by:session.sub,source:String(b.source||'mediaforge')};
+    await env.DB.prepare(`INSERT INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES(?,?,?,?, 'pending', ?)`).bind(id,action,target,JSON.stringify(payload),now).run();
+    return json({ok:true,command:payload,status:'pending'},200,cors);
+  }
+
+  if(url.pathname==='/api/ovh/deploy-status'&&request.method==='GET'){
+    const id=String(url.searchParams.get('id')||'');
+    if(id){
+      const row=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
+      if(!row)return json({error:'deploy_command_not_found'},404,cors);
+      return json({command:{...row,result:row.result_json?JSON.parse(row.result_json):null}},200,cors);
+    }
+    const q=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands ORDER BY created_at DESC LIMIT 25`).all();
+    return json({commands:(q.results||[]).map(r=>({...r,result:r.result_json?JSON.parse(r.result_json):null}))},200,cors);
+  }
 
   if(url.pathname==='/api/ovh/status'&&request.method==='GET'){
     const state=await ovhState(env),stations=await getYoutubeStations(env);
