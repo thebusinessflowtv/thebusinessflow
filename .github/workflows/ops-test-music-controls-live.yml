@@ -1,0 +1,121 @@
+name: MediaForge — Test Music Controls Live
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-test-music-controls-live.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Wrangler
+        working-directory: cloudflare/mediaforge-worker
+        run: npm install
+      - name: Resolve D1
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json > /tmp/d1.json
+          DB_ID="$(node - <<'NODE'
+          const fs=require('fs');
+          const list=JSON.parse(fs.readFileSync('/tmp/d1.json','utf8'));
+          const row=(Array.isArray(list)?list:(list.result||[])).find(x=>x.name==='mediaforge-control');
+          process.stdout.write(row?.uuid||row?.id||'');
+          NODE
+          )"
+          test -n "$DB_ID"
+          DB_ID="$DB_ID" node - <<'NODE'
+          const fs=require('fs');
+          const p='wrangler.jsonc';
+          const cfg=JSON.parse(fs.readFileSync(p,'utf8'));
+          cfg.d1_databases=[{binding:'DB',database_name:'mediaforge-control',database_id:process.env.DB_ID}];
+          fs.writeFileSync(p,JSON.stringify(cfg,null,2)+'\n');
+          NODE
+      - name: Snapshot before
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT updated_at,payload_json FROM ovh_state WHERE id='ovh-main';" > /tmp/before.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const raw=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
+          const row=(raw||[]).flatMap(x=>x.results||[])[0]||{};
+          const p=JSON.parse(row.payload_json||'{}');
+          const t=(p.services||{}).twitch||{};
+          console.log('BEFORE_REPORTED_AT='+String(p.reported_at||''));
+          console.log('BEFORE_TITLE='+String((t.now_playing||{}).title||''));
+          console.log('BEFORE_TRACK_ID='+String((t.now_playing||{}).track_id||''));
+          NODE
+      - name: Send next
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="music-next-test-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"id\":\"$ID\",\"action\":\"skip\",\"runtime_slot\":\"twitch\",\"platform\":\"twitch\",\"source\":\"mediaforge-control-selftest\",\"requested_at\":\"$NOW\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at) VALUES('$ID','twitch','skip','$PAYLOAD','pending','$NOW');"
+          echo "NEXT_ID=$ID" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT status,error FROM ovh_commands WHERE id='$ID';" > /tmp/next.json
+            cat /tmp/next.json
+            grep -q '"status": "completed"' /tmp/next.json && break
+            grep -q '"status": "failed"' /tmp/next.json && exit 1
+            sleep 2
+          done
+          grep -q '"status": "completed"' /tmp/next.json
+          sleep 10
+      - name: Snapshot after next
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT updated_at,payload_json FROM ovh_state WHERE id='ovh-main';" > /tmp/after-next.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const raw=JSON.parse(fs.readFileSync('/tmp/after-next.json','utf8'));
+          const row=(raw||[]).flatMap(x=>x.results||[])[0]||{};
+          const p=JSON.parse(row.payload_json||'{}');
+          const t=(p.services||{}).twitch||{};
+          console.log('AFTER_NEXT_REPORTED_AT='+String(p.reported_at||''));
+          console.log('AFTER_NEXT_TITLE='+String((t.now_playing||{}).title||''));
+          console.log('AFTER_NEXT_TRACK_ID='+String((t.now_playing||{}).track_id||''));
+          NODE
+      - name: Send previous
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="music-prev-test-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"id\":\"$ID\",\"action\":\"previous\",\"runtime_slot\":\"twitch\",\"platform\":\"twitch\",\"source\":\"mediaforge-control-selftest\",\"requested_at\":\"$NOW\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at) VALUES('$ID','twitch','previous','$PAYLOAD','pending','$NOW');"
+          echo "PREV_ID=$ID" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT status,error FROM ovh_commands WHERE id='$ID';" > /tmp/prev.json
+            cat /tmp/prev.json
+            grep -q '"status": "completed"' /tmp/prev.json && break
+            grep -q '"status": "failed"' /tmp/prev.json && exit 1
+            sleep 2
+          done
+          grep -q '"status": "completed"' /tmp/prev.json
+          sleep 10
+      - name: Snapshot after previous
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT updated_at,payload_json FROM ovh_state WHERE id='ovh-main';" > /tmp/after-prev.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const raw=JSON.parse(fs.readFileSync('/tmp/after-prev.json','utf8'));
+          const row=(raw||[]).flatMap(x=>x.results||[])[0]||{};
+          const p=JSON.parse(row.payload_json||'{}');
+          const t=(p.services||{}).twitch||{};
+          console.log('AFTER_PREV_REPORTED_AT='+String(p.reported_at||''));
+          console.log('AFTER_PREV_TITLE='+String((t.now_playing||{}).title||''));
+          console.log('AFTER_PREV_TRACK_ID='+String((t.now_playing||{}).track_id||''));
+          console.log('LAST_COMMAND='+JSON.stringify(p.last_command||{}));
+          NODE
