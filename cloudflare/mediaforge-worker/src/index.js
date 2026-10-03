@@ -771,6 +771,13 @@ async function handleApi(request,env,url){
     return json({ok:true,command:cmd},200,cors);
   }
 
+  const ovhControlStatusMatch=url.pathname.match(/^\/api\/ovh\/control\/([^/]+)$/);
+  if(ovhControlStatusMatch&&request.method==='GET'){
+    const row=await env.DB.prepare(`SELECT id,runtime_slot,action,status,created_at,claimed_at,completed_at,error FROM ovh_commands WHERE id=?`).bind(ovhControlStatusMatch[1]).first();
+    if(!row)return json({error:'ovh_command_not_found'},404,cors);
+    return json({command:row},200,cors);
+  }
+
   if(url.pathname==='/api/ovh/visual'&&request.method==='POST'){
     const b=await bodyJson(request),slot=String(b.runtime_slot||''),assetId=String(b.asset_id||''),directUrl=String(b.loop_url||'').trim();
     if(!OVH_SLOTS.includes(slot))return json({error:'invalid_runtime_slot'},400,cors);
