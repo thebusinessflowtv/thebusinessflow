@@ -411,7 +411,7 @@
       const html=pageHead(title,subtitle)+'<div class="card module-login"><h3>Conectar streaming</h3><p>Esta área usa a sessão segura do MediaForge Cloudflare Worker.</p><a class="btn primary" href="./secure.html?return='+encodeURIComponent(ret)+'">Conectar</a></div>';
       app.innerHTML=shell(html,path);wireShell();return;
     }
-    const html=pageHead(title,subtitle)+'<div class="module-frame"><iframe id="mediaForgeModuleFrame" scrolling="no" src="'+esc(src)+(src.includes('?')?'&':'?')+'embed=1&embedv=2" title="'+esc(title)+'"></iframe></div>';
+    const html=pageHead(title,subtitle)+'<div class="module-frame"><iframe id="mediaForgeModuleFrame" scrolling="no" src="'+esc(src)+(src.includes('?')?'&':'?')+'embed=1&embedv=5" title="'+esc(title)+'"></iframe></div>';
     app.innerHTML=shell(html,path);wireShell();
     const frame=document.getElementById('mediaForgeModuleFrame');
     const resize=()=>{try{
@@ -663,7 +663,7 @@
       if(path==='/'||path==='/dashboard')await dashboard('/');
       else if(path==='/peter-lofi')await peterHome(path);
       else if(path==='/peter-lofi/library')await musicLibraryPage(path);
-      else if(path==='/peter-lofi/music')await modulePage(path,'Gerar música','Criação de faixas, séries e catálogo do Peter Lofi.','./office-music.html',false);
+      else if(path==='/peter-lofi/music')await modulePage(path,'Gerar música','Criação de faixas, séries e catálogo do Peter Lofi.','./office-music.html?v=20261003-cloudflare-generator2',false);
       else if(path==='/peter-lofi/series')await modulePage(path,'Séries de áudio','Biblioteca e produção de séries musicais.','./peter-lofi-series.html',false);
       else if(path==='/peter-lofi/lives')await modulePage(path,'Lives','Abrir e gerenciar Kick, Twitch e YouTube pela OVH.','./lives.html?platform='+(params.get('platform')||'kick'),true);
       else if(path==='/peter-lofi/ovh')await modulePage(path,'OVH VPS','Saúde dos encoders e controles do servidor.','./ovh.html',true);
