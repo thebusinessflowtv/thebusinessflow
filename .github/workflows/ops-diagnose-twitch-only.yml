@@ -58,5 +58,10 @@ jobs:
             sleep 3
           done
           cat /tmp/diag.json
+      - name: List OVH deploy queue
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,action,target,status,created_at,claimed_at,completed_at,error FROM ovh_deploy_commands ORDER BY created_at DESC LIMIT 20;"
+
       - name: Public health
         run: curl -fsS --retry 5 --retry-all-errors https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/public-health
