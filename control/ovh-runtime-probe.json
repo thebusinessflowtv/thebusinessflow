@@ -3,12 +3,12 @@
   "agent": {
     "agent_id": "ovh-main",
     "runtime": "ovh",
-    "reported_at": "2026-10-03T04:52:04.904117Z",
+    "reported_at": "2026-10-03T04:56:21.241173Z",
     "host": {
-      "load_1m": 4.73,
-      "memory_percent": 14.8,
+      "load_1m": 6.96,
+      "memory_percent": 14.6,
       "disk_percent": 5.2,
-      "uptime_seconds": 77578.4
+      "uptime_seconds": 77834.74
     },
     "services": {
       "kick": {
@@ -21,17 +21,18 @@
         "fps": 30,
         "video_bitrate_kbps": 6000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:52:02.206664Z",
+        "updated_at": "2026-10-03T04:56:17.319220Z",
         "now_playing": {
           "platform": "kick",
           "state": "playing",
-          "track_id": "gaming-radio-28",
-          "title": "Respawn Run",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/28-04-s2-10-respawn-run.mp3",
-          "started_at": "2026-10-03T04:50:47.064539Z",
+          "track_id": "gaming-radio-02",
+          "title": "Velocity Lobby",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/02-02-s1-02-velocity-lobby.mp3",
+          "started_at": "2026-10-03T04:55:48.914858Z",
           "history": [
             "gaming-radio-09",
-            "gaming-radio-28"
+            "gaming-radio-28",
+            "gaming-radio-02"
           ]
         }
       },
@@ -45,16 +46,15 @@
         "fps": 30,
         "video_bitrate_kbps": 4500,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:52:04.321123Z",
+        "updated_at": "2026-10-03T04:56:19.393835Z",
         "now_playing": {
           "platform": "twitch",
           "state": "playing",
-          "track_id": "gaming-radio-28",
-          "title": "Respawn Run",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/28-04-s2-10-respawn-run.mp3",
-          "started_at": "2026-10-03T04:49:28.534240Z",
+          "track_id": "gaming-radio-32",
+          "title": "Velocity Mode",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/32-02-s2-14-velocity-mode.mp3",
+          "started_at": "2026-10-03T04:54:29.067866Z",
           "history": [
-            "gaming-radio-12",
             "gaming-radio-04",
             "gaming-radio-34",
             "gaming-radio-07",
@@ -63,7 +63,8 @@
             "gaming-radio-21",
             "gaming-radio-26",
             "gaming-radio-19",
-            "gaming-radio-28"
+            "gaming-radio-28",
+            "gaming-radio-32"
           ]
         }
       },
@@ -77,17 +78,15 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:52:00.263210Z",
+        "updated_at": "2026-10-03T04:56:20.340072Z",
         "now_playing": {
           "platform": "youtube-deep-house",
           "state": "playing",
-          "track_id": "deep-house-radio-57",
-          "title": "Golden Meeting",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-music-c6b32750-0f56-43d2-8b6e-b8066393bb51/26-golden-meeting.wav",
-          "started_at": "2026-10-03T04:51:13.504006Z",
+          "track_id": "deep-house-radio-03",
+          "title": "Midnight Boulevard",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-music-5a4b4cc5-af5d-4c22-a3f9-6efbd99aaab0/02-midnight-boulevard.wav",
+          "started_at": "2026-10-03T04:55:14.197474Z",
           "history": [
-            "deep-house-radio-31",
-            "deep-house-radio-12",
             "deep-house-radio-65",
             "deep-house-radio-60",
             "deep-house-radio-49",
@@ -95,7 +94,9 @@
             "deep-house-radio-08",
             "deep-house-radio-35",
             "deep-house-radio-36",
-            "deep-house-radio-57"
+            "deep-house-radio-57",
+            "deep-house-radio-09",
+            "deep-house-radio-03"
           ]
         }
       },
@@ -109,16 +110,15 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:52:04.270958Z",
+        "updated_at": "2026-10-03T04:56:19.341422Z",
         "now_playing": {
           "platform": "youtube-rainy",
           "state": "playing",
-          "track_id": "rainy-radio-11",
-          "title": "Night Elevator 26",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-series-02-late-night-office-8a2398c1/11-night-elevator-26.wav",
-          "started_at": "2026-10-03T04:48:02.448148Z",
+          "track_id": "rainy-radio-18",
+          "title": "Quiet Desk",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-series-05-rainy-office-8723845d/06-quiet-desk.wav",
+          "started_at": "2026-10-03T04:53:01.616438Z",
           "history": [
-            "rainy-radio-02",
             "rainy-radio-20",
             "rainy-radio-01",
             "rainy-radio-13",
@@ -127,13 +127,14 @@
             "rainy-radio-03",
             "rainy-radio-23",
             "rainy-radio-05",
-            "rainy-radio-11"
+            "rainy-radio-11",
+            "rainy-radio-18"
           ]
         }
       }
     },
     "processed_commands": 29,
-    "stored_at": "2026-10-03T04:52:04.933Z"
+    "stored_at": "2026-10-03T04:56:21.274Z"
   },
   "youtube_slots": [
     {
