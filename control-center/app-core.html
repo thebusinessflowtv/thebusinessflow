@@ -158,6 +158,16 @@
     .channel-card-main .channel-icon{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--card-accent) 20%,rgba(255,255,255,.04));color:var(--card-accent)}
     .channel-card-main h3{font-size:20px;margin:14px 0 5px}.channel-card-main p{font-size:11px;color:var(--muted);line-height:1.55;margin:0}
     @media(max-width:760px){.channel-grid{grid-template-columns:1fr}}
+
+    .music-playlist-card{padding:0!important;overflow:hidden}
+    .music-playlist-card summary{list-style:none;cursor:pointer;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .music-playlist-card summary::-webkit-details-marker{display:none}
+    .music-track-list{border-top:1px solid rgba(255,255,255,.08)}
+    .music-track-row{display:grid;grid-template-columns:42px minmax(180px,1fr) minmax(240px,360px);align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.055)}
+    .music-track-row:last-child{border-bottom:0}.music-track-num{font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+    .music-track-main b{display:block;font-size:12px}.music-track-main small{display:block;color:var(--muted);font-size:9px;margin-top:4px}
+    .music-track-row audio{width:100%;height:34px}
+    @media(max-width:760px){.music-track-row{grid-template-columns:32px 1fr}.music-track-row audio{grid-column:2}}
 </style>
   <link rel="stylesheet" href="./apple-liquidglass-v3.css?v=20260926-3">
 </head>
@@ -221,6 +231,7 @@
   const CHANNELS={
     peter:{key:'peter',slug:'peter-lofi',label:'PeterLofi',accent:'#ff3b30',icon:'headphones',description:'Música lofi, lives 24/7 e automações do Peter Lofi.',aliases:['peter lofi','peterlofi'],nav:[
       ['/peter-lofi','layout-dashboard','Visão geral'],
+      ['/peter-lofi/library','library-big','Músicas'],
       ['/peter-lofi/music','music-2','Gerar música'],
       ['/peter-lofi/series','list-music','Séries de áudio'],
       ['/peter-lofi/lives','radio','Lives'],
@@ -252,6 +263,7 @@
   function titleFor(path){
     const ctx=channelContext(path);
     if(ctx){
+      if(path.endsWith('/library'))return'Músicas';
       if(path.endsWith('/music'))return'Gerar música';
       if(path.endsWith('/series'))return'Séries de áudio';
       if(path.endsWith('/lives'))return'Lives';
@@ -353,13 +365,47 @@
     app.innerHTML=shell(html,path);wireShell();
   }
 
+  async function musicLibraryPage(path){
+    const raw='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/music-library.json?ts='+Date.now();
+    const r=await fetch(raw,{cache:'no-store'});
+    if(!r.ok)throw new Error('Não foi possível carregar a biblioteca de músicas.');
+    const lib=await r.json();
+    const playlists=lib.playlists||[];
+    const totalTracks=playlists.reduce((n,p)=>n+Number(p.track_count||0),0);
+    const liveKeys=new Set(['gaming-radio','deep-house-radio','rainy-radio']);
+    const durationText=s=>{const m=Math.round(Number(s||0)/60);if(m<60)return m+' min';const h=Math.floor(m/60),mm=m%60;return h+'h'+(mm?' '+mm+'min':'')};
+    const playlistCard=p=>{
+      const live=liveKeys.has(p.key);
+      const tracks=(p.tracks||[]).map((t,i)=>'<div class="music-track-row" data-search="'+esc((p.name+' '+p.genre+' '+t.title).toLowerCase())+'"><div class="music-track-num">'+String(i+1).padStart(2,'0')+'</div><div class="music-track-main"><b>'+esc(t.title)+'</b><small>'+esc(p.name)+' · '+esc(durationText(t.duration_seconds||300))+'</small></div><audio controls preload="none" src="'+esc(t.url)+'"></audio></div>').join('');
+      return '<details class="card music-playlist-card" data-search="'+esc((p.name+' '+p.genre+' '+p.series+' '+(p.moods||[]).join(' ')).toLowerCase())+'" '+(live?'open':'')+'><summary><div><div class="row wrap"><b>'+esc(p.name)+'</b>'+(live?'<span class="pill p-success">LIVE PLAYLIST</span>':'')+'<span class="pill">'+esc(p.category||'Playlist')+'</span></div><div class="tiny muted" style="margin-top:6px">'+esc(p.genre||'Lofi')+' · '+esc(p.track_count||0)+' faixas · '+esc(durationText(p.total_duration_seconds||0))+'</div></div><i data-lucide="chevron-down"></i></summary><div class="music-track-list">'+tracks+'</div></details>';
+    };
+    const html=pageHead('Músicas','Biblioteca canônica do PeterLofi · playlists, séries, gêneros e faixas individuais.')+
+      '<div class="grid grid4" style="margin-bottom:18px"><div class="card kpi"><div class="label">PLAYLISTS</div><div class="num">'+playlists.length+'</div></div><div class="card kpi"><div class="label">FAIXAS CATALOGADAS</div><div class="num">'+totalTracks+'</div></div><div class="card kpi"><div class="label">LIVES</div><div class="num">3 PLAYLISTS</div></div><div class="card kpi"><div class="label">PLAYBACK</div><div class="num" style="font-size:18px">FAIXA A FAIXA</div></div></div>'+
+      '<div class="card pad" style="margin-bottom:18px"><div class="row wrap"><div style="flex:1;min-width:240px"><input id="musicSearch" class="input" placeholder="Buscar música, playlist ou gênero…"></div><select id="musicCategory" class="input" style="max-width:220px"><option value="">Todas as categorias</option>'+[...new Set(playlists.map(p=>p.category).filter(Boolean))].map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></div><div class="tiny muted" style="margin-top:9px">Masters de 1h/3h continuam disponíveis para vídeos longos, mas as lives usam somente as faixas individuais.</div></div>'+
+      '<div id="musicLibraryList" class="grid" style="gap:12px">'+playlists.map(playlistCard).join('')+'</div>';
+    app.innerHTML=shell(html,path);wireShell();if(window.lucide)lucide.createIcons();
+    const search=document.getElementById('musicSearch'),cat=document.getElementById('musicCategory'),cards=[...document.querySelectorAll('.music-playlist-card')];
+    function filter(){
+      const q=(search?.value||'').trim().toLowerCase(),cv=cat?.value||'';
+      cards.forEach(card=>{
+        const cardMatch=(!q||card.dataset.search.includes(q))&&(!cv||card.querySelector('summary')?.textContent.includes(cv));
+        let childMatch=false;
+        card.querySelectorAll('.music-track-row').forEach(row=>{const match=!q||row.dataset.search.includes(q);row.style.display=match?'grid':'none';if(match)childMatch=true});
+        const show=cardMatch||(!cv&&q&&childMatch);
+        card.style.display=show?'block':'none';
+        if(q&&childMatch)card.open=true;
+      });
+    }
+    search?.addEventListener('input',filter);cat?.addEventListener('change',filter);
+  }
+
   async function peterHome(path){
     const [liveData,ovhData]=await Promise.all([mfApi('/api/live-sessions').catch(()=>({sessions:[]})),mfApi('/api/ovh/status').catch(()=>({agent:null}))]);
     const services=ovhData?.agent?.services||{},slots=['kick','twitch','youtube-deep-house','youtube-rainy'];
     const live=slots.filter(k=>String(services[k]?.status)==='live').length;
     const html=pageHead('PeterLofi','Música, rádio lofi e transmissões 24/7.')+
       '<div class="grid grid4" style="margin-bottom:22px"><div class="card kpi"><div class="label">LIVES ONLINE</div><div class="num">'+live+'/4</div></div><div class="card kpi"><div class="label">RUNTIME</div><div class="num" style="font-size:20px">OVH 24/7</div></div><div class="card kpi"><div class="label">PLAYBACK</div><div class="num" style="font-size:20px">FAIXA A FAIXA</div></div><div class="card kpi"><div class="label">CONTROLE</div><div class="num" style="font-size:20px">MediaForge</div></div></div>'+
-      '<div class="grid grid2"><a class="card pad" href="#/peter-lofi/music"><div class="row between"><div><b>Gerar música</b><div class="small muted" style="margin-top:5px">Criar faixas e séries lofi.</div></div><i data-lucide="music-2"></i></div></a><a class="card pad" href="#/peter-lofi/lives"><div class="row between"><div><b>Gerenciar lives</b><div class="small muted" style="margin-top:5px">Kick, Twitch e YouTube em um único painel.</div></div><i data-lucide="radio"></i></div></a></div>';
+      '<div class="grid grid2"><a class="card pad" href="#/peter-lofi/library"><div class="row between"><div><b>Músicas</b><div class="small muted" style="margin-top:5px">Biblioteca por playlist, série e gênero.</div></div><i data-lucide="library-big"></i></div></a><a class="card pad" href="#/peter-lofi/music"><div class="row between"><div><b>Gerar música</b><div class="small muted" style="margin-top:5px">Criar novas faixas e séries lofi.</div></div><i data-lucide="music-2"></i></div></a><a class="card pad" href="#/peter-lofi/lives"><div class="row between"><div><b>Gerenciar lives</b><div class="small muted" style="margin-top:5px">Kick, Twitch e YouTube em um único painel.</div></div><i data-lucide="radio"></i></div></a><a class="card pad" href="#/peter-lofi/ovh"><div class="row between"><div><b>OVH VPS</b><div class="small muted" style="margin-top:5px">Saúde dos encoders e runtime 24/7.</div></div><i data-lucide="server"></i></div></a></div>';
     app.innerHTML=shell(html,path);wireShell();
   }
 
@@ -521,6 +567,7 @@
     try{
       if(path==='/'||path==='/dashboard')await dashboard('/');
       else if(path==='/peter-lofi')await peterHome(path);
+      else if(path==='/peter-lofi/library')await musicLibraryPage(path);
       else if(path==='/peter-lofi/music')await modulePage(path,'Gerar música','Criação de faixas, séries e catálogo do Peter Lofi.','./office-music.html',false);
       else if(path==='/peter-lofi/series')await modulePage(path,'Séries de áudio','Biblioteca e produção de séries musicais.','./peter-lofi-series.html',false);
       else if(path==='/peter-lofi/lives')await modulePage(path,'Lives','Abrir e gerenciar Kick, Twitch e YouTube pela OVH.','./lives.html?platform='+(params.get('platform')||'kick'),true);
