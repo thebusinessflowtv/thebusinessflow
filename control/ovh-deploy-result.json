@@ -1,23 +1,33 @@
 {
   "command": {
-    "id": "ovh-agent-runtime-20261003-0524",
+    "id": "twitch-hotswap-rollout-20261003-0525",
     "action": "deploy_service",
-    "target": "ovh-agent",
+    "target": "twitch",
     "status": "completed",
-    "created_at": "2026-10-03T05:23:36.405Z",
-    "claimed_at": "2026-10-03T05:23:40.302Z",
-    "completed_at": "2026-10-03T05:23:53.005Z",
+    "created_at": "2026-10-03T05:24:21.890Z",
+    "claimed_at": "2026-10-03T05:24:23.930Z",
+    "completed_at": "2026-10-03T05:25:05.966Z",
     "error": "",
-    "result_json": "{\"old_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"new_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"service\":\"ovh-agent\",\"health\":{\"service\":\"ovh-agent\",\"status\":\"live\"},\"backup_image\":\"mediaforge-backup-ovh-agent:20261003052341\"}",
+    "result_json": "{\"old_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"new_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"service\":\"twitch\",\"health\":{\"service\":\"twitch\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:25:05.209849Z\",\"fps\":30,\"video_bitrate_kbps\":4500,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":51,\"visual_pid\":9,\"visual_status\":\"streaming\",\"generation\":1,\"visual_revision\":null},\"backup_image\":\"mediaforge-backup-twitch:20261003052424\"}",
     "result": {
       "old_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
       "new_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
-      "service": "ovh-agent",
+      "service": "twitch",
       "health": {
-        "service": "ovh-agent",
-        "status": "live"
+        "service": "twitch",
+        "status": "live",
+        "updated_at": "2026-10-03T05:25:05.209849Z",
+        "fps": 30,
+        "video_bitrate_kbps": 4500,
+        "restarts": 0,
+        "hot_swap": true,
+        "encoder_pid": 51,
+        "visual_pid": 9,
+        "visual_status": "streaming",
+        "generation": 1,
+        "visual_revision": null
       },
-      "backup_image": "mediaforge-backup-ovh-agent:20261003052341"
+      "backup_image": "mediaforge-backup-twitch:20261003052424"
     }
   }
 }
