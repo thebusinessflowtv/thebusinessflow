@@ -41,11 +41,33 @@ async function getCatalog(env){const repo=env.GITHUB_REPO||'thebusinessflowtv/th
 function resolveTracks(catalog,ids){const map=new Map((catalog.tracks||[]).map(t=>[String(t.id),t]));const tracks=ids.map(id=>map.get(String(id))).filter(Boolean);return {tracks,map};}
 function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:String(t.title||'Faixa'),url:String(t.url||''),duration_seconds:Number(t.duration_seconds||0),collection_name:t.collection_name||'',style:t.style||''})).filter(t=>t.url);}
 
+const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
+function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
+async function getYoutubeStations(env){return (await fetchGithubJson(env,'control/youtube-stations.json'))||{stations:[]};}
+async function issueOvhCommand(env,command){
+  const now=new Date().toISOString(),id=String(command.id||crypto.randomUUID()),path=`control/ovh-commands/${id}.json`;
+  const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
+  await githubQueueFile(env,path,payload,`mediaforge ovh command ${id}`);
+  const idx=(await fetchGithubJson(env,'control/ovh-commands/index.json'))||{version:1,commands:[]};
+  const commands=[...(idx.commands||[]).filter(x=>String(x.id)!==id),{id,path,created_at:now}].slice(-500);
+  await githubQueueFile(env,'control/ovh-commands/index.json',{version:1,updated_at:now,commands},'mediaforge ovh command index');
+  return payload;
+}
+async function runtimeForSession(env,id){
+  try{return await env.DB.prepare(`SELECT * FROM live_runtime WHERE session_id=?`).bind(id).first();}catch(_){return null;}
+}
+async function ovhState(env){
+  try{const row=await env.DB.prepare(`SELECT payload_json,updated_at FROM ovh_state WHERE id='ovh-main'`).first();return row?{...JSON.parse(row.payload_json||'{}'),stored_at:row.updated_at}:null;}catch(_){return null;}
+}
+
 async function syncSessionFromGitHub(env,row){
+  const rt=await runtimeForSession(env,row.id);
+  if(rt?.runtime==='ovh')return {...row,runtime:'ovh',runtime_slot:rt.runtime_slot||null};
   if(!['queued','starting','live','reconnecting','stopping'].includes(String(row.status)))return row;
-  const p=String(row.platform)==='youtube'?`control/live-results/${row.id}.json`:`control/kick-live-results/${row.id}.json`,remote=await fetchGithubJson(env,p);if(!remote)return row;
+  const p=String(row.platform)==='youtube'?`control/live-results/${row.id}.json`:String(row.platform)==='twitch'?`control/twitch-live-results/${row.id}.json`:`control/kick-live-results/${row.id}.json`;
+  const remote=await fetchGithubJson(env,p);if(!remote)return row;
   const status=String(remote.status||row.status),completed=remote.completed_at||remote.ended_at||null;
-  await env.DB.prepare(`UPDATE live_sessions SET status=?,github_run_id=?,github_run_url=?,error_message=?,live_at=?,completed_at=? WHERE id=?`).bind(status,remote.github_run_id||null,remote.github_run_url||null,remote.error_message||null,remote.live_at||remote.started_at||null,completed,row.id).run();
+  await env.DB.prepare(`UPDATE live_sessions SET status=?,github_run_id=?,github_run_url=?,error_message=?,live_at=?,completed_at=? WHERE id=?`).bind(status,remote.github_run_id||remote.run_id||null,remote.github_run_url||null,remote.error_message||null,remote.live_at||remote.started_at||null,completed,row.id).run();
   return {...row,...remote,status,completed_at:completed||row.completed_at};
 }
 function safeName(name){return String(name||'asset').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(-140)||'asset';}
@@ -57,10 +79,41 @@ async function handleMedia(request,env,url){const parts=url.pathname.split('/').
 
 async function handleApi(request,env,url){
   const cors=corsHeaders(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
-  if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:'r2',database:'d1',supabase:false,youtube:true,kick:true},200,cors);
+  if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:'r2',database:'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true},200,cors);
+
+  if(url.pathname==='/api/ovh/agent/status'&&request.method==='POST'){
+    const ip=request.headers.get('cf-connecting-ip')||'';
+    const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
+    if(!allowed.includes(ip))return json({error:'forbidden_agent',ip},403,cors);
+    const b=await bodyJson(request),now=new Date().toISOString();
+    await env.DB.prepare(`INSERT INTO ovh_state(id,payload_json,updated_at) VALUES('ovh-main',?,?) ON CONFLICT(id) DO UPDATE SET payload_json=excluded.payload_json,updated_at=excluded.updated_at`).bind(JSON.stringify(b),now).run();
+    for(const [slot,s] of Object.entries(b.services||{})){
+      if(!OVH_SLOTS.includes(slot))continue;
+      const id=String(s?.session_id||'');if(!id)continue;
+      const platform=mapPlatformFromSlot(slot),title=String(s?.title||`Peter Lofi ${platform}`),status=String(s?.status||'unknown');
+      const found=await env.DB.prepare(`SELECT id FROM live_sessions WHERE id=?`).bind(id).first();
+      if(!found)await env.DB.prepare(`INSERT INTO live_sessions(id,platform,status,title,description,duration_minutes,track_ids_json,created_at,live_at) VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,platform,status,title,'',0,'[]',now,status==='live'?now:null).run();
+      else await env.DB.prepare(`UPDATE live_sessions SET status=?,live_at=COALESCE(live_at,?) WHERE id=?`).bind(status,status==='live'?now:null,id).run();
+      await env.DB.prepare(`INSERT INTO live_runtime(session_id,runtime,runtime_slot,last_status_at,agent_status_json) VALUES(?,'ovh',?,?,?) ON CONFLICT(session_id) DO UPDATE SET runtime='ovh',runtime_slot=excluded.runtime_slot,last_status_at=excluded.last_status_at,agent_status_json=excluded.agent_status_json`).bind(id,slot,now,JSON.stringify(s||{})).run();
+    }
+    return json({ok:true,stored_at:now},200,cors);
+  }
+
   if(url.pathname==='/api/auth/login'&&request.method==='POST'){const b=await bodyJson(request),email=String(b.email||'').trim().toLowerCase(),password=String(b.password||'');if(!env.ADMIN_EMAIL||!env.ADMIN_PASSWORD||!env.SESSION_SECRET)return json({error:'auth_not_configured'},503,cors);if(email!==String(env.ADMIN_EMAIL).trim().toLowerCase()||password!==String(env.ADMIN_PASSWORD))return json({error:'invalid_credentials',message:'E-mail ou senha inválidos.'},401,cors);return json({ok:true,token:await signSession(email,env.SESSION_SECRET),user:{email,role:'admin'}},200,cors);}
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
+
+  if(url.pathname==='/api/ovh/status'&&request.method==='GET'){
+    const state=await ovhState(env),stations=await getYoutubeStations(env);
+    return json({runtime:'ovh',agent:state,youtube_slots:stations.stations||[],slots:OVH_SLOTS},200,cors);
+  }
+  if(url.pathname==='/api/ovh/control'&&request.method==='POST'){
+    const b=await bodyJson(request),action=String(b.action||'').toLowerCase(),slot=String(b.runtime_slot||'');
+    if(!['start','stop','restart','skip','previous'].includes(action)||!OVH_SLOTS.includes(slot))return json({error:'invalid_ovh_control'},400,cors);
+    const state=await ovhState(env),svc=state?.services?.[slot]||{};
+    const cmd=await issueOvhCommand(env,{action,runtime_slot:slot,platform:mapPlatformFromSlot(slot),session_id:String(b.session_id||svc.session_id||''),title:String(b.title||svc.title||''),loop_url:String(b.loop_url||''),source:'mediaforge-ovh-panel'});
+    return json({ok:true,command:cmd},200,cors);
+  }
 
   if(url.pathname==='/api/catalog'&&request.method==='GET')try{const catalog=await getCatalog(env),assets=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' ORDER BY created_at DESC`).all();return json({...catalog,assets:(assets.results||[]).map(a=>({id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,metadata:JSON.parse(a.metadata_json||'{}'),public_url:assetPublicUrl(request,a)}))},200,cors);}catch(e){return json({error:'catalog_error',message:e.message},502,cors);}
   if(url.pathname==='/api/assets'&&request.method==='GET'){const q=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' ORDER BY created_at DESC`).all();return json({assets:(q.results||[]).map(a=>({id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,metadata:JSON.parse(a.metadata_json||'{}'),public_url:assetPublicUrl(request,a)}))},200,cors);}
@@ -76,45 +129,53 @@ async function handleApi(request,env,url){
 
   if(url.pathname==='/api/live/start'&&request.method==='POST'){
     try{
-      const b=await bodyJson(request),platform=String(b.platform||'kick').toLowerCase();if(!['kick','youtube'].includes(platform))return json({error:'unsupported_platform'},400,cors);
-      const catalog=await getCatalog(env),trackIds=Array.isArray(b.track_ids)?b.track_ids.map(String):[];if(!trackIds.length)return json({error:'select_at_least_one_track'},400,cors);
-      const {tracks}=resolveTracks(catalog,trackIds);if(tracks.length!==trackIds.length)return json({error:'invalid_track_selection',message:'Uma ou mais músicas não existem no catálogo GitHub.'},400,cors);const manifest=trackManifest(tracks);if(manifest.length!==trackIds.length)return json({error:'no_playable_tracks'},400,cors);
+      const b=await bodyJson(request),platform=String(b.platform||'kick').toLowerCase();
+      if(!['kick','twitch','youtube'].includes(platform))return json({error:'unsupported_platform'},400,cors);
+      const catalog=await getCatalog(env),trackIds=Array.isArray(b.track_ids)?b.track_ids.map(String):[];
+      if(!trackIds.length)return json({error:'select_at_least_one_track'},400,cors);
+      const {tracks}=resolveTracks(catalog,trackIds);if(tracks.length!==trackIds.length)return json({error:'invalid_track_selection',message:'Uma ou mais músicas não existem no catálogo GitHub.'},400,cors);
+      const manifest=trackManifest(tracks);if(manifest.length!==trackIds.length)return json({error:'no_playable_tracks'},400,cors);
       const visualId=b.visual_asset_id?String(b.visual_asset_id):'',thumbId=b.thumbnail_asset_id?String(b.thumbnail_asset_id):'';let visualUrl='',thumbnailUrl='';
       if(visualId){const a=await readAsset(env,visualId);if(!a||a.status!=='ready')return json({error:'visual_not_ready'},400,cors);visualUrl=assetPublicUrl(request,a);}
       if(thumbId){const a=await readAsset(env,thumbId);if(!a||a.status!=='ready'||!String(a.mime_type||'').startsWith('image/'))return json({error:'thumbnail_not_ready',message:'A thumbnail do YouTube precisa ser uma imagem pronta.'},400,cors);thumbnailUrl=assetPublicUrl(request,a);}
       const id=crypto.randomUUID(),title=String(b.title||'Peter Lofi — Live').trim()||'Peter Lofi — Live',description=String(b.description||''),duration=Math.max(0,Math.min(10080,Number(b.duration_minutes??0)||0)),now=new Date().toISOString();
-      await env.DB.prepare(`INSERT INTO live_sessions(id,platform,status,title,description,duration_minutes,track_ids_json,visual_asset_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,platform,'queued',title,description,duration,JSON.stringify(trackIds),visualId||null,now).run();
+      let slot=platform;
+      if(platform==='youtube'){
+        slot=String(b.youtube_slot||'');
+        if(!['youtube-deep-house','youtube-rainy'].includes(slot))return json({error:'youtube_slot_required',message:'Selecione um slot OVH do YouTube.'},400,cors);
+        const cfg=await getYoutubeStations(env),st=(cfg.stations||[]).find(x=>String(x.ovh_slot||'')===slot);
+        if(!st||!st.youtube_stream_id)return json({error:'youtube_slot_not_configured'},409,cors);
+        if(st.current_session_id&&String(st.status||'')==='live')return json({error:'youtube_slot_busy',message:`O slot ${st.name||slot} já está transmitindo. Encerre essa live antes de reutilizar o slot.`},409,cors);
+      }
+      await env.DB.prepare(`INSERT INTO live_sessions(id,platform,status,title,description,duration_minutes,track_ids_json,visual_asset_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,platform,'starting',title,description,duration,JSON.stringify(trackIds),visualId||null,now).run();
+      await env.DB.prepare(`INSERT INTO live_runtime(session_id,runtime,runtime_slot,last_status_at,agent_status_json) VALUES(?,'ovh',?,?,?)`).bind(id,slot,now,'{}').run();
       if(visualId)await env.DB.prepare(`INSERT OR REPLACE INTO live_session_assets(session_id,role,asset_id) VALUES(?,?,?)`).bind(id,'visual',visualId).run();
       if(thumbId)await env.DB.prepare(`INSERT OR REPLACE INTO live_session_assets(session_id,role,asset_id) VALUES(?,?,?)`).bind(id,'thumbnail',thumbId).run();
-      await githubQueueFile(env,`control/live-playlists/${id}.json`,{session_id:id,platform,updated_at:now,tracks:manifest},`mediaforge: playlist ${id}`);
-      const queue=platform==='youtube'?`control/youtube-live-queue/${id}.json`:`control/kick-live-queue/${id}.json`;
-      const queuePayload={session_id:id,track_urls_b64:base64Utf8(JSON.stringify(manifest.map(t=>t.url))),duration_minutes:String(duration),title,description,thumbnail_url:thumbnailUrl,loop_url:visualUrl,segment_index:'1',requested_at:now,dispatch_mode:platform==='kick'?'direct':'bridge'};
-      await githubQueueFile(env,queue,queuePayload,`mediaforge: queue ${platform} live ${id}`);
-      let launchMode='bridge';
-      if(platform==='kick'){
-        const inputs={session_id:id,track_urls_b64:queuePayload.track_urls_b64,duration_minutes:String(duration),title,description,thumbnail_url:thumbnailUrl,loop_url:visualUrl,segment_index:'1'};
-        try{
-          await githubDispatchWorkflow(env,'peter-lofi-kick-live.yml',inputs);
-          launchMode='direct';
-          await env.DB.prepare(`UPDATE live_sessions SET status='starting' WHERE id=?`).bind(id).run();
-        }catch(dispatchErr){
-          console.log('Direct Kick dispatch failed; falling back to queue bridge:',dispatchErr?.message||String(dispatchErr));
-          queuePayload.dispatch_mode='bridge';
-          queuePayload.direct_dispatch_error=dispatchErr?.message||String(dispatchErr);
-          await githubQueueFile(env,queue,queuePayload,`mediaforge: fallback kick bridge ${id}`);
-          launchMode='bridge-fallback';
-          await env.DB.prepare(`UPDATE live_sessions SET status='starting' WHERE id=?`).bind(id).run();
-        }
+      await githubQueueFile(env,`control/live-playlists/${id}.json`,{session_id:id,platform,runtime:'ovh',runtime_slot:slot,updated_at:now,tracks:manifest},`mediaforge ovh playlist ${id}`);
+      const common={session_id:id,platform,runtime_slot:slot,title,description,duration_minutes:duration,loop_url:visualUrl,tracks:manifest,shuffle:true,requested_at:now,source:'mediaforge'};
+      if(platform==='youtube'){
+        await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
+        await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-prepare.yml',{session_id:id,runtime_slot:slot,title,description,thumbnail_url:thumbnailUrl,duration_minutes:String(duration)});
+        return json({ok:true,launch_mode:'ovh-youtube-prepare',session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
       }
-      const finalStatus=platform==='kick'?'starting':'queued';
-      return json({ok:true,launch_mode:launchMode,session:{id,platform,status:finalStatus,title,description,duration_minutes:duration,track_ids:trackIds,visual_asset_id:visualId||null,thumbnail_asset_id:thumbId||null,created_at:now}},200,cors);
+      const cmd=await issueOvhCommand(env,{...common,action:'start'});
+      return json({ok:true,launch_mode:'ovh-direct',command_id:cmd.id,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
     }catch(e){return json({error:'start_live_failed',message:e.message},502,cors);}
   }
 
   const stopMatch=url.pathname.match(/^\/api\/live\/([^/]+)\/stop$/);
   if(stopMatch&&request.method==='POST'){
     const id=stopMatch[1],row=await env.DB.prepare(`SELECT * FROM live_sessions WHERE id=?`).bind(id).first();if(!row)return json({error:'session_not_found'},404,cors);
-    try{const path=String(row.platform)==='youtube'?`control/live-stop/${id}.json`:`control/kick-live-stop/${id}.json`;await githubQueueFile(env,path,{stop:true,session_id:id,platform:row.platform,requested_at:new Date().toISOString()},`mediaforge: stop ${row.platform} live ${id}`);await env.DB.prepare(`UPDATE live_sessions SET status='stopping' WHERE id=?`).bind(id).run();return json({ok:true,session_id:id,status:'stopping'},200,cors);}catch(e){return json({error:'stop_live_failed',message:e.message},502,cors);}
+    try{
+      const rt=await runtimeForSession(env,id),slot=rt?.runtime_slot||String(row.platform);
+      if(String(row.platform)==='youtube'){
+        await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-stop.yml',{session_id:id,runtime_slot:String(slot||'')});
+      }else{
+        await issueOvhCommand(env,{action:'stop',platform:row.platform,runtime_slot:slot,session_id:id,title:row.title,source:'mediaforge'});
+      }
+      await env.DB.prepare(`UPDATE live_sessions SET status='stopping' WHERE id=?`).bind(id).run();
+      return json({ok:true,session_id:id,status:'stopping',runtime:'ovh',runtime_slot:slot},200,cors);
+    }catch(e){return json({error:'stop_live_failed',message:e.message},502,cors);}
   }
 
   const tracksMatch=url.pathname.match(/^\/api\/live\/([^/]+)\/tracks$/);
@@ -123,23 +184,31 @@ async function handleApi(request,env,url){
     const b=await bodyJson(request),ids=Array.isArray(b.track_ids)?b.track_ids.map(String):[];if(!ids.length)return json({error:'select_at_least_one_track',message:'A live precisa manter pelo menos uma música.'},400,cors);
     const catalog=await getCatalog(env),{tracks}=resolveTracks(catalog,ids);if(tracks.length!==ids.length)return json({error:'invalid_track_selection'},400,cors);const manifest=trackManifest(tracks),now=new Date().toISOString();
     await env.DB.prepare(`UPDATE live_sessions SET track_ids_json=? WHERE id=?`).bind(JSON.stringify(ids),id).run();
-    await githubQueueFile(env,`control/live-playlists/${id}.json`,{session_id:id,platform:row.platform,updated_at:now,tracks:manifest},`mediaforge: update live playlist ${id}`);
-    return json({ok:true,session_id:id,track_ids:ids,tracks:manifest,applies_after_current_track:true},200,cors);
+    const rt=await runtimeForSession(env,id),slot=rt?.runtime_slot||String(row.platform);
+    await githubQueueFile(env,`control/live-playlists/${id}.json`,{session_id:id,platform:row.platform,runtime:'ovh',runtime_slot:slot,updated_at:now,tracks:manifest},`mediaforge: update live playlist ${id}`);
+    if(rt?.runtime==='ovh')await issueOvhCommand(env,{action:'update_playlist',platform:row.platform,runtime_slot:slot,session_id:id,title:row.title,tracks:manifest,source:'mediaforge'});
+    return json({ok:true,session_id:id,track_ids:ids,tracks:manifest,applies_after_current_track:true,runtime:rt?.runtime||'legacy'},200,cors);
   }
 
   const detailMatch=url.pathname.match(/^\/api\/live\/([^/]+)$/);
   if(detailMatch&&request.method==='GET'){
-    let row=await env.DB.prepare(`SELECT * FROM live_sessions WHERE id=?`).bind(detailMatch[1]).first();if(!row)return json({error:'session_not_found'},404,cors);row=await syncSessionFromGitHub(env,row);
-    const ids=JSON.parse(row.track_ids_json||'[]'),catalog=await getCatalog(env),{tracks}=resolveTracks(catalog,ids),analytics=await fetchGithubJson(env,'control/live-analytics.json'),nowPlaying=await fetchGithubJson(env,`control/live-now-playing/${row.id}.json`),assetRows=await env.DB.prepare(`SELECT role,asset_id FROM live_session_assets WHERE session_id=?`).bind(row.id).all(),assetMap={};
+    let row=await env.DB.prepare(`SELECT * FROM live_sessions WHERE id=?`).bind(detailMatch[1]).first();if(!row)return json({error:'session_not_found'},404,cors);
+    row=await syncSessionFromGitHub(env,row);
+    const rt=await runtimeForSession(env,row.id),ids=JSON.parse(row.track_ids_json||'[]'),catalog=await getCatalog(env),{tracks}=resolveTracks(catalog,ids),analytics=await fetchGithubJson(env,'control/live-analytics.json'),assetRows=await env.DB.prepare(`SELECT role,asset_id FROM live_session_assets WHERE session_id=?`).bind(row.id).all(),assetMap={};
     for(const a of assetRows.results||[])assetMap[a.role]=await assetSummary(request,env,a.asset_id);
-    let external=null;if(String(row.platform)==='kick')external=analytics?.kick||null;else external=(analytics?.youtube?.sessions||[]).find(x=>x.session_id===row.id)||null;
-    return json({session:{...row,track_ids:ids},tracks:trackManifest(tracks),now_playing:nowPlaying,analytics:external,analytics_generated_at:analytics?.generated_at||null,assets:assetMap},200,cors);
+    const state=await ovhState(env),slot=rt?.runtime_slot||null,svc=slot?state?.services?.[slot]:null;
+    let external=null;if(String(row.platform)==='kick')external=analytics?.kick||null;else if(String(row.platform)==='youtube')external=(analytics?.youtube?.sessions||[]).find(x=>x.session_id===row.id)||null;
+    return json({session:{...row,track_ids:ids,runtime:rt?.runtime||null,runtime_slot:slot},tracks:trackManifest(tracks),now_playing:svc?.now_playing||null,ovh_service:svc||null,analytics:external,analytics_generated_at:analytics?.generated_at||null,assets:assetMap},200,cors);
   }
 
-  if(url.pathname==='/api/live-sessions'&&request.method==='GET'){const q=await env.DB.prepare(`SELECT * FROM live_sessions ORDER BY created_at DESC LIMIT 50`).all(),rows=[];for(const r of q.results||[])rows.push(await syncSessionFromGitHub(env,r));return json({sessions:rows.map(r=>({...r,track_ids:JSON.parse(r.track_ids_json||'[]')}))},200,cors);}
+  if(url.pathname==='/api/live-sessions'&&request.method==='GET'){
+    const q=await env.DB.prepare(`SELECT * FROM live_sessions ORDER BY created_at DESC LIMIT 75`).all(),rows=[];
+    for(const r of q.results||[]){const x=await syncSessionFromGitHub(env,r),rt=await runtimeForSession(env,r.id);rows.push({...x,runtime:rt?.runtime||null,runtime_slot:rt?.runtime_slot||null,track_ids:JSON.parse(r.track_ids_json||'[]')});}
+    return json({sessions:rows},200,cors);
+  }
   if(url.pathname==='/api/live-sessions'&&request.method==='DELETE'){const b=await bodyJson(request),active=await env.DB.prepare(`SELECT COUNT(*) AS n FROM live_sessions WHERE status IN ('queued','starting','live','reconnecting','stopping')`).first(),count=Number(active?.n||0);if(count&&!b.force)return json({error:'active_sessions',active_count:count,message:'Existem lives ativas ou na fila.'},409,cors);const all=await env.DB.prepare(`SELECT COUNT(*) AS n FROM live_sessions`).first();await env.DB.prepare(`DELETE FROM live_session_assets`).run();await env.DB.prepare(`DELETE FROM live_sessions`).run();return json({ok:true,deleted:Number(all?.n||0)},200,cors);}
 
   return json({error:'not_found'},404,cors);
 }
 
-export default{async fetch(request,env){const url=new URL(request.url);try{if(url.pathname.startsWith('/media/'))return handleMedia(request,env,url);if(url.pathname.startsWith('/api/'))return handleApi(request,env,url);return json({service:'MediaForge API',backend:'Cloudflare Worker + D1 + R2',supabase:false});}catch(e){return json({error:'internal_error',message:e?.message||String(e)},500,corsHeaders(request,env));}}};
+export default{async fetch(request,env){const url=new URL(request.url);try{if(url.pathname.startsWith('/media/'))return handleMedia(request,env,url);if(url.pathname.startsWith('/api/'))return handleApi(request,env,url);return json({service:'MediaForge API',backend:'Cloudflare Worker + D1 + R2 + OVH control',supabase:false,ovh:true});}catch(e){return json({error:'internal_error',message:e?.message||String(e)},500,corsHeaders(request,env));}}};
