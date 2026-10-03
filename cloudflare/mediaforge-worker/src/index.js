@@ -570,6 +570,7 @@ async function handleApi(request,env,url){
     const path=String(url.searchParams.get('path')||'').trim();
     if(!['control/music-library.json','control/mediaforge-catalog.json','control/youtube-stations.json','config/peter_lofi_series.json','control/gaming-reference-production/references.json','control/twitch-dj-supplied-2026-10-03.json'].includes(path))return json({error:'config_path_not_allowed'},400,cors);
     const payload=await localConfigJson(env,path);
+    if(url.searchParams.get('raw')==='1')return json(payload,payload===null?404:200,cors);
     return json({path,payload},payload===null?404:200,cors);
   }
   if(url.pathname==='/api/ovh/agent/runtime-config'&&request.method==='POST'){
@@ -731,7 +732,7 @@ async function handleApi(request,env,url){
     const baseTracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`twitch-dj-original-${i+1}`),title:String(t.title||'Peter Lofi'),url:String(t.url),duration_seconds:Number(t.duration_seconds||0),source:'peter_lofi_original'}));
     const state=await ovhState(env),svc=state?.services?.twitch||{};
     if(svc.hot_swap!==true)return json({error:'twitch_hot_swap_not_ready',message:'Importação bloqueada para proteger a live: o runtime Twitch ainda não confirmou hot-swap.'},409,cors);
-    const cmd=await issueOvhCommand(env,{action:'import_twitch_dj_archive',runtime_slot:'twitch',platform:'twitch',session_id:String(svc.session_id||''),title:String(svc.title||''),playlist_key:'twitch-dj-mixed',archive_asset_id:asset.id,archive_url:assetRuntimeUrl(request,asset,env),manifest:String(env.LOCAL_RUNTIME||'')==='1'?manifest:undefined,manifest_url:String(env.LOCAL_RUNTIME||'')==='1'?'':'https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/twitch-dj-supplied-2026-10-03.json',base_tracks:baseTracks,shuffle:true,repeat:true,source:'mediaforge-twitch-dj-import'});
+    const cmd=await issueOvhCommand(env,{action:'import_twitch_dj_archive',runtime_slot:'twitch',platform:'twitch',session_id:String(svc.session_id||''),title:String(svc.title||''),playlist_key:'twitch-dj-mixed',archive_asset_id:asset.id,archive_url:assetRuntimeUrl(request,asset,env),manifest:String(env.LOCAL_RUNTIME||'')==='1'?manifest:undefined,manifest_url:String(env.LOCAL_RUNTIME||'')==='1'?(String(env.OVH_INTERNAL_API_URL||'http://host.docker.internal:8790').replace(/\/$/,'')+'/api/ovh/agent/runtime-config?path='+encodeURIComponent('control/twitch-dj-supplied-2026-10-03.json')+'&raw=1'):'https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/twitch-dj-supplied-2026-10-03.json',base_tracks:baseTracks,shuffle:true,repeat:true,source:'mediaforge-twitch-dj-import'});
     return json({ok:true,mode:'twitch_only_hot_import',rtmp_restart:false,asset:{id:asset.id,title:asset.title,size_bytes:asset.size_bytes},expected_unique_tracks:Number(manifest.unique_audio_files||manifest.tracks.length),command:cmd},202,cors);
   }
 
