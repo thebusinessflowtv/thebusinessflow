@@ -1,18 +1,7 @@
 name: Sync Office Music to Pages
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'control-center/office-music.html'
-      - 'control-center/office-music.js'
-      - 'control-center/office-music-nav.js'
-      - 'control-center/office-music-playlists.js'
-      - 'control-center/lives.html'
-      - 'control-center/lives.js'
-      - 'control-center/peter-lofi-series.html'
-      - 'control-center/peter-lofi-series.js'
-      - '.github/workflows/sync-office-music-pages.yml'
+  # Production UI is served from OVH; legacy Pages sync is manual only.
   workflow_dispatch:
 
 permissions:
