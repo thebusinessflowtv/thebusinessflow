@@ -1,1 +1,16 @@
-{"command":{"id":"health-1791000246971","status":"claimed","error":"timeout_waiting_for_ovh"}}
+{
+  "command": {
+    "id": "kick-stability-deploy-20261003-0148",
+    "action": "deploy_service",
+    "target": "kick",
+    "status": "failed",
+    "created_at": "2026-10-03T05:01:48.666Z",
+    "claimed_at": "2026-10-03T05:14:10.966Z",
+    "completed_at": "2026-10-03T05:14:12.270Z",
+    "error": "command failed (1): docker compose build kick\ntime=\"2026-10-03T05:14:12Z\" level=warning msg=\"Docker Compose is configured to build using Bake, but buildx isn't installed\"\nopen /root/.docker/buildx/refs/default/default/.tmp-nkr4qpep9a6lqmkh0rnshtco71766105810: read-only file system\n",
+    "result_json": "{\"git_head\":\"fea56108cf26577bd4b405a0f938b95bead7b923\"}",
+    "result": {
+      "git_head": "fea56108cf26577bd4b405a0f938b95bead7b923"
+    }
+  }
+}
