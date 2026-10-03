@@ -20,9 +20,30 @@ jobs:
       - name: Install Wrangler
         working-directory: cloudflare/mediaforge-worker
         run: npm install
+      - name: Resolve D1 binding
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json > /tmp/d1.json
+          DB_ID="$(node - <<'NODE'
+          const fs=require('fs');
+          const list=JSON.parse(fs.readFileSync('/tmp/d1.json','utf8'));
+          const row=(Array.isArray(list)?list:(list.result||[])).find(x=>x.name==='mediaforge-control');
+          process.stdout.write(row?.uuid||row?.id||'');
+          NODE
+          )"
+          test -n "$DB_ID"
+          DB_ID="$DB_ID" node - <<'NODE'
+          const fs=require('fs');
+          const p='wrangler.jsonc';
+          const cfg=JSON.parse(fs.readFileSync(p,'utf8'));
+          cfg.d1_databases=[{binding:'DB',database_name:'mediaforge-control',database_id:process.env.DB_ID}];
+          fs.writeFileSync(p,JSON.stringify(cfg,null,2)+'\n');
+          NODE
+
       - name: Read denied OVH requests
         working-directory: cloudflare/mediaforge-worker
         run: |
-          sleep 35
+          sleep 20
           npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT ip,route,user_agent,created_at FROM ovh_access_log ORDER BY id DESC LIMIT 30;" || true
           npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,action,target,status,created_at,claimed_at,completed_at,error FROM ovh_deploy_commands ORDER BY created_at DESC LIMIT 15;" || true
