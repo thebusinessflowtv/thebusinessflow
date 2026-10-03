@@ -3,12 +3,12 @@
   "agent": {
     "agent_id": "ovh-main",
     "runtime": "ovh",
-    "reported_at": "2026-10-03T04:50:19.523152Z",
+    "reported_at": "2026-10-03T04:52:04.904117Z",
     "host": {
-      "load_1m": 6.12,
-      "memory_percent": 14.9,
+      "load_1m": 4.73,
+      "memory_percent": 14.8,
       "disk_percent": 5.2,
-      "uptime_seconds": 77473.02
+      "uptime_seconds": 77578.4
     },
     "services": {
       "kick": {
@@ -21,17 +21,17 @@
         "fps": 30,
         "video_bitrate_kbps": 6000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:50:16.246305Z",
+        "updated_at": "2026-10-03T04:52:02.206664Z",
         "now_playing": {
           "platform": "kick",
           "state": "playing",
-          "track_id": "gaming-radio-15",
-          "title": "Pixel Match 36",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/15-03-s1-15-pixel-match-36.mp3",
-          "started_at": "2026-10-03T04:45:40.929351Z",
+          "track_id": "gaming-radio-28",
+          "title": "Respawn Run",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/28-04-s2-10-respawn-run.mp3",
+          "started_at": "2026-10-03T04:50:47.064539Z",
           "history": [
-            "gaming-radio-34",
-            "gaming-radio-15"
+            "gaming-radio-09",
+            "gaming-radio-28"
           ]
         }
       },
@@ -45,7 +45,7 @@
         "fps": 30,
         "video_bitrate_kbps": 4500,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:50:19.279759Z",
+        "updated_at": "2026-10-03T04:52:04.321123Z",
         "now_playing": {
           "platform": "twitch",
           "state": "playing",
@@ -77,16 +77,15 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:50:15.233845Z",
+        "updated_at": "2026-10-03T04:52:00.263210Z",
         "now_playing": {
           "platform": "youtube-deep-house",
           "state": "playing",
-          "track_id": "deep-house-radio-36",
-          "title": "Silver Escalator",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-music-c6b32750-0f56-43d2-8b6e-b8066393bb51/05-silver-escalator.wav",
-          "started_at": "2026-10-03T04:49:14.183350Z",
+          "track_id": "deep-house-radio-57",
+          "title": "Golden Meeting",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-music-c6b32750-0f56-43d2-8b6e-b8066393bb51/26-golden-meeting.wav",
+          "started_at": "2026-10-03T04:51:13.504006Z",
           "history": [
-            "deep-house-radio-25",
             "deep-house-radio-31",
             "deep-house-radio-12",
             "deep-house-radio-65",
@@ -95,7 +94,8 @@
             "deep-house-radio-53",
             "deep-house-radio-08",
             "deep-house-radio-35",
-            "deep-house-radio-36"
+            "deep-house-radio-36",
+            "deep-house-radio-57"
           ]
         }
       },
@@ -109,7 +109,7 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:50:19.238012Z",
+        "updated_at": "2026-10-03T04:52:04.270958Z",
         "now_playing": {
           "platform": "youtube-rainy",
           "state": "playing",
@@ -132,8 +132,8 @@
         }
       }
     },
-    "processed_commands": 28,
-    "stored_at": "2026-10-03T04:50:19.557Z"
+    "processed_commands": 29,
+    "stored_at": "2026-10-03T04:52:04.933Z"
   },
   "youtube_slots": [
     {
