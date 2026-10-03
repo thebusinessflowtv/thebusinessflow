@@ -1,6 +1,6 @@
 {
-  "request_id": "ovh-agent-runtime-20261003-0524",
+  "request_id": "twitch-hotswap-rollout-20261003-0525",
   "action": "deploy_service",
-  "target": "ovh-agent",
+  "target": "twitch",
   "source": "chatgpt-all-platform-hotswap-rollout"
 }
