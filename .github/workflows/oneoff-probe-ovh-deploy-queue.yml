@@ -1,5 +1,5 @@
 name: One-off — Probe OVH Deploy Queue
-# trigger: 2026-10-03T04:52Z final Kick verification
+# trigger: 2026-10-03T04:56Z hot-swap rollout verification
 
 on:
   push:
