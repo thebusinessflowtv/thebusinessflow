@@ -10,6 +10,7 @@
 <script>if(new URLSearchParams(location.search).get('embed')==='1')document.documentElement.classList.add('mf-embed');</script>
 </head>
 <body>
+<script>if(new URLSearchParams(location.search).get('embed')!=='1')location.replace('./app.html#/peter-lofi/ovh');</script>
 <script>if(!localStorage.getItem('mediaforge_token'))location.replace('./secure.html');</script>
 <div class="shell"><aside class="sidebar"><div class="brand"><div class="brandmark">M</div><div><b>MediaForge</b><small>Control Center</small></div></div><nav class="nav"><a href="./index.html#/dashboard">⌘ Dashboard</a><a href="./office-music.html">♫ Peter Lofi</a><a href="./peter-lofi-series.html">≋ Séries de áudio</a><a href="./lives.html">● Lives</a><a class="active" href="./ovh.html">▣ OVH VPS</a></nav><div class="spacer"></div><div class="tiny muted">OVH Cloud · MediaForge Runtime</div></aside>
 <main class="main"><div class="topbar"><span class="small muted">MediaForge / <b style="color:#fff">OVH VPS</b></span><div class="row"><button id="refresh" class="btn">↻ Atualizar</button><button id="logout" class="btn">Sair</button></div></div><div class="page"><div class="head"><h1>OVH Streaming Runtime</h1><p>Saúde da VPS, encoders 24/7 e controles operacionais de Kick, Twitch e YouTube.</p></div><div id="content"><div class="card loading">Carregando estado da VPS…</div></div></div></main></div>
