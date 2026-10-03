@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: mediaforge-sync-live-ui
@@ -34,3 +35,10 @@ jobs:
           git commit -m "mediaforge: sync live UI source"
           git pull --rebase origin main
           git push origin HEAD:main
+
+      - name: Deploy synchronized Control Center
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run mfcc-pages.yml --ref main
