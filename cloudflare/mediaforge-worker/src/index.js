@@ -214,6 +214,16 @@ async function catalogGeneratedPlaylist(env,job,result){
   return playlist;
 }
 
+async function logOvhDenied(env,request,route){
+  try{
+    const ip=String(request.headers.get('cf-connecting-ip')||'').slice(0,128);
+    const ua=String(request.headers.get('user-agent')||'').slice(0,300);
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS ovh_access_log(id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, route TEXT, user_agent TEXT, created_at TEXT)`).run();
+    await env.DB.prepare(`INSERT INTO ovh_access_log(ip,route,user_agent,created_at) VALUES(?,?,?,?)`).bind(ip,String(route||'').slice(0,200),ua,new Date().toISOString()).run();
+    await env.DB.prepare(`DELETE FROM ovh_access_log WHERE id NOT IN (SELECT id FROM ovh_access_log ORDER BY id DESC LIMIT 100)`).run();
+  }catch(_){}
+}
+
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
 async function getYoutubeStations(env){return (await fetchGithubJson(env,'control/youtube-stations.json'))||{stations:[]};}
 async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/music-library.json'))||{version:1,playlists:[]};}
@@ -424,7 +434,7 @@ async function handleApi(request,env,url){
     return json({commands},200,cors);
   }
   if(url.pathname==='/api/ovh/agent/command-ack'&&request.method==='POST'){
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_agent',ip:gate.ip},403,cors);}
     const b=await bodyJson(request),id=String(b.id||''),status=String(b.status||'completed'),now=new Date().toISOString();
     if(!id)return json({error:'id_required'},400,cors);
     await env.DB.prepare(`UPDATE ovh_commands SET status=?,completed_at=?,error=? WHERE id=?`).bind(status,now,String(b.error||''),id).run();
@@ -432,7 +442,7 @@ async function handleApi(request,env,url){
   }
 
   if(url.pathname==='/api/ovh/deploy-agent/commands'&&request.method==='GET'){
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_deploy_agent',ip:gate.ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_deploy_agent',ip:gate.ip},403,cors);}
     const limit=Math.max(1,Math.min(20,Number(url.searchParams.get('limit')||5)));
     const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_deploy_commands WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-120 seconds')) ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
     const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
@@ -443,7 +453,7 @@ async function handleApi(request,env,url){
     return json({commands},200,cors);
   }
   if(url.pathname==='/api/ovh/deploy-agent/ack'&&request.method==='POST'){
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_deploy_agent',ip:gate.ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_deploy_agent',ip:gate.ip},403,cors);}
     const b=await bodyJson(request),id=String(b.id||''),status=String(b.status||'completed'),now=new Date().toISOString();
     if(!id)return json({error:'id_required'},400,cors);
     if(!['completed','failed'].includes(status))return json({error:'invalid_status'},400,cors);
