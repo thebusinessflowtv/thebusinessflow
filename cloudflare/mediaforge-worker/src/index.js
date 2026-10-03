@@ -118,11 +118,6 @@ async function importTableRows(env,table,rows){
 }
 
 
-function migrationGithubAllowed(request,env){
-  const expected=String(env.GITHUB_WORKFLOW_TOKEN||'');
-  const provided=bearer(request);
-  return !!expected&&!!provided&&provided===expected;
-}
 async function googleAccessToken(env){
   const clientId=String(env.YOUTUBE_CLIENT_ID||'').trim();
   const clientSecret=String(env.YOUTUBE_CLIENT_SECRET||'').trim();
