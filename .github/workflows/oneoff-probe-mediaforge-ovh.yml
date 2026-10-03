@@ -1,0 +1,43 @@
+name: One-off — Probe MediaForge OVH State
+
+on:
+  push:
+    paths:
+      - '.github/workflows/oneoff-probe-mediaforge-ovh.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Probe OVH state
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, urllib.request
+          api="https://mediaforge-api.guilhermeodsgn.workers.dev"
+          payload=json.dumps({"email":os.environ.get("ADMIN_EMAIL",""),"password":os.environ.get("ADMIN_PASSWORD","")}).encode()
+          req=urllib.request.Request(api+"/api/auth/login",data=payload,headers={"content-type":"application/json"},method="POST")
+          auth=json.loads(urllib.request.urlopen(req,timeout=30).read().decode())
+          req=urllib.request.Request(api+"/api/ovh/status",headers={"authorization":"Bearer "+auth["token"]})
+          d=json.loads(urllib.request.urlopen(req,timeout=30).read().decode())
+          out={"checked_at":d.get("agent",{}).get("reported_at"),"agent":d.get("agent",{})}
+          pathlib.Path("control").mkdir(exist_ok=True)
+          pathlib.Path("control/mediaforge-ovh-probe.json").write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+      - name: Commit probe
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/mediaforge-ovh-probe.json
+          git commit -m "probe: current OVH state" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
