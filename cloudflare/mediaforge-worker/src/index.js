@@ -59,12 +59,12 @@ const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service','hot_patch_streaming'];
 function ovhAgentAllowed(request,env){
-  const localRuntime=String(env.LOCAL_RUNTIME||'')==='1';
-  if(localRuntime){
-    const expected=String(env.OVH_AGENT_TOKEN||'');
-    const provided=String(request.headers.get('x-ovh-agent-token')||'');
-    if(expected&&provided&&provided===expected)return {ok:true,ip:'local-token'};
-  }
+  // The agent token is the primary credential in every runtime. Previously it
+  // was only honored when LOCAL_RUNTIME=1, which made production control
+  // depend on the VPS egress IP and broke skip/previous when that IP changed.
+  const expected=String(env.OVH_AGENT_TOKEN||'');
+  const provided=String(request.headers.get('x-ovh-agent-token')||'');
+  if(expected&&provided&&provided===expected)return {ok:true,ip:'token-authenticated'};
   const ip=request.headers.get('cf-connecting-ip')||'',lower=ip.toLowerCase();
   const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
   const v6Prefixes=String(env.OVH_AGENT_IPV6_PREFIXES||'2001:41d0:305:2100:').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
@@ -395,7 +395,7 @@ async function handleApi(request,env,url){
   }
 
   if(url.pathname==='/api/ovh/agent/status'&&request.method==='POST'){
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_agent',ip:gate.ip},403,cors);}
     const b=await bodyJson(request),now=new Date().toISOString();
     await env.DB.prepare(`INSERT INTO ovh_state(id,payload_json,updated_at) VALUES('ovh-main',?,?) ON CONFLICT(id) DO UPDATE SET payload_json=excluded.payload_json,updated_at=excluded.updated_at`).bind(JSON.stringify(b),now).run();
     for(const [slot,s] of Object.entries(b.services||{})){
@@ -411,7 +411,7 @@ async function handleApi(request,env,url){
   }
 
   if(url.pathname==='/api/ovh/agent/commands'&&request.method==='GET'){
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_agent',ip:gate.ip},403,cors);}
     const limit=Math.max(1,Math.min(50,Number(url.searchParams.get('limit')||20)));
     const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_commands WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-60 seconds')) ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
     const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
