@@ -96,9 +96,9 @@
       </div>
       <div style="height:7px;background:#29292e;border-radius:999px;overflow:hidden;margin-top:10px"><span style="display:block;height:100%;width:${pct}%;background:#9146ff"></span></div>
       <div class="row wrap" style="margin-top:12px">
-        <a class="btn" href="./twitch-dj-catalog-scanner.user.js?v=20261003-5" target="_blank" rel="noopener">1. Instalar scanner</a>
+        <a class="btn" href="./twitch-dj-catalog-scanner.user.js?v=20261003-6" target="_blank" rel="noopener">1. Instalar scanner</a>
         <button id="startDjCatalogScan" class="btn twitch">2. Iniciar verificação das 215</button>
-        ${s?.id?'<button id="refreshDjCatalogScan" class="btn">↻ Atualizar resultado</button>':''}
+        ${s?.id?'<button id="refreshDjCatalogScan" class="btn">↻ Atualizar resultado</button>':''}<a class="btn twitch" href="./twitch-dj-upload.html">3. Enviar ZIP MP3</a>
       </div>
       <div class="tiny muted" style="margin-top:9px">A sessão OAuth/cookies da Twitch não é enviada ao MediaForge. O script roda dentro de twitch.tv e envia apenas o resultado de cada faixa.</div>
     </section>`;
