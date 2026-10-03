@@ -1,6 +1,6 @@
 {
-  "request_id": "kick-hotswap-rollout-20261003-0520",
-  "action": "deploy_service",
-  "target": "kick",
+  "request_id": "host-agent-hotswap-verifier-20261003-0522",
+  "action": "deploy_host_agent",
+  "target": "ovh-agent",
   "source": "chatgpt-all-platform-hotswap-rollout"
 }
