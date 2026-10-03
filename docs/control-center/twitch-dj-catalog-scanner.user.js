@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MediaForge — Twitch DJ Catalog Scanner
 // @namespace    https://thebusinessflowtv.github.io/thebusinessflow/
-// @version      1.0.1
+// @version      1.0.2
 // @description  Verifica automaticamente uma lista MediaForge no Twitch DJ Music Catalog autenticado, sem enviar cookies/OAuth da Twitch ao MediaForge.
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @match        https://www.twitch.tv/dj-signup*
@@ -105,14 +105,46 @@
     }
     return '';
   }
-  function statusFromObject(o){
-    for(const [k,v] of Object.entries(o||{})){
-      const key=String(k).toLowerCase();
-      if(typeof v==='boolean'&&(key==='allowed'||key==='isallowed'||key==='permitted'||key==='isplayable'))return v?'allowed':'restricted';
-      if(typeof v==='string'){
-        const s=v.toLowerCase();
-        if(s.includes('restricted')||s.includes('blocked')||s.includes('not_allowed')||s.includes('not allowed'))return 'restricted';
-        if(s==='allowed'||s.includes('permitted')||s.includes('allowlisted'))return 'allowed';
+  function primitiveStatus(key,value){
+    const k=String(key||'').toLowerCase(),s=String(value??'').toLowerCase().trim();
+    if(typeof value==='boolean'&&(k.includes('allow')||k.includes('permit')||k.includes('playable')||k.includes('eligible')))return value?'allowed':'restricted';
+    if(typeof value==='string'){
+      if(/(^|[_\\s-])(restricted|blocked|disallowed|not[_\\s-]?allowed|not[_\\s-]?permitted|ineligible)([_\\s-]|$)/i.test(s))return 'restricted';
+      if(/(^|[_\\s-])(allowed|permitted|allowlisted|eligible)([_\\s-]|$)/i.test(s))return 'allowed';
+    }
+    return '';
+  }
+  function statusFromObject(o,depth=0){
+    if(!o||typeof o!=='object'||depth>4)return '';
+    for(const [k,v] of Object.entries(o)){
+      const direct=primitiveStatus(k,v);if(direct)return direct;
+    }
+    for(const v of Object.values(o)){
+      if(v&&typeof v==='object'){
+        const nested=statusFromObject(v,depth+1);if(nested)return nested;
+      }
+    }
+    return '';
+  }
+  function deepStringByKeys(o,keys,depth=0){
+    if(!o||typeof o!=='object'||depth>4)return '';
+    const wanted=new Set(keys.map(x=>x.toLowerCase()));
+    for(const [k,v] of Object.entries(o)){
+      if(wanted.has(String(k).toLowerCase())){
+        if(typeof v==='string'&&v.trim())return v.trim();
+        if(Array.isArray(v)){
+          const arr=v.map(x=>typeof x==='string'?x:(x?.name||x?.displayName||x?.title||'')).filter(Boolean);
+          if(arr.length)return arr.join(', ');
+        }
+        if(v&&typeof v==='object'){
+          const n=v.name||v.displayName||v.title||v.trackName;
+          if(typeof n==='string'&&n.trim())return n.trim();
+        }
+      }
+    }
+    for(const v of Object.values(o)){
+      if(v&&typeof v==='object'){
+        const nested=deepStringByKeys(v,keys,depth+1);if(nested)return nested;
       }
     }
     return '';
@@ -134,29 +166,34 @@
   }
   function classify(result,ref){
     if(result?.errors?.length)return {status:'error',match_score:0,detail:{gql_errors:result.errors.slice(0,3)}};
-    const objects=collectObjects(result,[]),candidates=[];
+    const objects=collectObjects(result,[]),candidates=[],seen=new Set();
     for(const o of objects){
       const st=statusFromObject(o);
-      const title=stringValue(o,['title','trackTitle','name','trackName']);
-      const artists=stringValue(o,['artists','artistNames','artistName','artist','performers','creators']);
-      if(!title||!st)continue;
+      if(!st)continue;
+      const title=deepStringByKeys(o,['title','trackTitle','trackName','name']);
+      const artists=deepStringByKeys(o,['artists','artistNames','artistName','artist','performers','creators']);
+      if(!title)continue;
       const titleScore=similarity(ref.title,title);
       const artistScore=artists?similarity(ref.artists,artists):0;
-      const score=titleScore*.72+artistScore*.28;
-      candidates.push({status:st,title,artists,score,id:String(o.id||o.trackId||o.trackID||o.isrc||'')});
+      const score=titleScore*.70+artistScore*.30;
+      const id=String(o.id||o.trackId||o.trackID||o.isrc||deepStringByKeys(o,['id','trackId','isrc'])||'');
+      const sig=[st,title,artists,id].join('|').toLowerCase();if(seen.has(sig))continue;seen.add(sig);
+      candidates.push({status:st,title,artists,score,id});
     }
     candidates.sort((a,b)=>b.score-a.score);
     const best=candidates[0];
-    if(!best)return {status:'ambiguous',match_score:0,detail:{reason:'no_explicit_allowed_restricted_candidate',shape:compactShape(result)}};
-    if(best.score<0.62)return {status:'not_found',matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{reason:'best_match_below_threshold',top:candidates.slice(0,5)}};
-    return {status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),twitch_track_id:best.id,detail:{top:candidates.slice(0,5)}};
+    if(!best)return {status:'ambiguous',match_score:0,detail:{reason:'no_deep_allowed_restricted_candidate',shape:compactShape(result)}};
+    const titleOk=similarity(ref.title,best.title)>=0.72;
+    const artistOk=!best.artists||similarity(ref.artists,best.artists)>=0.35;
+    if(!titleOk||!artistOk||best.score<0.60)return {status:'not_found',matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{reason:'best_match_below_title_artist_threshold',top:candidates.slice(0,8)}};
+    return {status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),twitch_track_id:best.id,detail:{top:candidates.slice(0,8)}};
   }
 
   async function search(ref){
     const h=captured.headers;
     const payload=[{
       operationName:'DJMusicCatalogSearchQuery',
-      variables:{searchInput:{searchType:'TRACK',sortBy:'BEST_MATCH',term:ref.title}},
+      variables:{searchInput:{searchType:'TRACK',sortBy:'BEST_MATCH',term:(ref.title+' '+ref.artists).trim()}},
       extensions:{persistedQuery:{version:captured.version,sha256Hash:captured.sha256Hash}}
     }];
     const res=await originalFetch(GQL,{method:'POST',credentials:'include',headers:{
