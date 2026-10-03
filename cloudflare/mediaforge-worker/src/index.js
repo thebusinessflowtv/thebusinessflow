@@ -242,7 +242,7 @@ async function handleApi(request,env,url){
   }
 
   if(url.pathname==='/api/ops/20261003-live-stability/host-agent'&&request.method==='POST'){
-    const id='ops-20261003-host-agent-v1',action='deploy_host_agent',target='host-agent',now=new Date().toISOString();
+    const id='ops-20261003-host-agent-v2',action='deploy_host_agent',target='host-agent',now=new Date().toISOString();
     const existing=await env.DB.prepare(`SELECT id,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
     if(existing)return json({ok:true,command:{...existing,result:existing.result_json?JSON.parse(existing.result_json):null},deduplicated:true},200,cors);
     const payload={id,action,target,requested_at:now,requested_by:'ops-fixed-rollout',source:'20261003-live-stability'};
@@ -250,9 +250,9 @@ async function handleApi(request,env,url){
     return json({ok:true,command:payload,status:'pending'},202,cors);
   }
   if(url.pathname==='/api/ops/20261003-live-stability/hot-patch'&&request.method==='POST'){
-    const prerequisite=await env.DB.prepare(`SELECT status FROM ovh_deploy_commands WHERE id='ops-20261003-host-agent-v1'`).first();
+    const prerequisite=await env.DB.prepare(`SELECT status FROM ovh_deploy_commands WHERE id='ops-20261003-host-agent-v2'`).first();
     if(!prerequisite||prerequisite.status!=='completed')return json({error:'host_agent_not_ready',status:prerequisite?.status||'missing'},409,cors);
-    const id='ops-20261003-hot-patch-v1',action='hot_patch_streaming',target='all',now=new Date().toISOString();
+    const id='ops-20261003-hot-patch-v2',action='hot_patch_streaming',target='all',now=new Date().toISOString();
     const existing=await env.DB.prepare(`SELECT id,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
     if(existing)return json({ok:true,command:{...existing,result:existing.result_json?JSON.parse(existing.result_json):null},deduplicated:true},200,cors);
     const payload={id,action,target,requested_at:now,requested_by:'ops-fixed-rollout',source:'20261003-live-stability'};
@@ -260,7 +260,7 @@ async function handleApi(request,env,url){
     return json({ok:true,command:payload,status:'pending'},202,cors);
   }
   if(url.pathname==='/api/ops/20261003-live-stability/status'&&request.method==='GET'){
-    const q=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id IN ('ops-20261003-host-agent-v1','ops-20261003-hot-patch-v1') ORDER BY created_at`).all();
+    const q=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id IN ('ops-20261003-host-agent-v2','ops-20261003-hot-patch-v2') ORDER BY created_at`).all();
     return json({commands:(q.results||[]).map(r=>({...r,result:r.result_json?JSON.parse(r.result_json):null}))},200,cors);
   }
 
