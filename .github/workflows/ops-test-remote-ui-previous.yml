@@ -1,0 +1,70 @@
+name: MediaForge — Test Remote UI Previous Controls
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-test-remote-ui-previous.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Login local and remote
+        shell: bash
+        run: |
+          set -euo pipefail
+          L="https://146.59.156.224:8443"; R="https://mediaforge-api.guilhermeodsgn.workers.dev"
+          BODY="$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')"
+          LT="$(curl -kfsS -X POST "$L/api/auth/login" -H 'content-type: application/json' --data "$BODY" | jq -r '.token // empty')"
+          RT="$(curl -fsS -X POST "$R/api/auth/login" -H 'content-type: application/json' --data "$BODY" | jq -r '.token // empty')"
+          test -n "$LT"; test -n "$RT"; echo "::add-mask::$LT"; echo "::add-mask::$RT"
+          printf '%s' "$LT" >/tmp/lt; printf '%s' "$RT" >/tmp/rt
+
+      - name: Snapshot history
+        shell: bash
+        run: |
+          set -euo pipefail
+          L="https://146.59.156.224:8443"; LT="$(cat /tmp/lt)"
+          curl -kfsS "$L/api/ovh/status" -H "authorization: Bearer $LT" >/tmp/before.json
+          node - <<'NODE'
+          const fs=require('fs'),d=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
+          const t=d.agent?.services?.twitch||{},h=t.now_playing?.history||[];
+          console.log('BEFORE encoder='+t.encoder_pid,'current='+t.now_playing?.track_id,'history='+JSON.stringify(h));
+          if(!t.encoder_pid||h.length<3)throw new Error('Need at least 3 history entries');
+          fs.writeFileSync('/tmp/expected.txt',String(h[h.length-3]));
+          fs.writeFileSync('/tmp/encoder.txt',String(t.encoder_pid));
+          NODE
+
+      - name: Send two rapid previous clicks through remote UI backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          R="https://mediaforge-api.guilhermeodsgn.workers.dev"; RT="$(cat /tmp/rt)"
+          for N in 1 2; do
+            curl -fsS -X POST "$R/api/ovh/control"               -H "authorization: Bearer $RT" -H 'content-type: application/json'               --data '{"action":"previous","runtime_slot":"twitch"}' | tee "/tmp/previous-$N.json"
+            echo
+          done
+          sleep 11
+
+      - name: Verify two-step history and stable encoder
+        shell: bash
+        run: |
+          set -euo pipefail
+          L="https://146.59.156.224:8443"; LT="$(cat /tmp/lt)"
+          curl -kfsS "$L/api/ovh/status" -H "authorization: Bearer $LT" >/tmp/after.json
+          node - <<'NODE'
+          const fs=require('fs'),d=JSON.parse(fs.readFileSync('/tmp/after.json','utf8'));
+          const t=d.agent?.services?.twitch||{};
+          const expected=fs.readFileSync('/tmp/expected.txt','utf8').trim();
+          const encoder=fs.readFileSync('/tmp/encoder.txt','utf8').trim();
+          console.log('AFTER expected='+expected,'current='+t.now_playing?.track_id,'encoder_before='+encoder,'encoder_after='+t.encoder_pid,'status='+t.status,'visual='+t.visual_status);
+          if(String(t.encoder_pid)!==encoder)throw new Error('encoder changed');
+          if(t.now_playing?.track_id!==expected)throw new Error('previous did not walk two history positions');
+          if(t.status!=='live'||t.visual_status!=='streaming')throw new Error('Twitch not healthy');
+          NODE
+          echo "REMOTE_UI_TWO_PREVIOUS_ZERO_DROP_OK"
