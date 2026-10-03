@@ -1,22 +1,22 @@
 {
   "command": {
-    "id": "youtube-deep-house-hotswap-20261003-0526",
+    "id": "youtube-rainy-hotswap-20261003-0528",
     "action": "deploy_service",
-    "target": "youtube-deep-house",
+    "target": "youtube-rainy",
     "status": "completed",
-    "created_at": "2026-10-03T05:26:15.705Z",
-    "claimed_at": "2026-10-03T05:26:18.042Z",
-    "completed_at": "2026-10-03T05:27:01.802Z",
+    "created_at": "2026-10-03T05:27:44.830Z",
+    "claimed_at": "2026-10-03T05:27:48.186Z",
+    "completed_at": "2026-10-03T05:28:55.759Z",
     "error": "",
-    "result_json": "{\"old_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"new_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"service\":\"youtube-deep-house\",\"health\":{\"service\":\"youtube-deep-house\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:26:59.969133Z\",\"fps\":60,\"video_bitrate_kbps\":8000,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":50,\"visual_pid\":8,\"visual_status\":\"streaming\",\"generation\":1,\"visual_revision\":null},\"backup_image\":\"mediaforge-backup-youtube-deep-house:20261003052618\"}",
+    "result_json": "{\"old_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"new_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"service\":\"youtube-rainy\",\"health\":{\"service\":\"youtube-rainy\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:28:55.555879Z\",\"fps\":60,\"video_bitrate_kbps\":8000,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":50,\"visual_pid\":8,\"visual_status\":\"streaming\",\"generation\":1,\"visual_revision\":null},\"backup_image\":\"mediaforge-backup-youtube-rainy:20261003052748\"}",
     "result": {
       "old_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
       "new_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
-      "service": "youtube-deep-house",
+      "service": "youtube-rainy",
       "health": {
-        "service": "youtube-deep-house",
+        "service": "youtube-rainy",
         "status": "live",
-        "updated_at": "2026-10-03T05:26:59.969133Z",
+        "updated_at": "2026-10-03T05:28:55.555879Z",
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
@@ -27,7 +27,7 @@
         "generation": 1,
         "visual_revision": null
       },
-      "backup_image": "mediaforge-backup-youtube-deep-house:20261003052618"
+      "backup_image": "mediaforge-backup-youtube-rainy:20261003052748"
     }
   }
 }
