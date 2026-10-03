@@ -1,0 +1,20 @@
+name: MediaForge — Check Twitch Public
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-check-twitch-public.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public Twitch status
+        run: |
+          set -euo pipefail
+          echo "=== third-party live status ==="
+          curl -fsSL --retry 3 --max-time 20 "https://www.henrikhjelm.se/api/twitch.php?user=peterlofi" | tee /tmp/twitch-public.json || true
+          echo
+          echo "=== twitch channel headers ==="
+          curl -I -L --retry 2 --max-time 20 -A "Mozilla/5.0" "https://www.twitch.tv/peterlofi" | head -40 || true
