@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MediaForge — Twitch DJ Catalog Scanner
 // @namespace    https://thebusinessflowtv.github.io/thebusinessflow/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Verifica automaticamente uma lista MediaForge no Twitch DJ Music Catalog autenticado, sem enviar cookies/OAuth da Twitch ao MediaForge.
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @match        https://www.twitch.tv/dj-signup*
