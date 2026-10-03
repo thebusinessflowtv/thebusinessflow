@@ -1,6 +1,6 @@
 {
-  "request_id": "youtube-deep-house-hotswap-20261003-0526",
+  "request_id": "youtube-rainy-hotswap-20261003-0528",
   "action": "deploy_service",
-  "target": "youtube-deep-house",
+  "target": "youtube-rainy",
   "source": "chatgpt-all-platform-hotswap-rollout"
 }
