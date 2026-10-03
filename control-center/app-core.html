@@ -141,7 +141,24 @@
     @media(max-width:430px){.grid4{grid-template-columns:repeat(2,minmax(0,1fr))!important}.kpi{padding:15px!important}.kpi .num{font-size:30px!important}.channel-card .grid2{grid-template-columns:1fr 1fr!important}.channel-actions{grid-template-columns:1fr!important}.settings-row{padding:13px 14px}.topbar{padding-left:14px!important;padding-right:14px!important}.page{padding-left:14px!important;padding-right:14px!important}.detail-head{padding:20px!important}}
     @media(max-width:350px){.grid4{grid-template-columns:1fr!important}.mobile-dock{left:6px;right:6px}.mobile-dock a,.mobile-dock button{font-size:8px}}
 
-  </style>
+  
+    .channel-shell{--channel-accent:#0a84ff}
+    .channel-shell .brandmark{background:var(--channel-accent)!important}
+    .channel-shell .nav a.active{background:color-mix(in srgb,var(--channel-accent) 22%,rgba(255,255,255,.04))!important;border-color:color-mix(in srgb,var(--channel-accent) 45%,transparent)!important}
+    .channel-shell .nav a.active .ico,.channel-shell .nav a.active{color:#fff!important}
+    .channel-shell .btn.primary{background:var(--channel-accent)!important}
+    .channel-back{display:flex;align-items:center;gap:8px;margin:0 0 14px;padding:9px 10px;border-radius:12px;color:var(--muted);font-size:11px}
+    .channel-back:hover{background:rgba(255,255,255,.055);color:#fff}
+    .channel-brand{padding:0 8px 16px;margin-bottom:7px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .channel-brand small{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.12em;margin-bottom:5px}
+    .channel-brand b{font-size:14px}
+    .channel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .channel-card-main{min-height:180px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+    .channel-card-main:before{content:"";position:absolute;inset:-40% -10% auto auto;width:180px;height:180px;border-radius:50%;background:var(--card-accent);filter:blur(60px);opacity:.18;pointer-events:none}
+    .channel-card-main .channel-icon{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--card-accent) 20%,rgba(255,255,255,.04));color:var(--card-accent)}
+    .channel-card-main h3{font-size:20px;margin:14px 0 5px}.channel-card-main p{font-size:11px;color:var(--muted);line-height:1.55;margin:0}
+    @media(max-width:760px){.channel-grid{grid-template-columns:1fr}}
+</style>
   <link rel="stylesheet" href="./apple-liquidglass-v3.css?v=20260926-3">
 </head>
 <body>
@@ -201,16 +218,65 @@
   function clearPoll(){if(state.pollTimer){clearInterval(state.pollTimer);clearTimeout(state.pollTimer);state.pollTimer=null}}
   function hashInfo(){let h=location.hash.slice(1)||'/';let q='';const qi=h.indexOf('?');if(qi>=0){q=h.slice(qi+1);h=h.slice(0,qi)}return{path:h||'/',params:new URLSearchParams(q)}}
   function go(path){location.hash=path}
-  function titleFor(path){if(path==='/')return'Dashboard';if(path==='/create')return'Criar vídeo';if(path==='/ideas'||path.startsWith('/ideas/'))return'Ideias';if(path==='/productions')return'Produções';if(path.startsWith('/production/'))return'Detalhe da produção';if(path==='/channels')return'Canais';if(path==='/peter-lofi')return'Peter Lofi';if(path==='/peter-lofi-series')return'Séries de áudio';if(path==='/lives')return'Lives';if(path==='/ovh')return'OVH VPS';if(path==='/autoheal')return'Auto Heal';if(path==='/settings')return'Configurações';return'MediaForge'}
+  const CHANNELS={
+    peter:{key:'peter',slug:'peter-lofi',label:'PeterLofi',accent:'#ff3b30',icon:'headphones',description:'Música lofi, lives 24/7 e automações do Peter Lofi.',aliases:['peter lofi','peterlofi'],nav:[
+      ['/peter-lofi','layout-dashboard','Visão geral'],
+      ['/peter-lofi/music','music-2','Gerar música'],
+      ['/peter-lofi/series','list-music','Séries de áudio'],
+      ['/peter-lofi/lives','radio','Lives'],
+      ['/peter-lofi/ovh','server','OVH VPS']
+    ]},
+    business:{key:'business',slug:'the-business-flow',label:'The Business Flow',accent:'#0a84ff',icon:'workflow',description:'Geração e gerenciamento de vídeos do The Business Flow.',aliases:['the business flow','business flow'],nav:[
+      ['/the-business-flow','layout-dashboard','Visão geral'],
+      ['/the-business-flow/create','plus','Gerar vídeo'],
+      ['/the-business-flow/productions','clapperboard','Produções'],
+      ['/the-business-flow/ideas','sparkles','Ideias']
+    ]},
+    nba:{key:'nba',slug:'nba-stars',label:'NBA Stars',accent:'#ff9f0a',icon:'trophy',description:'Produções e vídeos do canal NBA Stars.',aliases:['nba stars','nba'],nav:[
+      ['/nba-stars','layout-dashboard','Visão geral'],
+      ['/nba-stars/create','plus','Gerar vídeo'],
+      ['/nba-stars/productions','clapperboard','Produções'],
+      ['/nba-stars/ideas','sparkles','Ideias']
+    ]},
+    leonidanos:{key:'leonidanos',slug:'leonidanos',label:'Leonidanos',accent:'#30d158',icon:'gamepad-2',description:'Conteúdo e produções do universo GTA VI.',aliases:['leonidanos','gtalerta','portal leonidanos'],nav:[
+      ['/leonidanos','layout-dashboard','Visão geral'],
+      ['/leonidanos/create','plus','Gerar vídeo'],
+      ['/leonidanos/productions','clapperboard','Produções'],
+      ['/leonidanos/ideas','sparkles','Ideias']
+    ]}
+  };
+  function channelContext(path){
+    path=String(path||'/');
+    return Object.values(CHANNELS).find(ch=>path===('/'+ch.slug)||path.startsWith('/'+ch.slug+'/'))||null;
+  }
+  function titleFor(path){
+    const ctx=channelContext(path);
+    if(ctx){
+      if(path.endsWith('/music'))return'Gerar música';
+      if(path.endsWith('/series'))return'Séries de áudio';
+      if(path.endsWith('/lives'))return'Lives';
+      if(path.endsWith('/ovh'))return'OVH VPS';
+      if(path.endsWith('/create'))return'Gerar vídeo';
+      if(path.endsWith('/productions'))return'Produções';
+      if(path.endsWith('/ideas'))return'Ideias';
+      return ctx.label;
+    }
+    return 'THEBUSINESSFLOWTV';
+  }
   function shell(content,path){
+    const ctx=channelContext(path);
     const email=state.session&&state.session.user&&state.session.user.email||'';
-    const nav=[['/','layout-dashboard','Dashboard'],['/create','plus','Criar vídeo'],['/ideas','sparkles','Ideias'],['/productions','clapperboard','Produções'],['/channels','radio-tower','Canais'],['/peter-lofi','headphones','Peter Lofi'],['/peter-lofi-series','list-music','Séries de áudio'],['/lives','radio','Lives'],['/ovh','server','OVH VPS'],['/autoheal','shield-check','Auto Heal'],['/settings','settings','Configurações']];
-    const active=n=>(path===n[0]||(n[0]==='/productions'&&path.startsWith('/production/'))||(n[0]==='/ideas'&&path.startsWith('/ideas/')));
-    const desktop='<aside class="sidebar"><div class="brand"><div class="brandmark">M</div><div><strong>MediaForge</strong><small>Control Center</small></div></div><nav class="nav">'+nav.map(n=>'<a href="#'+n[0]+'" class="'+(active(n)?'active':'')+'"><span class="ico"><i data-lucide="'+n[1]+'"></i></span>'+n[2]+'</a>').join('')+'</nav><div class="side-bottom"><div class="userbox"><div class="avatar">'+esc(email.slice(0,1))+'</div><div class="usertext"><b>'+esc(email)+'</b><small>Administrador</small></div><button class="btn" id="logout" style="padding:6px 9px;min-height:30px" title="Sair"><i data-lucide="log-out"></i></button></div></div></aside>';
-    const primary=[nav[0],nav[1],nav[2],nav[3]];
-    const dock='<nav class="mobile-dock">'+primary.map(n=>'<a href="#'+n[0]+'" class="'+(active(n)?'active':'')+'"><i data-lucide="'+n[1]+'"></i><span>'+n[2].replace('Criar vídeo','Criar')+'</span></a>').join('')+'<button id="mobileMore"><i data-lucide="ellipsis"></i><span>Mais</span></button></nav>';
-    const more='<div class="more-backdrop hidden" id="moreBackdrop"></div><div class="more-sheet hidden" id="moreSheet"><a href="#/channels"><i data-lucide="radio-tower"></i>Canais</a><a href="#/peter-lofi"><i data-lucide="headphones"></i>Peter Lofi</a><a href="#/peter-lofi-series"><i data-lucide="list-music"></i>Séries de áudio</a><a href="#/lives"><i data-lucide="radio"></i>Lives</a><a href="#/ovh"><i data-lucide="server"></i>OVH VPS</a><a href="#/autoheal"><i data-lucide="shield-check"></i>Auto Heal</a><a href="#/settings"><i data-lucide="settings"></i>Configurações</a><button id="mobileLogout"><i data-lucide="log-out"></i>Sair</button></div>';
-    return'<div class="shell">'+desktop+'<main class="main"><header class="topbar"><span class="crumb">MediaForge / <b>'+esc(titleFor(path))+'</b></span><span class="spacer"></span>'+(!['/create','/peter-lofi','/peter-lofi-series','/lives','/ovh'].includes(path)?'<a class="btn primary" href="#/create"><i data-lucide="plus"></i> Criar vídeo</a>':'')+'</header><div class="page">'+content+'</div></main>'+dock+more+'</div>'
+    const rootNav=Object.values(CHANNELS).map(ch=>['/'+ch.slug,ch.icon,ch.label]);
+    const nav=ctx?ctx.nav:rootNav;
+    const active=n=>(path===n[0]||path.startsWith(n[0]+'/'));
+    const brandLabel=ctx?ctx.label:'THEBUSINESSFLOWTV';
+    const brandSub=ctx?'Canal · MediaForge':'MediaForge · Canais';
+    const back=ctx?'<a class="channel-back" href="#/"><i data-lucide="chevron-left"></i> Todos os canais</a><div class="channel-brand"><small>Canal ativo</small><b>'+esc(ctx.label)+'</b></div>':'';
+    const desktop='<aside class="sidebar"><div class="brand"><div class="brandmark">M</div><div><strong>'+esc(brandLabel)+'</strong><small>'+esc(brandSub)+'</small></div></div>'+back+'<nav class="nav">'+nav.map(n=>'<a href="#'+n[0]+'" class="'+(active(n)?'active':'')+'"><span class="ico"><i data-lucide="'+n[1]+'"></i></span>'+n[2]+'</a>').join('')+'</nav><div class="side-bottom"><div class="userbox"><div class="avatar">'+esc(email.slice(0,1))+'</div><div class="usertext"><b>'+esc(email)+'</b><small>Administrador</small></div><button class="btn" id="logout" style="padding:6px 9px;min-height:30px" title="Sair"><i data-lucide="log-out"></i></button></div></div></aside>';
+    const dockNav=ctx?ctx.nav.slice(0,4):rootNav;
+    const dock='<nav class="mobile-dock">'+dockNav.map(n=>'<a href="#'+n[0]+'" class="'+(active(n)?'active':'')+'"><i data-lucide="'+n[1]+'"></i><span>'+n[2].replace('Visão geral','Início').replace('Gerar vídeo','Criar').replace('Gerar música','Música')+'</span></a>').join('')+(ctx?'<a href="#/"><i data-lucide="grid-2x2"></i><span>Canais</span></a>':'')+'</nav>';
+    const accent=ctx?ctx.accent:'#0a84ff';
+    return '<div class="shell channel-shell" style="--channel-accent:'+accent+'">'+desktop+'<main class="main"><header class="topbar"><span class="crumb">'+(ctx?'THEBUSINESSFLOWTV / ':'')+'<b>'+esc(titleFor(path))+'</b></span><span class="spacer"></span></header><div class="page">'+content+'</div></main>'+dock+'</div>';
   }
   function pageHead(t,s,action){return'<div class="pagehead"><div><h1>'+esc(t)+'</h1>'+(s?'<p>'+esc(s)+'</p>':'')+'</div>'+(action||'')+'</div>'}
   function empty(title,text,action){return'<div class="card empty"><div class="bigico">◇</div><h3>'+esc(title)+'</h3>'+(text?'<p>'+esc(text)+'</p>':'')+(action||'')+'</div>'}
@@ -271,42 +337,37 @@
     clearPoll();
     if(needsCloudflare&&!localStorage.getItem('mediaforge_token')){
       const ret='./app.html#'+path;
-      const html=pageHead(title,subtitle)+'<div class="card module-login"><h3>Conectar módulo de streaming</h3><p>Lives e OVH usam a sessão segura do MediaForge Cloudflare Worker. Faça a autenticação uma vez e você volta para esta mesma tela.</p><a class="btn primary" href="./secure.html?return='+encodeURIComponent(ret)+'">Conectar MediaForge Streaming</a></div>';
+      const html=pageHead(title,subtitle)+'<div class="card module-login"><h3>Conectar streaming</h3><p>Esta área usa a sessão segura do MediaForge Cloudflare Worker.</p><a class="btn primary" href="./secure.html?return='+encodeURIComponent(ret)+'">Conectar</a></div>';
       app.innerHTML=shell(html,path);wireShell();return;
     }
-    const html=pageHead(title,subtitle)+'<div class="module-frame"><iframe id="mediaForgeModuleFrame" src="'+esc(src)+'" title="'+esc(title)+'"></iframe></div>';
+    const html=pageHead(title,subtitle)+'<div class="module-frame" style="border:0;background:transparent;box-shadow:none"><iframe id="mediaForgeModuleFrame" src="'+esc(src)+(src.includes('?')?'&':'?')+'embed=1" title="'+esc(title)+'" style="min-height:760px"></iframe></div>';
     app.innerHTML=shell(html,path);wireShell();
     const frame=document.getElementById('mediaForgeModuleFrame');
-    const resize=()=>{try{const h=Math.max(760,frame.contentDocument?.documentElement?.scrollHeight||0,frame.contentDocument?.body?.scrollHeight||0);frame.style.height=Math.min(Math.max(h,760),1800)+'px'}catch(_){}};
-    if(frame){frame.addEventListener('load',()=>{resize();setTimeout(resize,600);setTimeout(resize,1800)});window.setTimeout(resize,250)}
+    const resize=()=>{try{const h=Math.max(760,frame.contentDocument?.documentElement?.scrollHeight||0,frame.contentDocument?.body?.scrollHeight||0);frame.style.height=Math.min(Math.max(h,760),2200)+'px'}catch(_){}};
+    if(frame){frame.addEventListener('load',()=>{resize();setTimeout(resize,500);setTimeout(resize,1500)});setTimeout(resize,250)}
   }
 
   async function dashboard(path){
-    const [liveData,ovhData]=await Promise.all([
-      mfApi('/api/live-sessions').catch(()=>({sessions:[]})),
-      mfApi('/api/ovh/status').catch(()=>({agent:null}))
-    ]);
-    const sessions=liveData.sessions||[],active=sessions.filter(x=>['live','starting','reconnecting'].includes(String(x.status))).length;
-    const services=ovhData?.agent?.services||{},slots=['kick','twitch','youtube-deep-house','youtube-rainy'];
-    const online=slots.filter(k=>String(services[k]?.status)==='live').length;
-    const restarts=slots.reduce((n,k)=>n+Number(services[k]?.restarts||0),0);
-    const cards=slots.map(k=>{
-      const s=services[k]||{},name=({'kick':'Kick','twitch':'Twitch','youtube-deep-house':'YouTube · Deep House','youtube-rainy':'YouTube · Rainy'})[k]||k;
-      const tone=String(s.status)==='live'?'p-success':String(s.status)==='starting'?'p-warning':'';
-      return '<div class="card pad"><div class="row between"><div><b>'+esc(name)+'</b><div class="tiny muted" style="margin-top:4px">OVH · '+esc(s.video_bitrate_kbps??'—')+' kbps · '+esc(s.fps??'—')+' FPS</div></div><span class="pill '+tone+'">'+esc(String(s.status||'unknown').toUpperCase())+'</span></div><div class="tiny muted" style="margin-top:12px">Sessão: '+esc(s.session_id||'—')+'</div></div>';
-    }).join('');
-    let html=pageHead('Dashboard','MediaForge central · Cloudflare + OVH')+
-      '<div class="grid grid4" style="margin-bottom:24px">'+
-      '<div class="card kpi"><div class="label">ENCODERS LIVE</div><div class="num">'+online+'/4</div></div>'+
-      '<div class="card kpi"><div class="label">SESSÕES ATIVAS</div><div class="num">'+active+'</div></div>'+
-      '<div class="card kpi"><div class="label">RESTARTS OVH</div><div class="num">'+restarts+'</div></div>'+
-      '<div class="card kpi"><div class="label">RUNTIME</div><div class="num" style="font-size:22px">OVH 24/7</div></div></div>'+
-      '<div class="row between wrap" style="margin-bottom:12px"><div class="small muted">STREAMING AGORA</div><div class="row wrap"><a class="btn" href="#/ovh">OVH VPS</a><a class="btn primary" href="#/lives">Central de Lives</a></div></div>'+
-      '<div class="grid grid2">'+cards+'</div>'+
-      '<div class="card pad" style="margin-top:18px"><div class="row between wrap"><div><b>Produções antigas</b><div class="small muted" style="margin-top:5px">Vídeos, ideias e canais ainda usam o projeto Supabase legado.</div></div><button class="btn" id="checkLegacy">Verificar Supabase</button></div><div id="legacyState" class="tiny muted" style="margin-top:10px">A camada de streaming não depende mais dele.</div></div>';
+    const cards=Object.values(CHANNELS).map(ch=>'<a class="card pad channel-card-main" href="#/'+ch.slug+'" style="--card-accent:'+ch.accent+'"><div><div class="channel-icon"><i data-lucide="'+ch.icon+'"></i></div><h3>'+esc(ch.label)+'</h3><p>'+esc(ch.description)+'</p></div><div class="row between" style="margin-top:18px"><span class="tiny muted">Abrir canal</span><i data-lucide="arrow-right"></i></div></a>').join('');
+    const html=pageHead('Canais','Escolha um canal para abrir somente as ferramentas e identidade daquele projeto.')+'<div class="channel-grid">'+cards+'</div>';
     app.innerHTML=shell(html,path);wireShell();
-    const b=document.getElementById('checkLegacy');
-    if(b)b.onclick=async()=>{b.disabled=true;b.textContent='Verificando…';const ok=await legacyReady();const e=document.getElementById('legacyState');if(e)e.innerHTML=ok?'<span style="color:var(--green)">Supabase legado disponível.</span>':'<span style="color:var(--amber)">Supabase legado indisponível por quota. Lives/OVH continuam normais.</span>';b.disabled=false;b.textContent='Verificar novamente';};
+  }
+
+  async function peterHome(path){
+    const [liveData,ovhData]=await Promise.all([mfApi('/api/live-sessions').catch(()=>({sessions:[]})),mfApi('/api/ovh/status').catch(()=>({agent:null}))]);
+    const services=ovhData?.agent?.services||{},slots=['kick','twitch','youtube-deep-house','youtube-rainy'];
+    const live=slots.filter(k=>String(services[k]?.status)==='live').length;
+    const html=pageHead('PeterLofi','Música, rádio lofi e transmissões 24/7.')+
+      '<div class="grid grid4" style="margin-bottom:22px"><div class="card kpi"><div class="label">LIVES ONLINE</div><div class="num">'+live+'/4</div></div><div class="card kpi"><div class="label">RUNTIME</div><div class="num" style="font-size:20px">OVH 24/7</div></div><div class="card kpi"><div class="label">PLAYBACK</div><div class="num" style="font-size:20px">FAIXA A FAIXA</div></div><div class="card kpi"><div class="label">CONTROLE</div><div class="num" style="font-size:20px">MediaForge</div></div></div>'+
+      '<div class="grid grid2"><a class="card pad" href="#/peter-lofi/music"><div class="row between"><div><b>Gerar música</b><div class="small muted" style="margin-top:5px">Criar faixas e séries lofi.</div></div><i data-lucide="music-2"></i></div></a><a class="card pad" href="#/peter-lofi/lives"><div class="row between"><div><b>Gerenciar lives</b><div class="small muted" style="margin-top:5px">Kick, Twitch e YouTube em um único painel.</div></div><i data-lucide="radio"></i></div></a></div>';
+    app.innerHTML=shell(html,path);wireShell();
+  }
+
+  async function videoChannelHome(path){
+    const ctx=channelContext(path);
+    const html=pageHead(ctx.label,ctx.description)+
+      '<div class="grid grid2"><a class="card pad" href="#/'+ctx.slug+'/create"><div class="row between"><div><b>Gerar vídeo</b><div class="small muted" style="margin-top:5px">Criar uma nova produção do canal.</div></div><i data-lucide="plus"></i></div></a><a class="card pad" href="#/'+ctx.slug+'/productions"><div class="row between"><div><b>Produções</b><div class="small muted" style="margin-top:5px">Acompanhar vídeos e status.</div></div><i data-lucide="clapperboard"></i></div></a></div>';
+    app.innerHTML=shell(html,path);wireShell();
   }
 
   async function createPage(path,params){const channels=await loadChannels();let selected=params.get('channel')||channels[0]?.id||'';let mode='manual',objective='viral_ctr',upload=false,formDraft={topic:'',notes:''};function render(){const c=channels.find(x=>x.id===selected),up=canUpload(c);let html=pageHead('Criar vídeo','Configure e envie uma nova produção para a fábrica.')+'<div class="create-layout"><div class="grid"><div class="card step"><div class="steptitle"><span class="stepnum">1</span>Canal</div><div class="grid grid2" id="channelChoices">'+channels.map(x=>'<button class="choice '+(x.id===selected?'on':'')+'" data-channel="'+x.id+'"><strong>'+esc(x.name)+'</strong><small>'+esc(x.niche)+'</small></button>').join('')+'</div></div><div class="card step"><div class="steptitle"><span class="stepnum">2</span>Modo de geração</div><div class="grid" style="grid-template-columns:repeat(3,1fr)" id="modeChoices">'+[['manual','✎','Tema manual','Você define o tema.'],['suggest','✦','IA sugere 5 ideias','Escolha entre 5 ideias.'],['auto','◇','Automático','IA escolhe e produz.']].map(m=>'<button class="choice '+(mode===m[0]?'on':'')+'" data-mode="'+m[0]+'"><span style="color:#b7a6ff">'+m[1]+'</span><strong>'+m[2]+'</strong><small>'+m[3]+'</small></button>').join('')+'</div><div class="field '+(mode==='manual'?'':'hidden')+'" id="topicWrap" style="margin-top:14px"><label>Tema *</label><input class="input" id="topicInput" value="'+esc(formDraft.topic)+'" placeholder="Ex.: What Really Happened to Derrick Rose?"></div></div><div class="card step"><div class="steptitle"><span class="stepnum">3</span>Objetivo</div><div class="objectives" id="objectives">'+Object.entries(objLabels).map(o=>'<button class="objective '+(objective===o[0]?'on':'')+'" data-objective="'+o[0]+'">'+o[1]+'</button>').join('')+'</div></div><div class="card step"><div class="steptitle"><span class="stepnum">4</span>Observações (opcional)</div><textarea class="textarea" id="notes" placeholder="Tom, recorte, referências ou observações adicionais…">'+esc(formDraft.notes)+'</textarea></div><div class="card step"><div class="steptitle"><span class="stepnum">5</span>YouTube</div><div class="row between '+(!up?'muted':'')+'"><div><b class="small">Enviar ao YouTube quando terminar</b><div class="tiny muted">'+(up?'Sempre como PRIVADO':'YouTube ainda não conectado')+'</div></div><button class="toggle '+(upload&&up?'on':'')+'" id="uploadToggle" '+(!up?'disabled':'')+'></button></div></div></div><div class="card pad summary sticky"><h3 class="small">Resumo</h3><dl style="margin-top:12px"><div class="sum"><dt>Canal</dt><dd>'+esc(c?.name||'—')+'</dd></div><div class="sum"><dt>Modo</dt><dd>'+esc(modeLabels[mode])+'</dd></div><div class="sum"><dt>Objetivo</dt><dd>'+esc(objLabels[objective])+'</dd></div><div class="sum"><dt>YouTube</dt><dd>'+(upload&&up?'Enviar (privado)':'Não enviar')+'</dd></div></dl><button class="btn primary block" id="launch" style="margin-top:16px">▶ Iniciar produção</button></div></div>';app.innerHTML=shell(html,path);wireShell();const saveDraft=()=>{formDraft.topic=document.getElementById('topicInput')?.value||formDraft.topic;formDraft.notes=document.getElementById('notes')?.value||formDraft.notes};document.querySelectorAll('[data-channel]').forEach(b=>b.onclick=()=>{saveDraft();selected=b.dataset.channel;upload=false;render()});document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{saveDraft();mode=b.dataset.mode;render()});document.querySelectorAll('[data-objective]').forEach(b=>b.onclick=()=>{saveDraft();objective=b.dataset.objective;render()});const ut=document.getElementById('uploadToggle');if(ut&&!ut.disabled)ut.onclick=()=>{saveDraft();upload=!upload;render()};document.getElementById('launch').onclick=()=>{const topicVal=(document.getElementById('topicInput')?.value||'').trim(),notesVal=(document.getElementById('notes')?.value||'').trim();if(mode==='manual'&&topicVal.length<3){toast('Informe um tema','O modo manual precisa de um tema.','error');return}const desc='<b>'+esc(c.name)+'</b><br>'+esc(modeLabels[mode])+' · '+esc(objLabels[objective])+(topicVal?'<br><br>Tema: '+esc(topicVal):'')+(upload&&up?'<br><br>O vídeo será enviado ao YouTube como <b>PRIVADO</b>.':'');modal('Iniciar produção?',desc,'Confirmar',async()=>launchProduction(c,mode,objective,topicVal,notesVal,upload&&up))}}render()}
@@ -458,22 +519,32 @@
     const token=++state.routeToken,{path,params}=hashInfo();
     app.innerHTML='<div class="loginwrap"><div class="loader"></div></div>';
     try{
-      if(path==='/')await dashboard(path);
-      else if(path==='/peter-lofi')await modulePage(path,'Peter Lofi','Produção musical, playlists, catálogo e publicação.','./office-music.html?embed=1',false);
-      else if(path==='/peter-lofi-series')await modulePage(path,'Séries de áudio','Produção e acompanhamento das séries musicais do Peter Lofi.','./peter-lofi-series.html?embed=1',false);
-      else if(path==='/lives')await modulePage(path,'Central de Lives','Kick, Twitch e YouTube controlados pelo runtime 24/7 da OVH.','./lives.html?embed=1&platform='+(params.get('platform')||'kick'),true);
-      else if(path==='/ovh')await modulePage(path,'OVH VPS','Saúde do servidor, encoders, bitrate, reinícios e controles operacionais.','./ovh.html?embed=1',true);
-      else if(['/create','/ideas','/productions','/channels','/autoheal','/settings'].includes(path)||path.startsWith('/ideas/')||path.startsWith('/production/')){
+      if(path==='/'||path==='/dashboard')await dashboard('/');
+      else if(path==='/peter-lofi')await peterHome(path);
+      else if(path==='/peter-lofi/music')await modulePage(path,'Gerar música','Criação de faixas, séries e catálogo do Peter Lofi.','./office-music.html',false);
+      else if(path==='/peter-lofi/series')await modulePage(path,'Séries de áudio','Biblioteca e produção de séries musicais.','./peter-lofi-series.html',false);
+      else if(path==='/peter-lofi/lives')await modulePage(path,'Lives','Abrir e gerenciar Kick, Twitch e YouTube pela OVH.','./lives.html?platform='+(params.get('platform')||'kick'),true);
+      else if(path==='/peter-lofi/ovh')await modulePage(path,'OVH VPS','Saúde dos encoders e controles do servidor.','./ovh.html',true);
+      else if(['/the-business-flow','/nba-stars','/leonidanos'].includes(path))await videoChannelHome(path);
+      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/create$/.test(path)){
         if(!(await legacyReady())){legacyUnavailable(path);return}
-        if(path==='/create')await createPage(path,params);
-        else if(path==='/ideas')await ideasPage(path,null);
-        else if(path.startsWith('/ideas/'))await ideasPage(path,path.split('/')[2]);
-        else if(path==='/productions')await productions(path,params);
-        else if(path.startsWith('/production/'))await productionDetail(path,path.split('/')[2]);
-        else if(path==='/channels')await channelsPage(path);
-        else if(path==='/autoheal')await autohealPage(path);
-        else if(path==='/settings')await settingsPage(path);
-      }else go('/');
+        await createPage(path,params);
+      }
+      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/productions$/.test(path)){
+        if(!(await legacyReady())){legacyUnavailable(path);return}
+        await productions(path,params);
+      }
+      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/ideas$/.test(path)){
+        if(!(await legacyReady())){legacyUnavailable(path);return}
+        await ideasPage(path,null);
+      }
+      else if(path==='/peter-lofi-series')go('/peter-lofi/series');
+      else if(path==='/lives')go('/peter-lofi/lives');
+      else if(path==='/ovh')go('/peter-lofi/ovh');
+      else if(path==='/create')go('/the-business-flow/create');
+      else if(path==='/productions')go('/the-business-flow/productions');
+      else if(path==='/ideas')go('/the-business-flow/ideas');
+      else go('/');
     }catch(e){
       if(token!==state.routeToken)return;
       if(isSupabaseQuotaError(e)){state.supabaseChecked=true;state.supabaseAvailable=false;state.supabaseError=e;legacyUnavailable(path);return}
