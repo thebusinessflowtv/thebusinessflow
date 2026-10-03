@@ -108,7 +108,7 @@ async function handleApi(request,env,url){
     const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
     if(!allowed.includes(ip))return json({error:'forbidden_agent',ip},403,cors);
     const limit=Math.max(1,Math.min(50,Number(url.searchParams.get('limit')||20)));
-    const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_commands WHERE status='pending' ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
+    const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_commands WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-60 seconds')) ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
     const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
     if(commands.length){
       const now=new Date().toISOString();
