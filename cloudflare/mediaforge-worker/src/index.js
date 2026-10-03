@@ -10,7 +10,7 @@ async function hmac(secret,value){const key=await crypto.subtle.importKey('raw',
 async function signSession(email,secret){const now=Math.floor(Date.now()/1000),h=b64json({alg:'HS256',typ:'MFG'}),p=b64json({sub:email,iat:now,exp:now+604800}),s=await hmac(secret,`${h}.${p}`);return `${h}.${p}.${s}`;}
 function decodeB64url(s){const p=s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4);return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(p),c=>c.charCodeAt(0))));}
 async function verifySession(token,secret){try{const [h,p,s]=token.split('.');if(!h||!p||!s)return null;if(s!==await hmac(secret,`${h}.${p}`))return null;const x=decodeB64url(p);if(!x?.sub||Number(x.exp||0)<Math.floor(Date.now()/1000))return null;return x;}catch(_){return null;}}
-function corsHeaders(request,env){const origin=request.headers.get('origin')||'',allowed=env.FRONTEND_ORIGIN||'https://thebusinessflowtv.github.io',allowOrigin=origin&&(origin===allowed||origin.startsWith(allowed+':'))?origin:allowed;return {'access-control-allow-origin':allowOrigin,'access-control-allow-methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS','access-control-allow-headers':'authorization,content-type,x-upload-name,x-upload-type','access-control-max-age':'86400','vary':'Origin'};}
+function corsHeaders(request,env){const origin=request.headers.get('origin')||'',allowed=env.FRONTEND_ORIGIN||'https://thebusinessflowtv.github.io',twitchOrigin=origin==='https://www.twitch.tv'||origin==='https://twitch.tv',allowOrigin=origin&&(origin===allowed||origin.startsWith(allowed+':')||twitchOrigin)?origin:allowed;return {'access-control-allow-origin':allowOrigin,'access-control-allow-methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS','access-control-allow-headers':'authorization,content-type,x-upload-name,x-upload-type','access-control-max-age':'86400','vary':'Origin'};}
 async function bodyJson(request){try{return await request.json();}catch(_){return {};}}
 function bearer(request){const h=request.headers.get('authorization')||'';return h.toLowerCase().startsWith('bearer ')?h.slice(7).trim():'';}
 async function requireAuth(request,env){const t=bearer(request);return t?verifySession(t,env.SESSION_SECRET||''):null;}
@@ -101,6 +101,38 @@ function assetPublicUrl(request,asset){return `${new URL(request.url).origin}/me
 async function readAsset(env,id){return env.DB.prepare(`SELECT * FROM assets WHERE id=?`).bind(id).first();}
 async function assetSummary(request,env,id){if(!id)return null;const a=await readAsset(env,id);return a?{id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,public_url:assetPublicUrl(request,a)}:null;}
 
+async function sha256hex(value){
+  const bytes=await crypto.subtle.digest('SHA-256',enc.encode(String(value||'')));
+  return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function djScanRowByBridgeToken(env,id,token){
+  if(!id||!token)return null;
+  const hash=await sha256hex(token),row=await env.DB.prepare(`SELECT * FROM dj_catalog_scans WHERE id=? AND token_hash=?`).bind(id,hash).first();
+  if(!row)return null;
+  if(Date.parse(row.expires_at||'')<Date.now())return null;
+  return row;
+}
+function djResultStatus(v){
+  const x=String(v||'').toLowerCase();
+  return ['allowed','restricted','not_found','ambiguous','error'].includes(x)?x:'error';
+}
+async function djRecount(env,id){
+  const q=await env.DB.prepare(`SELECT status,COUNT(*) AS n FROM dj_catalog_results WHERE scan_id=? GROUP BY status`).bind(id).all();
+  const counts={allowed:0,restricted:0,not_found:0,ambiguous:0,error:0};
+  for(const r of q.results||[])if(Object.prototype.hasOwnProperty.call(counts,String(r.status)))counts[String(r.status)]=Number(r.n||0);
+  const processed=Object.values(counts).reduce((a,b)=>a+b,0),row=await env.DB.prepare(`SELECT total FROM dj_catalog_scans WHERE id=?`).bind(id).first(),total=Number(row?.total||0);
+  const status=processed>=total&&total>0?'completed':processed>0?'running':'pending',now=new Date().toISOString(),completed=status==='completed'?now:null;
+  await env.DB.prepare(`UPDATE dj_catalog_scans SET status=?,processed=?,allowed=?,restricted=?,not_found=?,ambiguous=?,error_count=?,updated_at=?,completed_at=COALESCE(?,completed_at) WHERE id=?`).bind(status,processed,counts.allowed,counts.restricted,counts.not_found,counts.ambiguous,counts.error,now,completed,id).run();
+  return {status,total,processed,...counts};
+}
+async function djScanSummary(env,row,includeResults=false){
+  if(!row)return null;
+  const base={id:row.id,status:row.status,total:Number(row.total||0),processed:Number(row.processed||0),allowed:Number(row.allowed||0),restricted:Number(row.restricted||0),not_found:Number(row.not_found||0),ambiguous:Number(row.ambiguous||0),error_count:Number(row.error_count||0),created_at:row.created_at,updated_at:row.updated_at,completed_at:row.completed_at,expires_at:row.expires_at};
+  if(!includeResults)return base;
+  const q=await env.DB.prepare(`SELECT position,spotify_id,title,artists,status,matched_title,matched_artists,match_score,twitch_track_id,checked_at,detail_json FROM dj_catalog_results WHERE scan_id=? ORDER BY position`).bind(row.id).all();
+  return {...base,results:(q.results||[]).map(r=>{let detail={};try{detail=JSON.parse(r.detail_json||'{}')}catch(_){}return {...r,detail};})};
+}
+
 async function handleMedia(request,env,url){const parts=url.pathname.split('/').filter(Boolean),id=parts[1]||'',token=parts[2]||'',asset=await env.DB.prepare(`SELECT * FROM assets WHERE id=? AND download_token=? AND status='ready'`).bind(id,token).first();if(!asset)return new Response('Not found',{status:404});const object=await env.MEDIA.get(asset.r2_key);if(!object)return new Response('Not found',{status:404});const headers=new Headers();if(object.writeHttpMetadata)object.writeHttpMetadata(headers);headers.set('etag',object.httpEtag||object.etag||'');headers.set('cache-control','public, max-age=3600');headers.set('accept-ranges','bytes');return new Response(object.body,{headers});}
 
 async function handleApi(request,env,url){
@@ -164,8 +196,51 @@ async function handleApi(request,env,url){
   }
 
   if(url.pathname==='/api/auth/login'&&request.method==='POST'){const b=await bodyJson(request),email=String(b.email||'').trim().toLowerCase(),password=String(b.password||'');if(!env.ADMIN_EMAIL||!env.ADMIN_PASSWORD||!env.SESSION_SECRET)return json({error:'auth_not_configured'},503,cors);if(email!==String(env.ADMIN_EMAIL).trim().toLowerCase()||password!==String(env.ADMIN_PASSWORD))return json({error:'invalid_credentials',message:'E-mail ou senha inválidos.'},401,cors);return json({ok:true,token:await signSession(email,env.SESSION_SECRET),user:{email,role:'admin'}},200,cors);}
+  const djBridgeMatch=url.pathname.match(/^\/api\/dj-catalog\/bridge\/([^/]+)\/([^/]+)\/(manifest|results)$/);
+  if(djBridgeMatch){
+    const [,scanId,bridgeToken,op]=djBridgeMatch,row=await djScanRowByBridgeToken(env,scanId,bridgeToken);
+    if(!row)return json({error:'invalid_or_expired_scan_token'},403,cors);
+    if(op==='manifest'&&request.method==='GET'){
+      const refs=await fetchGithubJson(env,'control/gaming-reference-production/references.json'),tracks=(refs?.tracks||[]).map(t=>({position:Number(t.position||0),spotify_id:String(t.spotify_id||''),title:String(t.title||''),artists:String(t.artists||'')})).filter(t=>t.position&&t.title);
+      if(!tracks.length)return json({error:'reference_manifest_unavailable'},503,cors);
+      return json({scan_id:scanId,total:tracks.length,playlist:refs?.playlist||null,tracks},200,cors);
+    }
+    if(op==='results'&&request.method==='POST'){
+      const b=await bodyJson(request),items=Array.isArray(b.results)?b.results.slice(0,250):[];
+      if(!items.length)return json({error:'results_required'},400,cors);
+      const now=new Date().toISOString();
+      for(const item of items){
+        const pos=Number(item.position||0);if(!Number.isInteger(pos)||pos<1||pos>10000)continue;
+        const status=djResultStatus(item.status),detail=item.detail&&typeof item.detail==='object'?item.detail:{};
+        await env.DB.prepare(`INSERT INTO dj_catalog_results(scan_id,position,spotify_id,title,artists,status,matched_title,matched_artists,match_score,twitch_track_id,checked_at,detail_json)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(scan_id,position) DO UPDATE SET spotify_id=excluded.spotify_id,title=excluded.title,artists=excluded.artists,status=excluded.status,matched_title=excluded.matched_title,matched_artists=excluded.matched_artists,match_score=excluded.match_score,twitch_track_id=excluded.twitch_track_id,checked_at=excluded.checked_at,detail_json=excluded.detail_json`)
+          .bind(scanId,pos,String(item.spotify_id||''),String(item.title||'').slice(0,300),String(item.artists||'').slice(0,500),status,String(item.matched_title||'').slice(0,300),String(item.matched_artists||'').slice(0,500),Number.isFinite(Number(item.match_score))?Number(item.match_score):null,String(item.twitch_track_id||'').slice(0,200),String(item.checked_at||now),JSON.stringify(detail).slice(0,20000)).run();
+      }
+      return json({ok:true,...await djRecount(env,scanId)},200,cors);
+    }
+  }
+
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
+  if(url.pathname==='/api/dj-catalog/scans'&&request.method==='POST'){
+    const refs=await fetchGithubJson(env,'control/gaming-reference-production/references.json'),total=Number((refs?.tracks||[]).length||0);
+    if(!total)return json({error:'reference_manifest_unavailable',message:'As referências da playlist Gaming ainda não estão disponíveis.'},503,cors);
+    const id=crypto.randomUUID(),bridgeToken=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),tokenHash=await sha256hex(bridgeToken),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+6*60*60*1000).toISOString();
+    await env.DB.prepare(`INSERT INTO dj_catalog_scans(id,token_hash,status,total,processed,allowed,restricted,not_found,ambiguous,error_count,created_at,updated_at,expires_at) VALUES(?,?,'pending',?,0,0,0,0,0,0,?,?,?)`).bind(id,tokenHash,total,created,created,expires).run();
+    const origin=new URL(request.url).origin,launchUrl=`https://www.twitch.tv/dj-signup#mediaforge_scan=${encodeURIComponent(id)}&mediaforge_token=${encodeURIComponent(bridgeToken)}&mediaforge_api=${encodeURIComponent(origin)}`;
+    return json({ok:true,scan:{id,status:'pending',total,processed:0,allowed:0,restricted:0,not_found:0,ambiguous:0,error_count:0,created_at:created,updated_at:created,expires_at:expires},launch_url:launchUrl,install_url:'https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js'},200,cors);
+  }
+  if(url.pathname==='/api/dj-catalog/scans'&&request.method==='GET'){
+    const limit=Math.max(1,Math.min(20,Number(url.searchParams.get('limit')||5))),q=await env.DB.prepare(`SELECT * FROM dj_catalog_scans ORDER BY created_at DESC LIMIT ?`).bind(limit).all();
+    return json({scans:await Promise.all((q.results||[]).map(r=>djScanSummary(env,r,false)))},200,cors);
+  }
+  const djScanMatch=url.pathname.match(/^\/api\/dj-catalog\/scans\/([^/]+)$/);
+  if(djScanMatch&&request.method==='GET'){
+    const row=await env.DB.prepare(`SELECT * FROM dj_catalog_scans WHERE id=?`).bind(djScanMatch[1]).first();
+    if(!row)return json({error:'dj_scan_not_found'},404,cors);
+    return json({scan:await djScanSummary(env,row,true)},200,cors);
+  }
   if(url.pathname==='/api/music/presets'&&request.method==='GET'){
     const cfg=await getPeterLofiSeriesConfig(env);
     const presets=(cfg.series||[]).map(s=>({index:s.index,key:s.key,name:s.name,playlist:s.playlist||s.name,description:s.description||'',genre:(s.music_dna?.style_pool||[])[0]||'Lofi',moods:s.music_dna?.mood||[]}));
