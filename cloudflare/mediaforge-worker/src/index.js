@@ -413,6 +413,8 @@ async function handleApi(request,env,url){
     if(!OVH_SLOTS.includes(slot))return json({error:'invalid_runtime_slot'},400,cors);
     const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)===playlistKey);
     if(!playlist)return json({error:'playlist_not_found',message:'Playlist não encontrada no catálogo Peter Lofi.'},404,cors);
+    const slotPlatform=mapPlatformFromSlot(slot),allowedPlatforms=Array.isArray(playlist.allowed_platforms)?playlist.allowed_platforms.map(x=>String(x).toLowerCase()):[];
+    if(allowedPlatforms.length&&!allowedPlatforms.includes(slotPlatform))return json({error:'playlist_platform_blocked',message:'Esta playlist é exclusiva da Twitch e não pode ser aplicada nesta plataforma.',playlist_key:playlistKey,platform:slotPlatform},409,cors);
     const tracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`${playlistKey}-${i+1}`),title:String(t.title||'Track'),url:String(t.url),duration_seconds:Number(t.duration_seconds||0)}));
     if(!tracks.length)return json({error:'playlist_empty'},400,cors);
     const state=await ovhState(env),svc=state?.services?.[slot]||{};
@@ -474,6 +476,8 @@ async function handleApi(request,env,url){
       if(playlistKey){
         const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)===playlistKey);
         if(!playlist)return json({error:'playlist_not_found',message:'Playlist não encontrada na biblioteca Peter Lofi.'},404,cors);
+        const allowedPlatforms=Array.isArray(playlist.allowed_platforms)?playlist.allowed_platforms.map(x=>String(x).toLowerCase()):[];
+        if(allowedPlatforms.length&&!allowedPlatforms.includes(platform))return json({error:'playlist_platform_blocked',message:'Esta playlist é exclusiva da Twitch e não pode ser iniciada nesta plataforma.',playlist_key:playlistKey,platform},409,cors);
         manifest=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`${playlistKey}-${i+1}`),title:String(t.title||'Track'),url:String(t.url),duration_seconds:Number(t.duration_seconds||0)}));
         if(!manifest.length)return json({error:'playlist_empty'},400,cors);
       }else{
