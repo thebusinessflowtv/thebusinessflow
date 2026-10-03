@@ -107,3 +107,26 @@ CREATE TABLE IF NOT EXISTS ovh_deploy_commands (
 
 CREATE INDEX IF NOT EXISTS idx_ovh_deploy_commands_pending
 ON ovh_deploy_commands(status, created_at);
+
+
+CREATE TABLE IF NOT EXISTS music_generation_jobs (
+  id TEXT PRIMARY KEY,
+  series_key TEXT NOT NULL,
+  playlist_name TEXT NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  progress INTEGER NOT NULL DEFAULT 0,
+  phase TEXT,
+  github_run_id TEXT,
+  github_run_url TEXT,
+  release_tag TEXT,
+  master_audio_url TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT,
+  result_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_music_generation_jobs_created
+ON music_generation_jobs(created_at DESC);
