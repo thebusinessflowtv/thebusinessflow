@@ -170,3 +170,19 @@ CREATE TABLE IF NOT EXISTS dj_catalog_results (
 
 CREATE INDEX IF NOT EXISTS idx_dj_catalog_results_scan
 ON dj_catalog_results(scan_id, position);
+
+
+CREATE TABLE IF NOT EXISTS dj_catalog_audio_sources (
+  scan_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  asset_id TEXT,
+  acquisition_source TEXT,
+  acquisition_note TEXT,
+  verified_owned INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (scan_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dj_catalog_audio_sources_ready
+ON dj_catalog_audio_sources(scan_id, verified_owned, position);
