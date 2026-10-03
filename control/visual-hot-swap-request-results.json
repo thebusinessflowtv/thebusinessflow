@@ -1,5 +1,5 @@
 {
-  "requested_at": "2026-10-03T05:31:07Z",
+  "requested_at": "2026-10-03T05:32:23Z",
   "requests": [
     {
       "runtime_slot": "kick",
@@ -19,9 +19,9 @@
           "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136",
           "asset_id": null,
           "source": "mediaforge-visual-switch",
-          "id": "2ec4494a-38f6-4cb0-95e6-c2b140fed5be",
+          "id": "162275ae-2432-4944-aea9-43cb4f4b6d04",
           "runtime": "ovh",
-          "requested_at": "2026-10-03T05:30:57.849Z"
+          "requested_at": "2026-10-03T05:32:15.705Z"
         }
       }
     },
@@ -43,9 +43,9 @@
           "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136",
           "asset_id": null,
           "source": "mediaforge-visual-switch",
-          "id": "40ebfc91-022a-440d-af0b-8305009c7787",
+          "id": "2bd00467-f3a6-42cd-9abd-0518fc444a5d",
           "runtime": "ovh",
-          "requested_at": "2026-10-03T05:31:00.213Z"
+          "requested_at": "2026-10-03T05:32:17.673Z"
         }
       }
     },
@@ -67,9 +67,9 @@
           "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/a26f2e7f-4203-4788-a3ce-6d6b2052f4dc/c64b196cedad4d05977d887f1be30505023124926b4144dc935c1142fe1b4109",
           "asset_id": null,
           "source": "mediaforge-visual-switch",
-          "id": "703c7ce6-22e7-4e84-91fd-5a358f1c31ee",
+          "id": "48d400dd-685a-40c6-9374-78916232c0ce",
           "runtime": "ovh",
-          "requested_at": "2026-10-03T05:31:02.407Z"
+          "requested_at": "2026-10-03T05:32:19.493Z"
         }
       }
     },
@@ -91,9 +91,9 @@
           "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/998ca654-bb42-4c35-99c6-04ac2ebad84c/b6bf0c5819a04630b36f61314ed6de7566e4b48b72df41c59093a5bd7c0f9ab0",
           "asset_id": null,
           "source": "mediaforge-visual-switch",
-          "id": "c5fec2d1-bce9-4d1f-b7d6-4189671ea805",
+          "id": "f873379b-beec-482b-aef7-4c5f671cff7b",
           "runtime": "ovh",
-          "requested_at": "2026-10-03T05:31:04.846Z"
+          "requested_at": "2026-10-03T05:32:21.643Z"
         }
       }
     }
