@@ -130,3 +130,43 @@ CREATE TABLE IF NOT EXISTS music_generation_jobs (
 
 CREATE INDEX IF NOT EXISTS idx_music_generation_jobs_created
 ON music_generation_jobs(created_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS dj_catalog_scans (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'pending',
+  total INTEGER NOT NULL DEFAULT 0,
+  processed INTEGER NOT NULL DEFAULT 0,
+  allowed INTEGER NOT NULL DEFAULT 0,
+  restricted INTEGER NOT NULL DEFAULT 0,
+  not_found INTEGER NOT NULL DEFAULT 0,
+  ambiguous INTEGER NOT NULL DEFAULT 0,
+  error_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT,
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_dj_catalog_scans_created
+ON dj_catalog_scans(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS dj_catalog_results (
+  scan_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  spotify_id TEXT,
+  title TEXT NOT NULL,
+  artists TEXT NOT NULL,
+  status TEXT NOT NULL,
+  matched_title TEXT,
+  matched_artists TEXT,
+  match_score REAL,
+  twitch_track_id TEXT,
+  checked_at TEXT NOT NULL,
+  detail_json TEXT NOT NULL DEFAULT '{}',
+  PRIMARY KEY (scan_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dj_catalog_results_scan
+ON dj_catalog_results(scan_id, position);
