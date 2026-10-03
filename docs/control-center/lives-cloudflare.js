@@ -226,9 +226,10 @@
     try{
       const x=await api('/api/dj-catalog/scans',{method:'POST',body:'{}'});
       djScan=x.scan||null;render();
-      const popup=window.open(x.launch_url,'_blank','noopener');
-      if(!popup)location.href=x.launch_url;
-      alert('Scanner criado. Na aba da Twitch, faça uma busca qualquer no DJ Catalog uma única vez; depois as 215 faixas serão verificadas automaticamente.');
+      const link=document.createElement('a');
+      link.href=x.launch_url;link.target='_blank';link.rel='noopener noreferrer';link.style.display='none';
+      document.body.appendChild(link);link.click();link.remove();
+      alert('Scanner criado. A Twitch foi aberta em uma nova aba. Faça uma busca qualquer no DJ Catalog uma única vez; depois as 215 faixas serão verificadas automaticamente. Se a nova aba não abrir, permita pop-ups para o MediaForge e clique novamente.');
     }catch(e){alert('Falha ao iniciar o scanner: '+e.message)}
     finally{const b=document.getElementById('startDjCatalogScan');if(b){b.disabled=false;b.textContent='2. Iniciar verificação das 215';}}
   }
