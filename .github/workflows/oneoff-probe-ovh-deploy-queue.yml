@@ -1,5 +1,5 @@
 name: One-off — Probe OVH Deploy Queue
-# trigger: 2026-10-03T05:06Z deploy-agent diagnosis
+# trigger: 2026-10-03T05:30Z final-visual-proof-baseline
 
 on:
   push:
