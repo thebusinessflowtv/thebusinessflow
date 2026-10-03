@@ -1,6 +1,6 @@
 {
-  "request_id": "hotswap-final-healthcheck-20261003-0529",
+  "request_id": "hotswap-post-visual-healthcheck-20261003-0532",
   "action": "health_check",
   "target": "all",
-  "source": "chatgpt-all-platform-hotswap-rollout"
+  "source": "chatgpt-visual-hotswap-proof"
 }
