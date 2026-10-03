@@ -1,4 +1,5 @@
 name: One-off — Verify Live Visual Hot Swap
+# trigger: 2026-10-03T05:31Z
 
 on:
   push:
