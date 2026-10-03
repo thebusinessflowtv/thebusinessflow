@@ -1,6 +1,6 @@
 {
-  "request_id": "hotswap-healthcheck-20261003-0523",
-  "action": "health_check",
-  "target": "all",
+  "request_id": "ovh-agent-runtime-20261003-0524",
+  "action": "deploy_service",
+  "target": "ovh-agent",
   "source": "chatgpt-all-platform-hotswap-rollout"
 }
