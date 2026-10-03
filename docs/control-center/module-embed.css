@@ -36,9 +36,14 @@ html.mf-embed .shell{display:block!important;min-height:0!important;background:t
 html.mf-embed .sidebar,html.mf-embed .topbar{display:none!important}
 html.mf-embed .main{min-width:0!important;min-height:0!important;background:transparent!important}
 html.mf-embed .page{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
-html.mf-embed .head,html.mf-embed .pagehead{margin-top:0!important}
+html.mf-embed .head,html.mf-embed .pagehead{display:none!important}
 html.mf-embed body{overflow-x:hidden!important}
 @media(max-width:900px){
   html.mf-embed .page{padding:0!important}
   .card{border-radius:22px!important}
 }
+
+html.mf-embed .sidebar,html.mf-embed .topbar,html.mf-embed .brand,html.mf-embed .user{display:none!important}
+html.mf-embed .shell{grid-template-columns:1fr!important}
+html.mf-embed .page{padding:0!important}
+html.mf-embed .main{width:100%!important}
