@@ -245,11 +245,18 @@
           btn.textContent=left?((action==='previous'?'↶':'↷')+' Na fila ('+left+')'):original;
         },2200);
       }
-      // Do not wait for ACK and do not disable either button. Every click is a
-      // distinct durable audio command; the OVH player executes them in order.
+      // Wait briefly for the OVH ACK. The command remains durable even if the
+      // ACK is delayed because it also has an independent GitHub fallback.
+      const ack=await waitOvhControl(commandId,12000);
+      if(btn){
+        btn.dataset.queued='0';
+        btn.textContent=ack.confirmed?'✓ Aplicado':original;
+        setTimeout(()=>{if(btn)btn.textContent=original;},1200);
+      }
+      setTimeout(()=>openLive(id),900);
     }catch(e){
       alert('Falha no controle da música: '+e.message);
-      if(btn)btn.textContent=original;
+      if(btn){btn.dataset.queued='0';btn.textContent=original;}
     }
   }
 
