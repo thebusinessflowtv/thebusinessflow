@@ -7,7 +7,7 @@
   const selectedSeriesIds=new Set(),selectedMixIds=new Set(),manualTrackIds=new Set(),excludedTrackIds=new Set();
   const drafts={
     kick:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:'',playlist:'gaming-radio'},
-    twitch:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:'',playlist:'gaming-radio'},
+    twitch:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:'',playlist:'twitch-dj-mixed'},
     youtube:{title:'Peter Lofi Radio 🎧 Lofi Beats for Work, Study, Focus & Relax 🔴 Live',description:'Lofi beats for work, study, focus and relaxation. Live on Peter Lofi.',duration:'0',visual:'',thumbnail:'',playlist:'deep-house-radio'}
   };
   const root=()=>document.getElementById('content');
@@ -76,7 +76,7 @@
   }
 
   function canonicalPlaylistOptions(selected=''){
-    const list=musicLibrary?.playlists||[];
+    const list=(musicLibrary?.playlists||[]).filter(p=>{const allowed=Array.isArray(p.allowed_platforms)?p.allowed_platforms.map(x=>String(x).toLowerCase()):[];return !allowed.length||allowed.includes(activePlatform);});
     return list.map(p=>`<option value="${esc(p.key)}" ${String(selected)===String(p.key)?'selected':''}>${esc(p.name)} · ${esc(p.track_count||0)} faixas · ${esc(p.genre||'Lofi')}</option>`).join('');
   }
 
