@@ -186,3 +186,15 @@ CREATE TABLE IF NOT EXISTS dj_catalog_audio_sources (
 
 CREATE INDEX IF NOT EXISTS idx_dj_catalog_audio_sources_ready
 ON dj_catalog_audio_sources(scan_id, verified_owned, position);
+
+
+-- Local OVH runtime configuration cache. In Cloudflare this table is harmless;
+-- on OVH it removes GitHub from the live control-plane runtime.
+CREATE TABLE IF NOT EXISTS local_config (
+  path TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_config_updated
+ON local_config(updated_at DESC);
