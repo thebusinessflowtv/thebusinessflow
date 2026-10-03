@@ -567,6 +567,22 @@ async function handleApi(request,env,url){
     const asset=await readAsset(env,assetId);
     return json({ok:true,asset:{id:asset.id,title:asset.title,asset_type:asset.asset_type,mime_type:asset.mime_type,size_bytes:asset.size_bytes,public_url:assetPublicUrl(request,asset,env),runtime_url:assetRuntimeUrl(request,asset,env)}},201,cors);
   }
+  if(url.pathname==='/api/ovh/agent/runtime-config'&&request.method==='GET'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    const path=String(url.searchParams.get('path')||'').trim();
+    if(!['control/music-library.json','control/mediaforge-catalog.json','control/youtube-stations.json','config/peter_lofi_series.json','control/gaming-reference-production/references.json','control/twitch-dj-supplied-2026-10-03.json'].includes(path))return json({error:'config_path_not_allowed'},400,cors);
+    const payload=await localConfigJson(env,path);
+    return json({path,payload},payload===null?404:200,cors);
+  }
+  if(url.pathname==='/api/ovh/agent/runtime-config'&&request.method==='POST'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    const b=await bodyJson(request),path=String(b.path||'').trim(),payload=b.payload;
+    if(!['control/music-library.json','control/mediaforge-catalog.json','control/youtube-stations.json','config/peter_lofi_series.json','control/gaming-reference-production/references.json','control/twitch-dj-supplied-2026-10-03.json'].includes(path))return json({error:'config_path_not_allowed'},400,cors);
+    if(payload===undefined||payload===null)return json({error:'payload_required'},400,cors);
+    await setLocalConfig(env,path,payload);
+    return json({ok:true,path,updated_at:new Date().toISOString()},200,cors);
+  }
+
   if(url.pathname==='/api/ovh/agent/operational-status'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
     return json({local_runtime:String(env.LOCAL_RUNTIME||'')==='1',youtube_oauth:!!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN),youtube_channel:!!env.YOUTUBE_CHANNEL_ID,kaggle:!!(env.KAGGLE_USERNAME&&env.KAGGLE_API_TOKEN),huggingface:!!env.HF_TOKEN},200,cors);
