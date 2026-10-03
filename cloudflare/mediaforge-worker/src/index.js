@@ -43,7 +43,7 @@ function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:Stri
 
 const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
-const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service'];
+const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service','hot_patch_streaming'];
 function ovhAgentAllowed(request,env){
   const ip=request.headers.get('cf-connecting-ip')||'',lower=ip.toLowerCase();
   const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
@@ -241,6 +241,29 @@ async function handleApi(request,env,url){
     return json({runtime:'ovh',reported_at:state.reported_at||null,stored_at:state.stored_at||null,host:state.host?{load_1m:state.host.load_1m??null,memory_percent:state.host.memory_percent??null,disk_percent:state.host.disk_percent??null,uptime_seconds:state.host.uptime_seconds??null}:null,services},200,cors);
   }
 
+  if(url.pathname==='/api/ops/20261003-live-stability/host-agent'&&request.method==='POST'){
+    const id='ops-20261003-host-agent-v1',action='deploy_host_agent',target='host-agent',now=new Date().toISOString();
+    const existing=await env.DB.prepare(`SELECT id,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
+    if(existing)return json({ok:true,command:{...existing,result:existing.result_json?JSON.parse(existing.result_json):null},deduplicated:true},200,cors);
+    const payload={id,action,target,requested_at:now,requested_by:'ops-fixed-rollout',source:'20261003-live-stability'};
+    await env.DB.prepare(`INSERT INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES(?,?,?,?, 'pending', ?)`).bind(id,action,target,JSON.stringify(payload),now).run();
+    return json({ok:true,command:payload,status:'pending'},202,cors);
+  }
+  if(url.pathname==='/api/ops/20261003-live-stability/hot-patch'&&request.method==='POST'){
+    const prerequisite=await env.DB.prepare(`SELECT status FROM ovh_deploy_commands WHERE id='ops-20261003-host-agent-v1'`).first();
+    if(!prerequisite||prerequisite.status!=='completed')return json({error:'host_agent_not_ready',status:prerequisite?.status||'missing'},409,cors);
+    const id='ops-20261003-hot-patch-v1',action='hot_patch_streaming',target='all',now=new Date().toISOString();
+    const existing=await env.DB.prepare(`SELECT id,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
+    if(existing)return json({ok:true,command:{...existing,result:existing.result_json?JSON.parse(existing.result_json):null},deduplicated:true},200,cors);
+    const payload={id,action,target,requested_at:now,requested_by:'ops-fixed-rollout',source:'20261003-live-stability'};
+    await env.DB.prepare(`INSERT INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES(?,?,?,?, 'pending', ?)`).bind(id,action,target,JSON.stringify(payload),now).run();
+    return json({ok:true,command:payload,status:'pending'},202,cors);
+  }
+  if(url.pathname==='/api/ops/20261003-live-stability/status'&&request.method==='GET'){
+    const q=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id IN ('ops-20261003-host-agent-v1','ops-20261003-hot-patch-v1') ORDER BY created_at`).all();
+    return json({commands:(q.results||[]).map(r=>({...r,result:r.result_json?JSON.parse(r.result_json):null}))},200,cors);
+  }
+
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
   if(url.pathname==='/api/dj-catalog/scans'&&request.method==='POST'){
@@ -342,6 +365,7 @@ async function handleApi(request,env,url){
     if(['deploy_service','rollback_service'].includes(action)&&!OVH_DEPLOY_TARGETS.includes(target))return json({error:'invalid_deploy_target'},400,cors);
     if(action==='deploy_all')target='all';
     if(action==='deploy_host_agent')target='host-agent';
+    if(action==='hot_patch_streaming')target=(target==='all'||OVH_SLOTS.includes(target))?target:'all';
     if(action==='health_check')target=target&&OVH_DEPLOY_TARGETS.includes(target)?target:'all';
     const id=/^[A-Za-z0-9._:-]{8,128}$/.test(requested)?requested:crypto.randomUUID(),now=new Date().toISOString();
     const existing=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
