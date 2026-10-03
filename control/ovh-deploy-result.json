@@ -1,16 +1,27 @@
 {
   "command": {
-    "id": "kick-stability-deploy-20261003-0148",
+    "id": "kick-hotswap-rollout-20261003-0520",
     "action": "deploy_service",
     "target": "kick",
-    "status": "failed",
-    "created_at": "2026-10-03T05:01:48.666Z",
-    "claimed_at": "2026-10-03T05:14:10.966Z",
-    "completed_at": "2026-10-03T05:14:12.270Z",
-    "error": "command failed (1): docker compose build kick\ntime=\"2026-10-03T05:14:12Z\" level=warning msg=\"Docker Compose is configured to build using Bake, but buildx isn't installed\"\nopen /root/.docker/buildx/refs/default/default/.tmp-nkr4qpep9a6lqmkh0rnshtco71766105810: read-only file system\n",
-    "result_json": "{\"git_head\":\"fea56108cf26577bd4b405a0f938b95bead7b923\"}",
+    "status": "completed",
+    "created_at": "2026-10-03T05:20:24.813Z",
+    "claimed_at": "2026-10-03T05:20:26.452Z",
+    "completed_at": "2026-10-03T05:20:33.724Z",
+    "error": "",
+    "result_json": "{\"old_head\":\"110331d42f012c7fb80a0e07c0e042856cb6782c\",\"new_head\":\"110331d42f012c7fb80a0e07c0e042856cb6782c\",\"service\":\"kick\",\"health\":{\"service\":\"kick\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:20:27.833883Z\",\"fps\":30,\"video_bitrate_kbps\":6000,\"restarts\":0},\"backup_image\":\"mediaforge-backup-kick:20261003052027\"}",
     "result": {
-      "git_head": "fea56108cf26577bd4b405a0f938b95bead7b923"
+      "old_head": "110331d42f012c7fb80a0e07c0e042856cb6782c",
+      "new_head": "110331d42f012c7fb80a0e07c0e042856cb6782c",
+      "service": "kick",
+      "health": {
+        "service": "kick",
+        "status": "live",
+        "updated_at": "2026-10-03T05:20:27.833883Z",
+        "fps": 30,
+        "video_bitrate_kbps": 6000,
+        "restarts": 0
+      },
+      "backup_image": "mediaforge-backup-kick:20261003052027"
     }
   }
 }
