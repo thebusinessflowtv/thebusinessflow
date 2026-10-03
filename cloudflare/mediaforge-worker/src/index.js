@@ -176,11 +176,40 @@ async function prepareYoutubeLocal(request,env,{sessionId,slot,title,description
       thumbOk=true;
     }catch(e){console.log('YouTube thumbnail skipped:',e?.message||String(e))}
   }
-  const result={platform:'youtube',runtime:'ovh',runtime_slot:slot,status:'starting',title,description,youtube_broadcast_id:bid,youtube_stream_id:streamId,youtube_url:'https://www.youtube.com/watch?v='+bid,privacy_status:'public',encoder_resolution:'1920x1080',encoder_fps:60,encoder_bitrate_kbps:8000,custom_thumbnail_applied:thumbOk,created_at:now.toISOString(),updated_at:now.toISOString()};
-  await setLocalConfig(env,'control/live-results/'+sessionId+'.json',result);
-  station.runtime='ovh';station.status='starting';station.current_session_id=sessionId;station.youtube_broadcast_id=bid;station.last_started_at=now.toISOString();
-  cfg.updated_at=now.toISOString();await setLocalConfig(env,'control/youtube-stations.json',cfg);
   const cmd=await issueOvhCommand(env,{action:'start',platform:'youtube',runtime_slot:slot,session_id:sessionId,title,description,duration_minutes:Number(durationMinutes||0),loop_url:String(loopUrl||''),playlist_key:playlistKey||null,tracks:tracks||[],shuffle:true,repeat:true,source:'mediaforge-youtube-local'});
+  // The reusable stream may already be active, but a stopped slot can need a few
+  // seconds after the local OVH command. Drive the YouTube lifecycle directly
+  // instead of delegating this step to GitHub Actions.
+  let lifecycle='ready',streamStatus='';
+  for(let n=0;n<8;n++){
+    try{
+      const streams=await youtubeFetch(env,'liveStreams',{query:{part:'status',id:streamId}});
+      streamStatus=String(streams?.items?.[0]?.status?.streamStatus||'');
+      const broadcasts=await youtubeFetch(env,'liveBroadcasts',{query:{part:'status',id:bid}});
+      lifecycle=String(broadcasts?.items?.[0]?.status?.lifeCycleStatus||lifecycle);
+      if(lifecycle==='live')break;
+      if(['active','ready'].includes(streamStatus)){
+        if(lifecycle==='ready'){
+          try{await youtubeFetch(env,'liveBroadcasts/transition',{method:'POST',query:{part:'status',id:bid,broadcastStatus:'testing'}});}catch(_){}
+          await new Promise(r=>setTimeout(r,1200));
+        }
+        const refreshed=await youtubeFetch(env,'liveBroadcasts',{query:{part:'status',id:bid}});
+        lifecycle=String(refreshed?.items?.[0]?.status?.lifeCycleStatus||lifecycle);
+        if(['testing','testStarting','ready'].includes(lifecycle)){
+          try{await youtubeFetch(env,'liveBroadcasts/transition',{method:'POST',query:{part:'status',id:bid,broadcastStatus:'live'}});}catch(_){}
+        }
+      }
+    }catch(_){}
+    await new Promise(r=>setTimeout(r,1500));
+  }
+  try{
+    const finalState=await youtubeFetch(env,'liveBroadcasts',{query:{part:'status',id:bid}});
+    lifecycle=String(finalState?.items?.[0]?.status?.lifeCycleStatus||lifecycle);
+  }catch(_){}
+  const result={platform:'youtube',runtime:'ovh',runtime_slot:slot,status:lifecycle==='live'?'live':'starting',youtube_lifecycle:lifecycle,youtube_stream_status:streamStatus,title,description,youtube_broadcast_id:bid,youtube_stream_id:streamId,youtube_url:'https://www.youtube.com/watch?v='+bid,privacy_status:'public',encoder_resolution:'1920x1080',encoder_fps:60,encoder_bitrate_kbps:8000,custom_thumbnail_applied:thumbOk,created_at:now.toISOString(),updated_at:new Date().toISOString()};
+  await setLocalConfig(env,'control/live-results/'+sessionId+'.json',result);
+  station.runtime='ovh';station.status=result.status;station.current_session_id=sessionId;station.youtube_broadcast_id=bid;station.last_started_at=now.toISOString();
+  cfg.updated_at=new Date().toISOString();await setLocalConfig(env,'control/youtube-stations.json',cfg);
   return {result,command:cmd};
 }
 async function stopYoutubeLocal(env,{sessionId,slot,title}){
