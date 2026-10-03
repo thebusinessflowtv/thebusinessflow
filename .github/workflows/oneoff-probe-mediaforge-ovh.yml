@@ -1,5 +1,5 @@
 name: One-off — Probe MediaForge OVH State
-# trigger: 2026-10-03T05:21Z verify-kick-hotswap
+# trigger: 2026-10-03T05:32Z visual-hot-swap-proof
 
 on:
   push:
@@ -16,29 +16,43 @@ jobs:
     env:
       ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://mediaforge-api.guilhermeodsgn.workers.dev
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Probe OVH state
+
+      - name: Execute MediaForge visual hot-swap proof
+        shell: bash
         run: |
-          python - <<'PY'
-          import json, os, pathlib, urllib.request
-          api="https://mediaforge-api.guilhermeodsgn.workers.dev"
-          payload=json.dumps({"email":os.environ.get("ADMIN_EMAIL",""),"password":os.environ.get("ADMIN_PASSWORD","")}).encode()
-          req=urllib.request.Request(api+"/api/auth/login",data=payload,headers={"content-type":"application/json"},method="POST")
-          auth=json.loads(urllib.request.urlopen(req,timeout=30).read().decode())
-          req=urllib.request.Request(api+"/api/ovh/status",headers={"authorization":"Bearer "+auth["token"]})
-          d=json.loads(urllib.request.urlopen(req,timeout=30).read().decode())
-          out={"checked_at":d.get("agent",{}).get("reported_at"),"agent":d.get("agent",{})}
-          pathlib.Path("control").mkdir(exist_ok=True)
-          pathlib.Path("control/mediaforge-ovh-probe.json").write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-          PY
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+          test -n "$TOKEN"
+          mkdir -p control
+          : > /tmp/visual.ndjson
+
+          apply_visual() {
+            slot="$1"; loop_url="$2"
+            body="$(jq -nc --arg slot "$slot" --arg url "$loop_url" '{runtime_slot:$slot,loop_url:$url}')"
+            response="$(curl -fsS -X POST -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$body" "$API/api/ovh/visual")"
+            jq -nc --arg slot "$slot" --argjson response "$response" '{runtime_slot:$slot,response:$response}' >> /tmp/visual.ndjson
+          }
+
+          apply_visual kick "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136"
+          apply_visual twitch "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136"
+          apply_visual youtube-deep-house "https://mediaforge-api.guilhermeodsgn.workers.dev/media/a26f2e7f-4203-4788-a3ce-6d6b2052f4dc/c64b196cedad4d05977d887f1be30505023124926b4144dc935c1142fe1b4109"
+          apply_visual youtube-rainy "https://mediaforge-api.guilhermeodsgn.workers.dev/media/998ca654-bb42-4c35-99c6-04ac2ebad84c/b6bf0c5819a04630b36f61314ed6de7566e4b48b72df41c59093a5bd7c0f9ab0"
+
+          jq -s '{requested_at:(now|todateiso8601),requests:.}' /tmp/visual.ndjson > control/visual-hot-swap-request-results.json
+          cat control/visual-hot-swap-request-results.json
+
       - name: Commit probe
         run: |
+          set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add control/mediaforge-ovh-probe.json
-          git commit -m "probe: current OVH state" || exit 0
+          git add control/visual-hot-swap-request-results.json
+          git commit -m "probe: visual hot-swap API requests" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
