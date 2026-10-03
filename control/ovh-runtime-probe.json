@@ -3,12 +3,12 @@
   "agent": {
     "agent_id": "ovh-main",
     "runtime": "ovh",
-    "reported_at": "2026-10-03T05:04:31.672261Z",
+    "reported_at": "2026-10-03T05:06:28.043765Z",
     "host": {
-      "load_1m": 5.02,
-      "memory_percent": 14.7,
+      "load_1m": 5.75,
+      "memory_percent": 14.9,
       "disk_percent": 5.2,
-      "uptime_seconds": 78325.17
+      "uptime_seconds": 78441.54
     },
     "services": {
       "kick": {
@@ -21,19 +21,20 @@
         "fps": 30,
         "video_bitrate_kbps": 6000,
         "restarts": 0,
-        "updated_at": "2026-10-03T05:04:27.480608Z",
+        "updated_at": "2026-10-03T05:06:27.520528Z",
         "now_playing": {
           "platform": "kick",
           "state": "playing",
-          "track_id": "gaming-radio-06",
-          "title": "Level Session",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/06-06-s1-06-level-session.mp3",
-          "started_at": "2026-10-03T05:00:47.702645Z",
+          "track_id": "gaming-radio-13",
+          "title": "Level Zone",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-gaming-3h-v2-36956897081/13-01-s1-13-level-zone.mp3",
+          "started_at": "2026-10-03T05:05:48.035534Z",
           "history": [
             "gaming-radio-09",
             "gaming-radio-28",
             "gaming-radio-02",
-            "gaming-radio-06"
+            "gaming-radio-06",
+            "gaming-radio-13"
           ]
         }
       },
@@ -47,7 +48,7 @@
         "fps": 30,
         "video_bitrate_kbps": 4500,
         "restarts": 0,
-        "updated_at": "2026-10-03T05:04:29.560046Z",
+        "updated_at": "2026-10-03T05:06:24.594878Z",
         "now_playing": {
           "platform": "twitch",
           "state": "playing",
@@ -79,16 +80,15 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T05:04:30.466495Z",
+        "updated_at": "2026-10-03T05:06:25.497177Z",
         "now_playing": {
           "platform": "youtube-deep-house",
           "state": "playing",
-          "track_id": "deep-house-radio-13",
-          "title": "Late Check In District",
-          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-music-5a4b4cc5-af5d-4c22-a3f9-6efbd99aaab0/12-late-check-in-district.wav",
-          "started_at": "2026-10-03T05:03:13.781673Z",
+          "track_id": "deep-house-radio-04",
+          "title": "Glass Afterglow",
+          "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-music-5a4b4cc5-af5d-4c22-a3f9-6efbd99aaab0/03-glass-afterglow.wav",
+          "started_at": "2026-10-03T05:05:12.998407Z",
           "history": [
-            "deep-house-radio-08",
             "deep-house-radio-35",
             "deep-house-radio-36",
             "deep-house-radio-57",
@@ -97,7 +97,8 @@
             "deep-house-radio-06",
             "deep-house-radio-58",
             "deep-house-radio-43",
-            "deep-house-radio-13"
+            "deep-house-radio-13",
+            "deep-house-radio-04"
           ]
         }
       },
@@ -111,7 +112,7 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T05:04:29.477790Z",
+        "updated_at": "2026-10-03T05:06:24.505584Z",
         "now_playing": {
           "platform": "youtube-rainy",
           "state": "playing",
@@ -135,7 +136,7 @@
       }
     },
     "processed_commands": 29,
-    "stored_at": "2026-10-03T05:04:31.704Z"
+    "stored_at": "2026-10-03T05:06:28.072Z"
   },
   "youtube_slots": [
     {
