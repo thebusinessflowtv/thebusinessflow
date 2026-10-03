@@ -1,12 +1,8 @@
 name: MediaForge — Sync Live UI Source
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'docs/control-center/lives-cloudflare.js'
-      - 'docs/control-center/lives-platform-badges.js'
-      - '.github/workflows/sync-mediaforge-live-ui.yml'
+  # Production UI is served from OVH; legacy Pages sync is manual only.
+  workflow_dispatch:
 
 permissions:
   contents: write
