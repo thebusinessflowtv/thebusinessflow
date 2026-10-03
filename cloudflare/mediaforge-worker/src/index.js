@@ -325,47 +325,6 @@ async function handleApi(request,env,url){
   const cors=corsHeaders(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
   if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-local-r2':'r2',database:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-sqlite-d1':'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true,local_runtime:String(env.LOCAL_RUNTIME||'')==='1'},200,cors);
 
-  if(url.pathname==='/api/migration/ovh-secret-transfer'&&request.method==='POST'){
-    if(String(env.LOCAL_RUNTIME||'')==='1')return json({error:'remote_bridge_only'},409,cors);
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_transfer_init',ip:gate.ip},403,cors);
-    const b=await bodyJson(request),cert=String(b.public_cert_pem||'').trim();
-    if(!cert.includes('-----BEGIN CERTIFICATE-----')||!cert.includes('-----END CERTIFICATE-----'))return json({error:'invalid_public_certificate'},400,cors);
-    const id=crypto.randomUUID(),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+60*60*1000).toISOString();
-    await env.DB.prepare(`INSERT INTO secret_migrations(id,public_cert_pem,encrypted_bundle_b64,status,created_at,updated_at,expires_at) VALUES(?,?,'','waiting',?,?,?)`).bind(id,cert,created,created,expires).run();
-    await githubDispatchWorkflow(env,'mediaforge-export-secrets-to-ovh.yml',{transfer_id:id});
-    return json({ok:true,transfer_id:id,status:'waiting',expires_at:expires},202,cors);
-  }
-  const transferCert=url.pathname.match(/^\/api\/migration\/ovh-secret-transfer\/([^/]+)\/cert$/);
-  if(transferCert&&request.method==='GET'){
-    if(!migrationGithubAllowed(request,env))return json({error:'forbidden_github_transfer'},403,cors);
-    const row=await env.DB.prepare(`SELECT id,public_cert_pem,status,expires_at FROM secret_migrations WHERE id=?`).bind(transferCert[1]).first();
-    if(!row||Date.parse(row.expires_at||'')<Date.now())return json({error:'transfer_not_found_or_expired'},404,cors);
-    return json({id:row.id,public_cert_pem:row.public_cert_pem,status:row.status,expires_at:row.expires_at},200,cors);
-  }
-  const transferBundle=url.pathname.match(/^\/api\/migration\/ovh-secret-transfer\/([^/]+)\/bundle$/);
-  if(transferBundle&&request.method==='POST'){
-    if(!migrationGithubAllowed(request,env))return json({error:'forbidden_github_transfer'},403,cors);
-    const row=await env.DB.prepare(`SELECT id,expires_at FROM secret_migrations WHERE id=?`).bind(transferBundle[1]).first();
-    if(!row||Date.parse(row.expires_at||'')<Date.now())return json({error:'transfer_not_found_or_expired'},404,cors);
-    const b=await bodyJson(request),bundle=String(b.encrypted_bundle_b64||'').trim();
-    if(bundle.length<100)return json({error:'encrypted_bundle_required'},400,cors);
-    const now=new Date().toISOString();
-    await env.DB.prepare(`UPDATE secret_migrations SET encrypted_bundle_b64=?,status='ready',updated_at=? WHERE id=?`).bind(bundle,now,row.id).run();
-    return json({ok:true,transfer_id:row.id,status:'ready'},200,cors);
-  }
-  const transferPoll=url.pathname.match(/^\/api\/migration\/ovh-secret-transfer\/([^/]+)$/);
-  if(transferPoll&&request.method==='GET'){
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_transfer_poll',ip:gate.ip},403,cors);
-    const row=await env.DB.prepare(`SELECT id,encrypted_bundle_b64,status,created_at,updated_at,expires_at FROM secret_migrations WHERE id=?`).bind(transferPoll[1]).first();
-    if(!row||Date.parse(row.expires_at||'')<Date.now())return json({error:'transfer_not_found_or_expired'},404,cors);
-    return json({id:row.id,status:row.status,encrypted_bundle_b64:row.status==='ready'?row.encrypted_bundle_b64:null,created_at:row.created_at,updated_at:row.updated_at,expires_at:row.expires_at},200,cors);
-  }
-  if(transferPoll&&request.method==='DELETE'){
-    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_transfer_delete',ip:gate.ip},403,cors);
-    await env.DB.prepare(`DELETE FROM secret_migrations WHERE id=?`).bind(transferPoll[1]).run();
-    return json({ok:true},200,cors);
-  }
-
   if(url.pathname==='/api/migration/export'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_migration_export',ip:gate.ip},403,cors);
     const tables={};
