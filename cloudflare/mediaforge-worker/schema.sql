@@ -53,3 +53,22 @@ CREATE TABLE IF NOT EXISTS live_session_assets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_live_session_assets_session ON live_session_assets(session_id);
+
+
+CREATE TABLE IF NOT EXISTS live_runtime (
+  session_id TEXT PRIMARY KEY,
+  runtime TEXT NOT NULL DEFAULT 'ovh',
+  runtime_slot TEXT,
+  last_status_at TEXT,
+  agent_status_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_live_runtime_slot ON live_runtime(runtime_slot);
+
+CREATE TABLE IF NOT EXISTS ovh_state (
+  id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ovh_state_updated_at ON ovh_state(updated_at DESC);
