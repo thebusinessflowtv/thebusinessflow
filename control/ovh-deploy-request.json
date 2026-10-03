@@ -1,6 +1,6 @@
 {
-  "request_id": "twitch-hotswap-rollout-20261003-0525",
+  "request_id": "youtube-deep-house-hotswap-20261003-0526",
   "action": "deploy_service",
-  "target": "twitch",
+  "target": "youtube-deep-house",
   "source": "chatgpt-all-platform-hotswap-rollout"
 }
