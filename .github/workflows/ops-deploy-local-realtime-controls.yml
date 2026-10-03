@@ -1,0 +1,135 @@
+name: MediaForge — Deploy Local Realtime Controls
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-deploy-local-realtime-controls.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Login to OVH-local MediaForge
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS --connect-timeout 8 --max-time 25 -X POST "$BASE/api/auth/login"             -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/token
+          echo "LOCAL_LOGIN_OK"
+
+      - name: Snapshot Twitch and Kick
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/before.json
+          node - <<'NODE'
+          const fs=require('fs'),d=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
+          for(const s of ['twitch','kick']){
+            const x=d.agent?.services?.[s]||{};
+            console.log('BEFORE',s,'encoder='+x.encoder_pid,'audio='+x.audio_pid,'visual='+x.visual_pid,'track='+x.now_playing?.track_id,'title='+x.now_playing?.title);
+            if(!x.encoder_pid)throw new Error(s+' missing encoder');
+          }
+          NODE
+
+      - name: Reload host deploy agent from latest GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          ID="local-host-realtime-controls-20261003-v1"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"realtime-audio-controls-local"}')" >/tmp/host-create.json
+          for i in $(seq 1 50); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/host.json
+            ST="$(jq -r '.command.status // empty' /tmp/host.json)"
+            echo "host_agent=$ST"
+            [ "$ST" = "completed" ] && break
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/host.json; exit 1; fi
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/host.json >/dev/null
+
+      - name: Hot patch Twitch audio controls without RTMP restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          ID="local-hotpatch-twitch-realtime-controls-v1"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"hot_patch_streaming",target:"twitch",request_id:$id,source:"realtime-audio-controls-local"}')" >/tmp/tw-create.json
+          for i in $(seq 1 50); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/tw.json
+            ST="$(jq -r '.command.status // empty' /tmp/tw.json)"
+            echo "twitch_patch=$ST"
+            [ "$ST" = "completed" ] && break
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/tw.json; exit 1; fi
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/tw.json >/dev/null
+          jq -e '.command.result.targets[0].encoder_pid_preserved==true' /tmp/tw.json >/dev/null
+
+      - name: Hot patch Kick audio controls without RTMP restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          ID="local-hotpatch-kick-realtime-controls-v1"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"hot_patch_streaming",target:"kick",request_id:$id,source:"realtime-audio-controls-local"}')" >/tmp/k-create.json
+          for i in $(seq 1 50); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/k.json
+            ST="$(jq -r '.command.status // empty' /tmp/k.json)"
+            echo "kick_patch=$ST"
+            [ "$ST" = "completed" ] && break
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/k.json; exit 1; fi
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/k.json >/dev/null
+          jq -e '.command.result.targets[0].encoder_pid_preserved==true' /tmp/k.json >/dev/null
+
+      - name: Stress test three rapid Twitch skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          for N in 1 2 3; do
+            curl -kfsS -X POST "$BASE/api/ovh/control"               -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'               --data '{"action":"skip","runtime_slot":"twitch"}' | tee "/tmp/skip-$N.json"
+            echo
+          done
+          sleep 14
+
+      - name: Verify repeated skips did not restart publishers
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/after.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const b=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
+          const a=JSON.parse(fs.readFileSync('/tmp/after.json','utf8'));
+          for(const s of ['twitch','kick']){
+            const x=b.agent?.services?.[s]||{},y=a.agent?.services?.[s]||{};
+            console.log('AFTER',s,'before_encoder='+x.encoder_pid,'after_encoder='+y.encoder_pid,'status='+y.status,'visual='+y.visual_status,'track='+y.now_playing?.track_id,'title='+y.now_playing?.title);
+            if(String(x.encoder_pid)!==String(y.encoder_pid))throw new Error(s+' encoder changed');
+            if(y.status!=='live')throw new Error(s+' not live');
+            if(y.visual_status!=='streaming')throw new Error(s+' visual not streaming');
+          }
+          const beforeTrack=b.agent?.services?.twitch?.now_playing?.track_id;
+          const afterTrack=a.agent?.services?.twitch?.now_playing?.track_id;
+          if(!afterTrack||afterTrack===beforeTrack)throw new Error('Twitch track did not advance after rapid skips');
+          NODE
+          echo "REALTIME_CONTROLS_ZERO_DROP_OK"
