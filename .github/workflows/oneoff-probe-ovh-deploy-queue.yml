@@ -1,5 +1,5 @@
 name: One-off — Probe OVH Deploy Queue
-# trigger: 2026-10-03T04:48Z
+# trigger: 2026-10-03T04:50Z runtime verification
 
 on:
   push:
@@ -25,12 +25,14 @@ jobs:
           LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
           TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
           curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/deploy-status" | jq . > control/ovh-deploy-probe.json
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/status" | jq . > control/ovh-runtime-probe.json
           cat control/ovh-deploy-probe.json
+          cat control/ovh-runtime-probe.json
       - name: Commit
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add control/ovh-deploy-probe.json
+          git add control/ovh-deploy-probe.json control/ovh-runtime-probe.json
           git commit -m "probe: OVH deploy queue" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
