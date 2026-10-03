@@ -72,3 +72,19 @@ CREATE TABLE IF NOT EXISTS ovh_state (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ovh_state_updated_at ON ovh_state(updated_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS ovh_commands (
+  id TEXT PRIMARY KEY,
+  runtime_slot TEXT NOT NULL,
+  action TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL,
+  claimed_at TEXT,
+  completed_at TEXT,
+  error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ovh_commands_pending
+ON ovh_commands(status, created_at);
