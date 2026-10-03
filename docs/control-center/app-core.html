@@ -168,6 +168,65 @@
     .music-track-main b{display:block;font-size:12px}.music-track-main small{display:block;color:var(--muted);font-size:9px;margin-top:4px}
     .music-track-row audio{width:100%;height:34px}
     @media(max-width:760px){.music-track-row{grid-template-columns:32px 1fr}.music-track-row audio{grid-column:2}}
+
+    /* App shell hard layout v4 — one page scroller, fixed channel navigation */
+    @media (min-width:901px){
+      html,body{
+        width:100%!important;
+        height:auto!important;
+        min-height:100%!important;
+        overflow-x:hidden!important;
+        overflow-y:auto!important;
+        overscroll-behavior-y:auto!important;
+      }
+      body{position:relative!important}
+      .channel-shell.shell{
+        display:block!important;
+        width:100%!important;
+        min-height:100vh!important;
+        overflow:visible!important;
+      }
+      .channel-shell>.sidebar{
+        position:fixed!important;
+        inset:0 auto 0 0!important;
+        width:272px!important;
+        height:100dvh!important;
+        max-height:100dvh!important;
+        overflow-y:auto!important;
+        overflow-x:hidden!important;
+        z-index:120!important;
+        overscroll-behavior:contain!important;
+      }
+      .channel-shell>.main{
+        display:block!important;
+        margin-left:272px!important;
+        width:calc(100% - 272px)!important;
+        max-width:calc(100% - 272px)!important;
+        min-height:100vh!important;
+        overflow:visible!important;
+      }
+      .channel-shell>.main>.topbar{
+        position:sticky!important;
+        top:0!important;
+        z-index:110!important;
+      }
+      .channel-shell>.main>.page{
+        overflow:visible!important;
+      }
+      .module-frame{
+        overflow:visible!important;
+      }
+      .module-frame iframe{
+        overflow:hidden!important;
+      }
+    }
+    @media (max-width:900px){
+      html,body{height:auto!important;min-height:100%!important;overflow-y:auto!important}
+      .channel-shell.shell{display:block!important;overflow:visible!important}
+      .channel-shell>.sidebar{display:none!important}
+      .channel-shell>.main{margin-left:0!important;width:100%!important;max-width:100%!important;overflow:visible!important}
+    }
+
 </style>
   <link rel="stylesheet" href="./apple-liquidglass-v3.css?v=20260926-3">
 </head>
@@ -364,9 +423,30 @@
       frame.addEventListener('load',()=>{
         resize();setTimeout(resize,250);setTimeout(resize,900);setTimeout(resize,1800);
         try{
-          const target=frame.contentDocument?.body;
+          const doc=frame.contentDocument,target=doc?.body;
           if(target&&window.ResizeObserver){
             const ro=new ResizeObserver(resize);ro.observe(target);frame._mfResizeObserver=ro;
+          }
+          if(doc&&!frame._mfWheelBridge){
+            const canInnerScroll=(start,dy)=>{
+              let el=start instanceof Element?start:null;
+              while(el&&el!==doc.body&&el!==doc.documentElement){
+                const st=frame.contentWindow?.getComputedStyle(el);
+                const oy=st?.overflowY||'';
+                if((oy==='auto'||oy==='scroll')&&el.scrollHeight>el.clientHeight+2){
+                  if(dy<0&&el.scrollTop>0)return true;
+                  if(dy>0&&el.scrollTop+el.clientHeight<el.scrollHeight-1)return true;
+                }
+                el=el.parentElement;
+              }
+              return false;
+            };
+            doc.addEventListener('wheel',ev=>{
+              if(ev.ctrlKey||canInnerScroll(ev.target,ev.deltaY))return;
+              ev.preventDefault();
+              window.scrollBy({top:ev.deltaY,left:0,behavior:'auto'});
+            },{passive:false});
+            frame._mfWheelBridge=true;
           }
         }catch(_){}
       });
