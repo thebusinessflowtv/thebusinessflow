@@ -1,6 +1,6 @@
 {
-  "request_id": "kick-hot-swap-agent-20261003-0147",
+  "request_id": "kick-stability-deploy-20261003-0148",
   "action": "deploy_service",
-  "target": "ovh-agent",
+  "target": "kick",
   "source": "chatgpt-kick-stability-fix"
 }
