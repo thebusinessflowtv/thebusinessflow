@@ -45,9 +45,10 @@ const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service'];
 function ovhAgentAllowed(request,env){
-  const ip=request.headers.get('cf-connecting-ip')||'';
-  const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
-  return {ok:allowed.includes(ip),ip};
+  const ip=request.headers.get('cf-connecting-ip')||'',lower=ip.toLowerCase();
+  const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+  const v6Prefixes=String(env.OVH_AGENT_IPV6_PREFIXES||'2001:41d0:305:2100:').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+  return {ok:allowed.includes(lower)||v6Prefixes.some(p=>lower.startsWith(p)),ip};
 }
 
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
@@ -107,9 +108,7 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:'r2',database:'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true},200,cors);
 
   if(url.pathname==='/api/ovh/agent/status'&&request.method==='POST'){
-    const ip=request.headers.get('cf-connecting-ip')||'';
-    const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
-    if(!allowed.includes(ip))return json({error:'forbidden_agent',ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
     const b=await bodyJson(request),now=new Date().toISOString();
     await env.DB.prepare(`INSERT INTO ovh_state(id,payload_json,updated_at) VALUES('ovh-main',?,?) ON CONFLICT(id) DO UPDATE SET payload_json=excluded.payload_json,updated_at=excluded.updated_at`).bind(JSON.stringify(b),now).run();
     for(const [slot,s] of Object.entries(b.services||{})){
@@ -125,9 +124,7 @@ async function handleApi(request,env,url){
   }
 
   if(url.pathname==='/api/ovh/agent/commands'&&request.method==='GET'){
-    const ip=request.headers.get('cf-connecting-ip')||'';
-    const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
-    if(!allowed.includes(ip))return json({error:'forbidden_agent',ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
     const limit=Math.max(1,Math.min(50,Number(url.searchParams.get('limit')||20)));
     const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_commands WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-60 seconds')) ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
     const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
@@ -138,9 +135,7 @@ async function handleApi(request,env,url){
     return json({commands},200,cors);
   }
   if(url.pathname==='/api/ovh/agent/command-ack'&&request.method==='POST'){
-    const ip=request.headers.get('cf-connecting-ip')||'';
-    const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
-    if(!allowed.includes(ip))return json({error:'forbidden_agent',ip},403,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
     const b=await bodyJson(request),id=String(b.id||''),status=String(b.status||'completed'),now=new Date().toISOString();
     if(!id)return json({error:'id_required'},400,cors);
     await env.DB.prepare(`UPDATE ovh_commands SET status=?,completed_at=?,error=? WHERE id=?`).bind(status,now,String(b.error||''),id).run();
