@@ -1,0 +1,112 @@
+name: MediaForge — Deploy Realtime Audio Controls
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/deploy-realtime-audio-controls.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Wrangler
+        working-directory: cloudflare/mediaforge-worker
+        run: npm install
+      - name: Resolve D1
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json > /tmp/d1.json
+          DB_ID="$(node - <<'NODE'
+          const fs=require('fs');
+          const list=JSON.parse(fs.readFileSync('/tmp/d1.json','utf8'));
+          const row=(Array.isArray(list)?list:(list.result||[])).find(x=>x.name==='mediaforge-control');
+          process.stdout.write(row?.uuid||row?.id||'');
+          NODE
+          )"
+          test -n "$DB_ID"
+          DB_ID="$DB_ID" node - <<'NODE'
+          const fs=require('fs');
+          const p='wrangler.jsonc';
+          const cfg=JSON.parse(fs.readFileSync(p,'utf8'));
+          cfg.d1_databases=[{binding:'DB',database_name:'mediaforge-control',database_id:process.env.DB_ID}];
+          fs.writeFileSync(p,JSON.stringify(cfg,null,2)+'\n');
+          NODE
+      - name: Snapshot before
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT payload_json,updated_at FROM ovh_state WHERE id='ovh-main';" > /tmp/before.json
+          cat /tmp/before.json
+      - name: Reload host agent source
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="deploy-host-audio-controls-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"id\":\"$ID\",\"action\":\"deploy_host_agent\",\"target\":\"host-agent\",\"requested_at\":\"$NOW\",\"requested_by\":\"github-ops\",\"source\":\"realtime-audio-controls\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT OR REPLACE INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES('$ID','deploy_host_agent','host-agent','$PAYLOAD','pending','$NOW');"
+          for i in $(seq 1 40); do
+            npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,status,error,result_json FROM ovh_deploy_commands WHERE id='$ID';" > /tmp/host.json
+            if grep -q '"status": "completed"' /tmp/host.json; then break; fi
+            if grep -q '"status": "failed"' /tmp/host.json; then cat /tmp/host.json; exit 1; fi
+            sleep 3
+          done
+          cat /tmp/host.json
+          grep -q '"status": "completed"' /tmp/host.json
+      - name: Hot patch audio controls without RTMP restart
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="hotpatch-audio-controls-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"id\":\"$ID\",\"action\":\"hot_patch_audio_controls\",\"target\":\"twitch-kick\",\"requested_at\":\"$NOW\",\"requested_by\":\"github-ops\",\"source\":\"realtime-audio-controls\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT OR REPLACE INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES('$ID','hot_patch_audio_controls','twitch-kick','$PAYLOAD','pending','$NOW');"
+          for i in $(seq 1 60); do
+            npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,status,error,result_json FROM ovh_deploy_commands WHERE id='$ID';" > /tmp/patch.json
+            if grep -q '"status": "completed"' /tmp/patch.json; then break; fi
+            if grep -q '"status": "failed"' /tmp/patch.json; then cat /tmp/patch.json; exit 1; fi
+            sleep 3
+          done
+          cat /tmp/patch.json
+          grep -q '"status": "completed"' /tmp/patch.json
+          grep -q '"encoder_pid_preserved":true' /tmp/patch.json
+      - name: Queue two Twitch skips for stress test
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          for N in 1 2; do
+            NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            ID="stress-skip-$N-$(date -u +%Y%m%d%H%M%S)-$RANDOM"
+            PAYLOAD="{\"id\":\"$ID\",\"action\":\"skip\",\"runtime_slot\":\"twitch\",\"platform\":\"twitch\",\"source\":\"stress-test-realtime-audio\",\"requested_at\":\"$NOW\"}"
+            npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at) VALUES('$ID','twitch','skip','$PAYLOAD','pending','$NOW');"
+          done
+          sleep 12
+      - name: Verify encoder stability after repeated skips
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT payload_json,updated_at FROM ovh_state WHERE id='ovh-main';" > /tmp/after.json
+          cat /tmp/after.json
+          node - <<'NODE'
+          const fs=require('fs');
+          function state(path){
+            const raw=JSON.parse(fs.readFileSync(path,'utf8'));
+            const row=(Array.isArray(raw)?raw:[]).flatMap(x=>x.results||[])[0]||{};
+            return JSON.parse(row.payload_json||'{}');
+          }
+          const before=state('/tmp/before.json'),after=state('/tmp/after.json');
+          for(const slot of ['twitch','kick']){
+            const b=before.services?.[slot]||{},a=after.services?.[slot]||{};
+            console.log(slot,{before_encoder:b.encoder_pid,after_encoder:a.encoder_pid,status:a.status,visual_status:a.visual_status,now_playing:a.now_playing,playlist_key:a.playlist_key});
+            if(!a.encoder_pid||a.encoder_pid!==b.encoder_pid)throw new Error(slot+' encoder changed');
+            if(a.status!=='live')throw new Error(slot+' is not live');
+          }
+          NODE
