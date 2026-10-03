@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MediaForge — Twitch DJ Catalog Scanner
 // @namespace    https://thebusinessflowtv.github.io/thebusinessflow/
-// @version      1.0.5
+// @version      1.0.6
 // @description  Verifica automaticamente uma lista MediaForge no Twitch DJ Music Catalog pela própria interface autenticada, sem enviar cookies/OAuth da Twitch ao MediaForge.
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @run-at       document-idle
@@ -151,6 +151,14 @@
     for(const x of A)if(!B.has(x))return false;
     return true;
   }
+  function artistParts(text){
+    return String(text||'').split(/[,;&]/).map(norm).filter(x=>x.length>=2);
+  }
+  function artistCompatible(referenceArtists,resultArtists){
+    const ref=artistParts(referenceArtists),res=norm(resultArtists);
+    if(!ref.length||!res)return false;
+    return ref.some(a=>a.length>=3&&(res.includes(a)||a.includes(res)));
+  }
 
   async function waitForResults(ref,previousText,timeout=12000){
     const start=Date.now();
@@ -159,15 +167,20 @@
       const changed=String(document.body.innerText||'')!==previousText;
       if(changed&&rows.length){
         const scored=rows.map(r=>{
-          const titleScore=sim(ref.title,r.title),artistScore=sim(ref.artists,r.artists),versionOk=versionCompatible(ref.title,r.title);
-          return {...r,titleScore,artistScore,versionOk,score:titleScore*0.72+artistScore*0.28};
+          const titleScore=sim(ref.title,r.title),artistScore=sim(ref.artists,r.artists),versionOk=versionCompatible(ref.title,r.title),artistOk=artistCompatible(ref.artists,r.artists);
+          return {...r,titleScore,artistScore,versionOk,artistOk,score:titleScore*0.72+artistScore*0.28};
         }).sort((a,b)=>b.score-a.score);
-        const best=scored[0];
-        if(best&&best.titleScore>=0.68&&best.score>=0.55&&best.versionOk){
-          return {status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',version_match:true}};
+        const best=scored.find(x=>x.titleScore>=0.68&&x.artistOk&&x.versionOk);
+        if(best){
+          return {status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',version_match:true,artist_match:true}};
         }
-        if(best&&best.titleScore>=0.68&&best.score>=0.55&&!best.versionOk){
-          return {status:'ambiguous',matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',reason:'different_version_or_remix',candidate_status:best.status}};
+        const wrongVersion=scored.find(x=>x.titleScore>=0.68&&x.artistOk&&!x.versionOk);
+        if(wrongVersion){
+          return {status:'ambiguous',matched_title:wrongVersion.title,matched_artists:wrongVersion.artists,match_score:Number(wrongVersion.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',reason:'different_version_or_remix',candidate_status:wrongVersion.status}};
+        }
+        const wrongArtist=scored.find(x=>x.titleScore>=0.68&&x.versionOk&&!x.artistOk);
+        if(wrongArtist){
+          return {status:'ambiguous',matched_title:wrongArtist.title,matched_artists:wrongArtist.artists,match_score:Number(wrongArtist.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',reason:'title_match_artist_mismatch',candidate_status:wrongArtist.status}};
         }
       }
       await sleep(250);
