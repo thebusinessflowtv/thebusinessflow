@@ -1,5 +1,5 @@
 name: One-off — Probe OVH Deploy Queue
-# trigger: 2026-10-03T04:50Z runtime verification
+# trigger: 2026-10-03T04:51Z post-restart verification
 
 on:
   push:
