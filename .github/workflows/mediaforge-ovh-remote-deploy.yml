@@ -1,0 +1,93 @@
+name: MediaForge — OVH Remote Deploy Bridge
+
+on:
+  push:
+    paths:
+      - 'control/ovh-deploy-request.json'
+      - '.github/workflows/mediaforge-ovh-remote-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mediaforge-ovh-remote-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://mediaforge-api.guilhermeodsgn.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate request
+        run: |
+          set -euo pipefail
+          test -f control/ovh-deploy-request.json || { echo "::error::control/ovh-deploy-request.json missing"; exit 1; }
+          jq -e '.request_id and .action' control/ovh-deploy-request.json >/dev/null
+          ACTION="$(jq -r '.action' control/ovh-deploy-request.json)"
+          case "$ACTION" in
+            deploy_service|deploy_all|deploy_host_agent|health_check|rollback_service) ;;
+            *) echo "::error::Unsupported deploy action: $ACTION"; exit 1 ;;
+          esac
+
+      - name: Submit and wait for OVH
+        id: submit
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+
+          REQ="$(cat control/ovh-deploy-request.json)"
+          SUBMIT="$(curl -fsS -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$REQ" "$API/api/ovh/deploy")"
+          echo "$SUBMIT" | jq .
+          ID="$(echo "$SUBMIT" | jq -r '.command.id')"
+          test -n "$ID" && test "$ID" != "null"
+
+          STATUS="pending"
+          for N in $(seq 1 180); do
+            OUT="$(curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/deploy-status?id=$ID")"
+            STATUS="$(echo "$OUT" | jq -r '.command.status')"
+            echo "[$N] $ID -> $STATUS"
+            if [ "$STATUS" = "completed" ] || [ "$STATUS" = "failed" ]; then
+              echo "$OUT" | jq . > control/ovh-deploy-result.json
+              break
+            fi
+            sleep 5
+          done
+
+          if [ ! -f control/ovh-deploy-result.json ]; then
+            jq -nc --arg id "$ID" --arg status "$STATUS" '{command:{id:$id,status:$status,error:"timeout_waiting_for_ovh"}}' > control/ovh-deploy-result.json
+          fi
+
+          echo "status=$(jq -r '.command.status' control/ovh-deploy-result.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish result
+        if: always()
+        run: |
+          set -euo pipefail
+          test -f control/ovh-deploy-result.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/ovh-deploy-result.json
+          git commit -m "MediaForge: record OVH remote deploy result" || exit 0
+          for N in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((N*2))
+          done
+          exit 1
+
+      - name: Fail if OVH deploy failed
+        if: always()
+        run: |
+          test -f control/ovh-deploy-result.json || exit 1
+          STATUS="$(jq -r '.command.status' control/ovh-deploy-result.json)"
+          test "$STATUS" = "completed"
