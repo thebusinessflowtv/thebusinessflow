@@ -1,11 +1,7 @@
 name: Deploy MediaForge Control Center
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'control-center/**'
-      - '.github/workflows/mfcc-pages.yml'
+  # OVH serves the production Control Center. Pages is manual fallback only.
   workflow_dispatch:
 
 permissions:
