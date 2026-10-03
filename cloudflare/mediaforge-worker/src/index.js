@@ -274,7 +274,8 @@ async function issueOvhCommand(env,command){
   if(String(command?.source||'')==='mediaforge-visual-switch') command={...command,action:'set_visual'};
   const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
   await env.DB.prepare(`INSERT OR REPLACE INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at,claimed_at,completed_at,error) VALUES(?,?,?,?, 'pending', ?,NULL,NULL,NULL)`).bind(id,String(payload.runtime_slot||''),String(payload.action||''),JSON.stringify(payload),now).run();
-  if(String(env.LOCAL_RUNTIME||'')!=='1'){
+  const realtimeAudioControl=['skip','previous'].includes(String(payload.action||'').toLowerCase());
+  if(String(env.LOCAL_RUNTIME||'')!=='1'&&!realtimeAudioControl){
     try{
       await githubQueueFile(env,path,payload,`mediaforge ovh command ${id}`);
       const idx=(await fetchGithubJson(env,'control/ovh-commands/index.json'))||{version:1,commands:[]};
