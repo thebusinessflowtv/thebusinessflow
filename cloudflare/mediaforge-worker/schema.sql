@@ -88,3 +88,22 @@ CREATE TABLE IF NOT EXISTS ovh_commands (
 
 CREATE INDEX IF NOT EXISTS idx_ovh_commands_pending
 ON ovh_commands(status, created_at);
+
+
+-- Remote OVH deploy queue. Commands are deliberately allow-listed by the Worker
+-- and by the host-side deploy agent; arbitrary shell execution is not supported.
+CREATE TABLE IF NOT EXISTS ovh_deploy_commands (
+  id TEXT PRIMARY KEY,
+  action TEXT NOT NULL,
+  target TEXT,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL,
+  claimed_at TEXT,
+  completed_at TEXT,
+  error TEXT,
+  result_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ovh_deploy_commands_pending
+ON ovh_deploy_commands(status, created_at);
