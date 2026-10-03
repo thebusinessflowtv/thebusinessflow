@@ -1,11 +1,8 @@
 name: MediaForge — Deploy Cloudflare Backend
 
 on:
+  # Cloudflare backend is retained only as an explicit rollback path.
   workflow_dispatch:
-  push:
-    paths:
-      - 'cloudflare/mediaforge-worker/**'
-      - '.github/workflows/deploy-mediaforge-cloudflare.yml'
 
 permissions:
   contents: write
