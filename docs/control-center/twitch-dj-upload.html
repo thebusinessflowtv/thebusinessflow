@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MediaForge · Twitch DJ Import</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0e0e10;color:#efeff1;font:14px/1.5 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:820px;margin:48px auto;padding:0 18px}.card{background:#18181b;border:1px solid #3b2b52;border-radius:16px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.35)}h1{font-size:24px;margin:0 0 8px}.muted{color:#adadb8}.pill{display:inline-block;background:#2b1646;color:#d9b8ff;border:1px solid #64438f;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800}.drop{display:block;margin-top:20px;border:1px dashed #7956a8;border-radius:14px;padding:28px;text-align:center;cursor:pointer;background:#121216}.drop:hover{background:#17131c}.bar{height:9px;background:#29292e;border-radius:999px;overflow:hidden;margin-top:14px}.bar span{display:block;height:100%;width:0;background:#9146ff}.status{margin-top:12px;white-space:pre-wrap}.good{color:#8ff2bb}.bad{color:#ff9ca6}.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.btn{display:inline-block;border:1px solid #555;background:#26262c;color:#fff;border-radius:9px;padding:9px 12px;text-decoration:none;cursor:pointer}.btn:hover{background:#33333a}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.stat{background:#111114;border:1px solid #2c2c31;border-radius:10px;padding:12px}.stat b{font-size:20px}@media(max-width:620px){.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="row"><div><h1>Twitch DJ · Importar MP3</h1><div class="muted">Playlist <b>Twitch DJ Mixed</b> · isolada de Kick e YouTube.</div></div><span class="pill">TWITCH ONLY</span></div>
+    <div class="stats">
+      <div class="stat"><div class="muted">AUTORAIS</div><b>36</b></div>
+      <div class="stat"><div class="muted">MP3 VALIDADOS</div><b>35</b></div>
+      <div class="stat"><div class="muted">TOTAL APÓS IMPORTAR</div><b>71</b></div>
+    </div>
+    <label class="drop" for="zip"><b>Selecionar o Arquivo.zip</b><br><span class="muted">O ZIP é enviado em partes. A OVH valida SHA-256, ignora duplicatas e atualiza somente o áudio da Twitch.</span></label>
+    <input id="zip" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+    <div class="bar"><span id="bar"></span></div>
+    <div id="status" class="status muted">Nenhum arquivo selecionado.</div>
+    <div class="row" style="margin-top:18px"><a class="btn" href="./lives.html?platform=twitch">← Voltar para Lives</a><button id="refresh" class="btn">Atualizar status</button></div>
+  </div>
+</div>
+<script src="./mediaforge-config.js"></script>
+<script>
+(function(){
+  var API=(window.MEDIAFORGE_CONFIG&&window.MEDIAFORGE_CONFIG.API_URL||localStorage.getItem('mediaforge_api_url')||'').replace(/\/$/,'');
+  var TOKEN=localStorage.getItem('mediaforge_token')||'';
+  var status=document.getElementById('status'),bar=document.getElementById('bar'),input=document.getElementById('zip');
+  function setStatus(msg,cls){status.className='status '+(cls||'muted');status.textContent=msg}
+  async function api(path,opt){
+    opt=opt||{};var headers=Object.assign({},opt.headers||{},{authorization:'Bearer '+TOKEN});
+    if(opt.body && !(opt.body instanceof Blob) && !headers['content-type']) headers['content-type']='application/json';
+    var r=await fetch(API+path,Object.assign({},opt,{headers:headers})),data=null,ct=r.headers.get('content-type')||'';
+    try{data=ct.indexOf('json')>=0?await r.json():await r.text()}catch(e){}
+    if(r.status===401){localStorage.removeItem('mediaforge_token');location.href='./secure.html';throw new Error('Sessão expirada')}
+    if(!r.ok)throw new Error(data&&data.message||data&&data.error||('HTTP '+r.status));
+    return data;
+  }
+  async function uploadPart(assetId,uploadId,n,blob){
+    var last;for(var i=0;i<3;i++){try{return await api('/api/uploads/part?asset_id='+encodeURIComponent(assetId)+'&upload_id='+encodeURIComponent(uploadId)+'&part_number='+n,{method:'PUT',body:blob,headers:{'content-type':'application/octet-stream'}})}catch(e){last=e;await new Promise(function(r){setTimeout(r,1000*(i+1))})}}throw last;
+  }
+  async function refresh(){
+    try{
+      var x=await api('/api/twitch-dj/status'),imp=x.dj_import||{};
+      if(imp.status==='ready') setStatus('✓ Playlist ativa: '+Number(imp.original_tracks||0)+' autorais + '+Number(imp.commercial_tracks||0)+' comerciais = '+Number(imp.track_count||x.playlist_track_count||0)+' faixas.\nRTMP não foi reiniciado.','good');
+      else if(imp.status==='validating') setStatus('Validando MP3s por SHA-256 na OVH…');
+      else if(imp.status==='downloading') setStatus('OVH baixando o ZIP do MediaForge…');
+      else setStatus('Twitch: '+String(x.status||'unknown')+' · hot-swap: '+(x.hot_swap?'ativo':'indisponível')+' · playlist atual: '+String(x.playlist_key||'—'));
+      return x;
+    }catch(e){setStatus('Falha ao consultar: '+e.message,'bad')}
+  }
+  async function upload(file){
+    if(!file||!/\.zip$/i.test(file.name)){setStatus('Selecione um arquivo .zip.','bad');return}
+    var init=null;
+    try{
+      setStatus(file.name+' · preparando upload…');bar.style.width='0%';
+      init=await api('/api/uploads/init',{method:'POST',body:JSON.stringify({name:file.name,title:'Twitch DJ MP3 Archive',mime_type:file.type||'application/zip',size_bytes:file.size,asset_type:'dj_archive'})});
+      var chunk=Number(init.chunk_size||52428800),count=Math.ceil(file.size/chunk),parts=new Array(count),done=0,next=0;
+      async function worker(){while(true){var idx=next++;if(idx>=count)return;var start=idx*chunk,end=Math.min(file.size,start+chunk),blob=file.slice(start,end),p=await uploadPart(init.asset_id,init.upload_id,idx+1,blob);parts[idx]=p;done+=blob.size;var pct=Math.round(done/file.size*100);bar.style.width=pct+'%';setStatus(file.name+' · upload '+pct+'%')}}
+      await Promise.all(Array.from({length:Math.min(3,count)},worker));
+      await api('/api/uploads/complete',{method:'POST',body:JSON.stringify({asset_id:init.asset_id,upload_id:init.upload_id,parts:parts})});
+      setStatus('Upload concluído. Enviando para a OVH sem reiniciar a live…');
+      await api('/api/twitch-dj/import-archive',{method:'POST',body:JSON.stringify({asset_id:init.asset_id})});
+      var until=Date.now()+8*60*1000;
+      while(Date.now()<until){await new Promise(function(r){setTimeout(r,4000)});var x=await refresh();if(x&&x.dj_import&&x.dj_import.status==='ready')return}
+      setStatus('Importação enviada. A live continua ativa; clique em Atualizar status em alguns instantes.');
+    }catch(e){
+      if(init)try{await api('/api/uploads/abort',{method:'POST',body:JSON.stringify({asset_id:init.asset_id,upload_id:init.upload_id})})}catch(_){}
+      bar.style.width='0%';setStatus('Falha: '+e.message,'bad');
+    }
+  }
+  input.addEventListener('change',function(){upload(input.files&&input.files[0])});
+  document.getElementById('refresh').addEventListener('click',refresh);
+  if(!API){setStatus('Backend MediaForge não configurado.','bad');return}
+  if(!TOKEN){location.href='./secure.html';return}
+  refresh();
+})();
+</script>
+</body>
+</html>
