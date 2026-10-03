@@ -275,11 +275,14 @@ async function issueOvhCommand(env,command){
   const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
   await env.DB.prepare(`INSERT OR REPLACE INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at,claimed_at,completed_at,error) VALUES(?,?,?,?, 'pending', ?,NULL,NULL,NULL)`).bind(id,String(payload.runtime_slot||''),String(payload.action||''),JSON.stringify(payload),now).run();
   const realtimeAudioControl=['skip','previous'].includes(String(payload.action||'').toLowerCase());
-  if(String(env.LOCAL_RUNTIME||'')!=='1'&&!realtimeAudioControl){
+  if(String(env.LOCAL_RUNTIME||'')!=='1'){
     try{
+      // Mirror every command, including realtime audio controls. D1 is still
+      // primary; GitHub is an independent fallback when the OVH agent misses
+      // the remote queue. Unique IDs keep rapid skip/previous clicks distinct.
       await githubQueueFile(env,path,payload,`mediaforge ovh command ${id}`);
       const idx=(await fetchGithubJson(env,'control/ovh-commands/index.json'))||{version:1,commands:[]};
-      const commands=[...(idx.commands||[]).filter(x=>String(x.id)!==id),{id,path,created_at:now}].slice(-500);
+      const commands=[...(idx.commands||[]).filter(x=>String(x.id)!==id),{id,path,created_at:now,realtime:realtimeAudioControl}].slice(-500);
       await githubQueueFile(env,'control/ovh-commands/index.json',{version:1,updated_at:now,commands},'mediaforge ovh command index');
     }catch(_){}
   }
