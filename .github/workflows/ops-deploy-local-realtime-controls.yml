@@ -37,8 +37,8 @@ jobs:
           const fs=require('fs'),d=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
           for(const s of ['twitch','kick']){
             const x=d.agent?.services?.[s]||{};
-            console.log('BEFORE',s,'encoder='+x.encoder_pid,'audio='+x.audio_pid,'visual='+x.visual_pid,'track='+x.now_playing?.track_id,'title='+x.now_playing?.title);
-            if(!x.encoder_pid)throw new Error(s+' missing encoder');
+            console.log('BEFORE',s,'status='+x.status,'track='+x.now_playing?.track_id,'title='+x.now_playing?.title);
+            if(x.status!=='live')throw new Error(s+' not live before patch');
           }
           NODE
 
@@ -78,6 +78,7 @@ jobs:
           done
           jq -e '.command.status=="completed"' /tmp/tw.json >/dev/null
           jq -e '.command.result.targets[0].encoder_pid_preserved==true' /tmp/tw.json >/dev/null
+          jq -r '.command.result.targets[0].encoder_pid' /tmp/tw.json > /tmp/twitch-encoder
 
       - name: Hot patch Kick audio controls without RTMP restart
         shell: bash
@@ -97,6 +98,7 @@ jobs:
           done
           jq -e '.command.status=="completed"' /tmp/k.json >/dev/null
           jq -e '.command.result.targets[0].encoder_pid_preserved==true' /tmp/k.json >/dev/null
+          jq -r '.command.result.targets[0].encoder_pid' /tmp/k.json > /tmp/kick-encoder
 
       - name: Stress test three rapid Twitch skips
         shell: bash
@@ -121,10 +123,14 @@ jobs:
           const fs=require('fs');
           const b=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
           const a=JSON.parse(fs.readFileSync('/tmp/after.json','utf8'));
+          const expected={
+            twitch:fs.readFileSync('/tmp/twitch-encoder','utf8').trim(),
+            kick:fs.readFileSync('/tmp/kick-encoder','utf8').trim()
+          };
           for(const s of ['twitch','kick']){
-            const x=b.agent?.services?.[s]||{},y=a.agent?.services?.[s]||{};
-            console.log('AFTER',s,'before_encoder='+x.encoder_pid,'after_encoder='+y.encoder_pid,'status='+y.status,'visual='+y.visual_status,'track='+y.now_playing?.track_id,'title='+y.now_playing?.title);
-            if(String(x.encoder_pid)!==String(y.encoder_pid))throw new Error(s+' encoder changed');
+            const y=a.agent?.services?.[s]||{};
+            console.log('AFTER',s,'expected_encoder='+expected[s],'after_encoder='+y.encoder_pid,'status='+y.status,'visual='+y.visual_status,'queued='+y.queued_actions,'track='+y.now_playing?.track_id,'title='+y.now_playing?.title);
+            if(String(y.encoder_pid)!==String(expected[s]))throw new Error(s+' encoder changed after controls');
             if(y.status!=='live')throw new Error(s+' not live');
             if(y.visual_status!=='streaming')throw new Error(s+' visual not streaming');
           }
