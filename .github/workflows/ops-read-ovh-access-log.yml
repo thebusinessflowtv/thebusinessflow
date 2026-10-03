@@ -1,0 +1,28 @@
+name: MediaForge — Read OVH Access Log
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-read-ovh-access-log.yml'
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Wrangler
+        working-directory: cloudflare/mediaforge-worker
+        run: npm install
+      - name: Read denied OVH requests
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          sleep 35
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT ip,route,user_agent,created_at FROM ovh_access_log ORDER BY id DESC LIMIT 30;" || true
+          npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,action,target,status,created_at,claimed_at,completed_at,error FROM ovh_deploy_commands ORDER BY created_at DESC LIMIT 15;" || true
