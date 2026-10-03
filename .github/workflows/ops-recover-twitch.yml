@@ -1,0 +1,83 @@
+name: MediaForge — Recover Twitch Only
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-recover-twitch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Wrangler
+        working-directory: cloudflare/mediaforge-worker
+        run: npm install
+      - name: Resolve D1 binding
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json > /tmp/d1.json
+          DB_ID="$(node - <<'NODE'
+          const fs=require('fs');
+          const list=JSON.parse(fs.readFileSync('/tmp/d1.json','utf8'));
+          const row=(Array.isArray(list)?list:(list.result||[])).find(x=>x.name==='mediaforge-control');
+          process.stdout.write(row?.uuid||row?.id||'');
+          NODE
+          )"
+          test -n "$DB_ID"
+          DB_ID="$DB_ID" node - <<'NODE'
+          const fs=require('fs');
+          const p='wrangler.jsonc';
+          const cfg=JSON.parse(fs.readFileSync(p,'utf8'));
+          cfg.d1_databases=[{binding:'DB',database_name:'mediaforge-control',database_id:process.env.DB_ID}];
+          fs.writeFileSync(p,JSON.stringify(cfg,null,2)+'\n');
+          NODE
+      - name: Health before
+        run: |
+          curl -fsS --retry 3 https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/public-health || true
+      - name: Restart Twitch container only
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="ops-recover-twitch-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"id\":\"$ID\",\"action\":\"deploy_service\",\"target\":\"twitch\",\"requested_at\":\"$NOW\",\"requested_by\":\"github-ops\",\"source\":\"ops-recover-twitch\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT OR REPLACE INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at,claimed_at,completed_at,error,result_json) VALUES('$ID','deploy_service','twitch','$PAYLOAD','pending','$NOW',NULL,NULL,NULL,NULL);"
+          echo "DEPLOY_ID=$ID" >> "$GITHUB_ENV"
+      - name: Wait for Twitch deploy
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 24); do
+            npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,status,completed_at,error,result_json FROM ovh_deploy_commands WHERE id='$DEPLOY_ID';" > /tmp/deploy.json
+            cat /tmp/deploy.json
+            if grep -q '"status": "completed"' /tmp/deploy.json; then break; fi
+            if grep -q '"status": "failed"' /tmp/deploy.json; then exit 1; fi
+            sleep 5
+          done
+      - name: Resume Twitch slot
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="ops-resume-twitch-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"action\":\"start\",\"runtime_slot\":\"twitch\",\"platform\":\"twitch\",\"session_id\":\"b43d8f63-6e1a-4c47-a4c5-10fd2e4a5c8f\",\"title\":\"Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE\",\"source\":\"ops-recover-twitch\",\"id\":\"$ID\",\"runtime\":\"ovh\",\"requested_at\":\"$NOW\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT OR REPLACE INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at,claimed_at,completed_at,error) VALUES('$ID','twitch','start','$PAYLOAD','pending','$NOW',NULL,NULL,NULL);"
+          echo "CONTROL_ID=$ID" >> "$GITHUB_ENV"
+      - name: Wait and verify health
+        run: |
+          set -euo pipefail
+          sleep 20
+          echo "=== PUBLIC HEALTH ==="
+          curl -fsS --retry 5 --retry-all-errors https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/public-health
