@@ -36,18 +36,22 @@ jobs:
           secure = Path('control-center/secure.html').read_text(encoding='utf-8')
           lives = Path('control-center/lives.html').read_text(encoding='utf-8')
           twitch = Path('control-center/twitch.html').read_text(encoding='utf-8')
+          ovh = Path('control-center/ovh.html').read_text(encoding='utf-8')
           office = Path('control-center/office-music.html').read_text(encoding='utf-8')
 
           assert './secure.html' in index, 'MediaForge entry must route to secure gate'
           assert '<title>MediaForge Control Center</title>' in secure, 'Secure gate missing'
           assert 'mediaforge_token' in secure and '/api/auth/login' in secure, 'Cloudflare auth gate missing'
           assert '<title>Lives · MediaForge</title>' in lives, 'Lives page missing'
-          assert 'href="./twitch.html"' in lives, 'Twitch tab missing from Lives'
-          assert '<title>Twitch · MediaForge</title>' in twitch, 'Twitch page missing'
-          assert 'control/twitch-active.json' in twitch, 'Twitch live status integration missing'
+          assert 'data-platform="twitch"' in lives, 'Twitch tab missing from unified Lives'
+          assert '<title>Twitch · MediaForge</title>' in twitch, 'Twitch compatibility page missing'
+          assert 'lives.html?platform=twitch' in twitch, 'Twitch page must redirect to unified Lives'
+          assert '<title>OVH VPS · MediaForge</title>' in ovh, 'OVH dashboard missing'
+          assert 'ovh.html' in lives, 'OVH navigation missing from Lives'
           assert '<title>The Office Music · MediaForge</title>' in office, 'Office Music page missing'
           PY
           node --check control-center/lives-cloudflare.js
+          node --check control-center/ovh.js
           node --check control-center/office-music.js
           node --check control-center/office-music-nav.js
 
