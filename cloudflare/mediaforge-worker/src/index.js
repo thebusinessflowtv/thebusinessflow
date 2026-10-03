@@ -48,10 +48,13 @@ async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/m
 async function issueOvhCommand(env,command){
   const now=new Date().toISOString(),id=String(command.id||crypto.randomUUID()),path=`control/ovh-commands/${id}.json`;
   const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
-  await githubQueueFile(env,path,payload,`mediaforge ovh command ${id}`);
-  const idx=(await fetchGithubJson(env,'control/ovh-commands/index.json'))||{version:1,commands:[]};
-  const commands=[...(idx.commands||[]).filter(x=>String(x.id)!==id),{id,path,created_at:now}].slice(-500);
-  await githubQueueFile(env,'control/ovh-commands/index.json',{version:1,updated_at:now,commands},'mediaforge ovh command index');
+  await env.DB.prepare(`INSERT OR REPLACE INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at,claimed_at,completed_at,error) VALUES(?,?,?,?, 'pending', ?,NULL,NULL,NULL)`).bind(id,String(payload.runtime_slot||''),String(payload.action||''),JSON.stringify(payload),now).run();
+  try{
+    await githubQueueFile(env,path,payload,`mediaforge ovh command ${id}`);
+    const idx=(await fetchGithubJson(env,'control/ovh-commands/index.json'))||{version:1,commands:[]};
+    const commands=[...(idx.commands||[]).filter(x=>String(x.id)!==id),{id,path,created_at:now}].slice(-500);
+    await githubQueueFile(env,'control/ovh-commands/index.json',{version:1,updated_at:now,commands},'mediaforge ovh command index');
+  }catch(_){}
   return payload;
 }
 async function runtimeForSession(env,id){
@@ -100,13 +103,37 @@ async function handleApi(request,env,url){
     return json({ok:true,stored_at:now},200,cors);
   }
 
+  if(url.pathname==='/api/ovh/agent/commands'&&request.method==='GET'){
+    const ip=request.headers.get('cf-connecting-ip')||'';
+    const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
+    if(!allowed.includes(ip))return json({error:'forbidden_agent',ip},403,cors);
+    const limit=Math.max(1,Math.min(50,Number(url.searchParams.get('limit')||20)));
+    const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_commands WHERE status='pending' ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
+    const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
+    if(commands.length){
+      const now=new Date().toISOString();
+      for(const cmd of commands)await env.DB.prepare(`UPDATE ovh_commands SET status='claimed',claimed_at=? WHERE id=? AND status='pending'`).bind(now,String(cmd.id)).run();
+    }
+    return json({commands},200,cors);
+  }
+  if(url.pathname==='/api/ovh/agent/command-ack'&&request.method==='POST'){
+    const ip=request.headers.get('cf-connecting-ip')||'';
+    const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim()).filter(Boolean);
+    if(!allowed.includes(ip))return json({error:'forbidden_agent',ip},403,cors);
+    const b=await bodyJson(request),id=String(b.id||''),status=String(b.status||'completed'),now=new Date().toISOString();
+    if(!id)return json({error:'id_required'},400,cors);
+    await env.DB.prepare(`UPDATE ovh_commands SET status=?,completed_at=?,error=? WHERE id=?`).bind(status,now,String(b.error||''),id).run();
+    return json({ok:true,id,status},200,cors);
+  }
+
   if(url.pathname==='/api/auth/login'&&request.method==='POST'){const b=await bodyJson(request),email=String(b.email||'').trim().toLowerCase(),password=String(b.password||'');if(!env.ADMIN_EMAIL||!env.ADMIN_PASSWORD||!env.SESSION_SECRET)return json({error:'auth_not_configured'},503,cors);if(email!==String(env.ADMIN_EMAIL).trim().toLowerCase()||password!==String(env.ADMIN_PASSWORD))return json({error:'invalid_credentials',message:'E-mail ou senha inválidos.'},401,cors);return json({ok:true,token:await signSession(email,env.SESSION_SECRET),user:{email,role:'admin'}},200,cors);}
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
 
   if(url.pathname==='/api/ovh/status'&&request.method==='GET'){
     const state=await ovhState(env),stations=await getYoutubeStations(env);
-    return json({runtime:'ovh',agent:state,youtube_slots:stations.stations||[],slots:OVH_SLOTS},200,cors);
+    let recentCommands=[];try{const q=await env.DB.prepare(`SELECT id,runtime_slot,action,status,created_at,claimed_at,completed_at,error FROM ovh_commands ORDER BY created_at DESC LIMIT 20`).all();recentCommands=q.results||[]}catch(_){}
+    return json({runtime:'ovh',agent:state,youtube_slots:stations.stations||[],slots:OVH_SLOTS,recent_commands:recentCommands},200,cors);
   }
   if(url.pathname==='/api/music-library'&&request.method==='GET'){
     const library=await getMusicLibrary(env);
