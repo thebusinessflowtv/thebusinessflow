@@ -1,49 +1,81 @@
-/* MediaForge embedded module skin — matches app.html Liquid Glass shell */
+/* MediaForge module embed v2 — content only, never a nested app */
 :root{
-  --mf-bg:#05070b;--mf-line:rgba(255,255,255,.105);--mf-line2:rgba(255,255,255,.16);
-  --mf-txt:#f5f5f7;--mf-muted:#a1a1aa;--mf-blue:#0a84ff;--mf-violet:#bf5af2;
-  --mf-green:#30d158;--mf-red:#ff453a;
+  --mf-bg:#050506;--mf-line:rgba(255,255,255,.10);--mf-line2:rgba(255,255,255,.16);
+  --mf-txt:#f5f5f7;--mf-muted:#9d9da5;--mf-blue:#0a84ff;--mf-green:#30d158;--mf-red:#ff453a;
 }
-html,body{
-  background:#05070b!important;color:var(--mf-txt)!important;
-  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif!important;
-  -webkit-font-smoothing:antialiased;
+html.mf-embed,
+html.mf-embed body{
+  margin:0!important;
+  padding:0!important;
+  min-height:0!important;
+  background:#000!important;
+  background-image:none!important;
+  color:var(--mf-txt)!important;
+  overflow-x:hidden!important;
 }
-.card{
+html.mf-embed .shell{
+  display:block!important;
+  min-height:0!important;
+  width:100%!important;
+  grid-template-columns:1fr!important;
+  background:#000!important;
+}
+html.mf-embed .sidebar,
+html.mf-embed .topbar,
+html.mf-embed .brand,
+html.mf-embed .user,
+html.mf-embed .channel-back,
+html.mf-embed .channel-brand{
+  display:none!important;
+}
+html.mf-embed .main{
+  display:block!important;
+  min-width:0!important;
+  width:100%!important;
+  min-height:0!important;
+  background:#000!important;
+}
+html.mf-embed .page{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0!important;
+  background:#000!important;
+}
+html.mf-embed .head,
+html.mf-embed .pagehead{
+  display:none!important;
+}
+html.mf-embed .card{
   background:linear-gradient(145deg,rgba(255,255,255,.075),rgba(255,255,255,.032))!important;
-  border:1px solid var(--mf-line)!important;border-radius:26px!important;
-  box-shadow:inset 0 1px rgba(255,255,255,.08),0 20px 60px rgba(0,0,0,.20)!important;
-  -webkit-backdrop-filter:blur(28px) saturate(155%);backdrop-filter:blur(28px) saturate(155%);
+  border:1px solid var(--mf-line)!important;
+  color:var(--mf-txt)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.06),0 18px 55px rgba(0,0,0,.18)!important;
 }
-.btn{
-  min-height:42px!important;border-radius:13px!important;border:1px solid rgba(255,255,255,.115)!important;
-  background:rgba(255,255,255,.075)!important;color:#f5f5f7!important;
-  box-shadow:inset 0 1px rgba(255,255,255,.055)!important;
+html.mf-embed .btn{
+  border-color:rgba(255,255,255,.13)!important;
+  color:#fff!important;
 }
-.btn:hover{background:rgba(255,255,255,.12)!important}
-.btn.primary{background:#0a84ff!important;border-color:rgba(255,255,255,.18)!important}
-.btn.danger{color:#ff6961!important;background:rgba(255,69,58,.055)!important}
-.input,.textarea,.select{
-  background:rgba(255,255,255,.055)!important;border:1px solid rgba(255,255,255,.11)!important;
-  border-radius:15px!important;color:#f5f5f7!important;
+html.mf-embed .input,
+html.mf-embed .select,
+html.mf-embed textarea{
+  background:#101012!important;
+  color:#fff!important;
+  border-color:rgba(255,255,255,.14)!important;
 }
-.pill,.badge{
-  border-radius:999px!important;background:rgba(255,255,255,.055)!important;
-  border:1px solid rgba(255,255,255,.10)!important;
+html.mf-embed .muted{color:#9999a2!important}
+
+/* Generator becomes generator-only inside PeterLofi */
+html.mf-embed.office-music-embed .tabs,
+html.mf-embed.office-music-embed .status,
+html.mf-embed.office-music-embed #view-live,
+html.mf-embed.office-music-embed #view-library,
+html.mf-embed.office-music-embed #view-assets{
+  display:none!important;
 }
-html.mf-embed,html.mf-embed body{min-height:0!important;background:transparent!important;background-image:none!important}
-html.mf-embed .shell{display:block!important;min-height:0!important;background:transparent!important}
-html.mf-embed .sidebar,html.mf-embed .topbar{display:none!important}
-html.mf-embed .main{min-width:0!important;min-height:0!important;background:transparent!important}
-html.mf-embed .page{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
-html.mf-embed .head,html.mf-embed .pagehead{display:none!important}
-html.mf-embed body{overflow-x:hidden!important}
+html.mf-embed.office-music-embed #view-generate{
+  display:block!important;
+}
 @media(max-width:900px){
   html.mf-embed .page{padding:0!important}
-  .card{border-radius:22px!important}
 }
-
-html.mf-embed .sidebar,html.mf-embed .topbar,html.mf-embed .brand,html.mf-embed .user{display:none!important}
-html.mf-embed .shell{grid-template-columns:1fr!important}
-html.mf-embed .page{padding:0!important}
-html.mf-embed .main{width:100%!important}
