@@ -1,5 +1,5 @@
 name: One-off — Probe MediaForge OVH State
-# trigger: 2026-10-03T04:50Z
+# trigger: 2026-10-03T05:21Z verify-kick-hotswap
 
 on:
   push:
