@@ -44,6 +44,7 @@ function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:Stri
 const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
 async function getYoutubeStations(env){return (await fetchGithubJson(env,'control/youtube-stations.json'))||{stations:[]};}
+async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/music-library.json'))||{version:1,playlists:[]};}
 async function issueOvhCommand(env,command){
   const now=new Date().toISOString(),id=String(command.id||crypto.randomUUID()),path=`control/ovh-commands/${id}.json`;
   const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
@@ -107,6 +108,21 @@ async function handleApi(request,env,url){
     const state=await ovhState(env),stations=await getYoutubeStations(env);
     return json({runtime:'ovh',agent:state,youtube_slots:stations.stations||[],slots:OVH_SLOTS},200,cors);
   }
+  if(url.pathname==='/api/music-library'&&request.method==='GET'){
+    const library=await getMusicLibrary(env);
+    return json(library,200,cors);
+  }
+  if(url.pathname==='/api/ovh/playlist'&&request.method==='POST'){
+    const b=await bodyJson(request),slot=String(b.runtime_slot||''),playlistKey=String(b.playlist_key||'');
+    if(!OVH_SLOTS.includes(slot))return json({error:'invalid_runtime_slot'},400,cors);
+    const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)===playlistKey);
+    if(!playlist)return json({error:'playlist_not_found',message:'Playlist não encontrada no catálogo Peter Lofi.'},404,cors);
+    const tracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`${playlistKey}-${i+1}`),title:String(t.title||'Track'),url:String(t.url),duration_seconds:Number(t.duration_seconds||0)}));
+    if(!tracks.length)return json({error:'playlist_empty'},400,cors);
+    const state=await ovhState(env),svc=state?.services?.[slot]||{};
+    const cmd=await issueOvhCommand(env,{action:'set_playlist',runtime_slot:slot,platform:mapPlatformFromSlot(slot),session_id:String(b.session_id||svc.session_id||''),title:String(svc.title||''),playlist_key:playlistKey,tracks,shuffle:b.shuffle!==false,repeat:true,source:'mediaforge-playlist-switch'});
+    return json({ok:true,playlist:{key:playlist.key,name:playlist.name,track_count:tracks.length},command:cmd},200,cors);
+  }
   if(url.pathname==='/api/ovh/control'&&request.method==='POST'){
     const b=await bodyJson(request),action=String(b.action||'').toLowerCase(),slot=String(b.runtime_slot||'');
     if(!['start','stop','restart','skip','previous'].includes(action)||!OVH_SLOTS.includes(slot))return json({error:'invalid_ovh_control'},400,cors);
@@ -135,10 +151,20 @@ async function handleApi(request,env,url){
     try{
       const b=await bodyJson(request),platform=String(b.platform||'kick').toLowerCase();
       if(!['kick','twitch','youtube'].includes(platform))return json({error:'unsupported_platform'},400,cors);
-      const catalog=await getCatalog(env),trackIds=Array.isArray(b.track_ids)?b.track_ids.map(String):[];
-      if(!trackIds.length)return json({error:'select_at_least_one_track'},400,cors);
-      const {tracks}=resolveTracks(catalog,trackIds);if(tracks.length!==trackIds.length)return json({error:'invalid_track_selection',message:'Uma ou mais músicas não existem no catálogo GitHub.'},400,cors);
-      const manifest=trackManifest(tracks);if(manifest.length!==trackIds.length)return json({error:'no_playable_tracks'},400,cors);
+      const playlistKey=String(b.playlist_key||''),trackIds=Array.isArray(b.track_ids)?b.track_ids.map(String):[];
+      let manifest=[];
+      if(playlistKey){
+        const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)===playlistKey);
+        if(!playlist)return json({error:'playlist_not_found',message:'Playlist não encontrada na biblioteca Peter Lofi.'},404,cors);
+        manifest=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`${playlistKey}-${i+1}`),title:String(t.title||'Track'),url:String(t.url),duration_seconds:Number(t.duration_seconds||0)}));
+        if(!manifest.length)return json({error:'playlist_empty'},400,cors);
+      }else{
+        const catalog=await getCatalog(env);
+        if(!trackIds.length)return json({error:'select_at_least_one_track'},400,cors);
+        const resolved=resolveTracks(catalog,trackIds),tracks=resolved.tracks;
+        if(tracks.length!==trackIds.length)return json({error:'invalid_track_selection',message:'Uma ou mais músicas não existem no catálogo GitHub.'},400,cors);
+        manifest=trackManifest(tracks);if(manifest.length!==trackIds.length)return json({error:'no_playable_tracks'},400,cors);
+      }
       const visualId=b.visual_asset_id?String(b.visual_asset_id):'',thumbId=b.thumbnail_asset_id?String(b.thumbnail_asset_id):'';let visualUrl='',thumbnailUrl='';
       if(visualId){const a=await readAsset(env,visualId);if(!a||a.status!=='ready')return json({error:'visual_not_ready'},400,cors);visualUrl=assetPublicUrl(request,a);}
       if(thumbId){const a=await readAsset(env,thumbId);if(!a||a.status!=='ready'||!String(a.mime_type||'').startsWith('image/'))return json({error:'thumbnail_not_ready',message:'A thumbnail do YouTube precisa ser uma imagem pronta.'},400,cors);thumbnailUrl=assetPublicUrl(request,a);}
@@ -155,8 +181,8 @@ async function handleApi(request,env,url){
       await env.DB.prepare(`INSERT INTO live_runtime(session_id,runtime,runtime_slot,last_status_at,agent_status_json) VALUES(?,'ovh',?,?,?)`).bind(id,slot,now,'{}').run();
       if(visualId)await env.DB.prepare(`INSERT OR REPLACE INTO live_session_assets(session_id,role,asset_id) VALUES(?,?,?)`).bind(id,'visual',visualId).run();
       if(thumbId)await env.DB.prepare(`INSERT OR REPLACE INTO live_session_assets(session_id,role,asset_id) VALUES(?,?,?)`).bind(id,'thumbnail',thumbId).run();
-      await githubQueueFile(env,`control/live-playlists/${id}.json`,{session_id:id,platform,runtime:'ovh',runtime_slot:slot,updated_at:now,tracks:manifest},`mediaforge ovh playlist ${id}`);
-      const common={session_id:id,platform,runtime_slot:slot,title,description,duration_minutes:duration,loop_url:visualUrl,tracks:manifest,shuffle:true,requested_at:now,source:'mediaforge'};
+      await githubQueueFile(env,`control/live-playlists/${id}.json`,{session_id:id,platform,runtime:'ovh',runtime_slot:slot,playlist_key:playlistKey||null,updated_at:now,tracks:manifest},`mediaforge ovh playlist ${id}`);
+      const common={session_id:id,platform,runtime_slot:slot,title,description,duration_minutes:duration,loop_url:visualUrl,playlist_key:playlistKey||null,tracks:manifest,shuffle:true,repeat:true,requested_at:now,source:'mediaforge'};
       if(platform==='youtube'){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-prepare.yml',{session_id:id,runtime_slot:slot,title,description,thumbnail_url:thumbnailUrl,duration_minutes:String(duration)});
