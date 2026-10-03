@@ -13,9 +13,9 @@
   <div class="card">
     <div class="row"><div><h1>Twitch DJ · Importar MP3</h1><div class="muted">Playlist <b>Twitch DJ Mixed</b> · isolada de Kick e YouTube.</div></div><span class="pill">TWITCH ONLY</span></div>
     <div class="stats">
-      <div class="stat"><div class="muted">AUTORAIS</div><b>36</b></div>
-      <div class="stat"><div class="muted">MP3 VALIDADOS</div><b>35</b></div>
-      <div class="stat"><div class="muted">TOTAL APÓS IMPORTAR</div><b>71</b></div>
+      <div class="stat"><div class="muted">AUTORAIS</div><b id="statOriginal">—</b></div>
+      <div class="stat"><div class="muted">MP3 VALIDADOS</div><b id="statCommercial">—</b></div>
+      <div class="stat"><div class="muted">TOTAL APÓS IMPORTAR</div><b id="statTotal">—</b></div>
     </div>
     <label class="drop" for="zip"><b>Selecionar o Arquivo.zip</b><br><span class="muted">O ZIP é enviado em partes. A OVH valida SHA-256, ignora duplicatas e atualiza somente o áudio da Twitch.</span></label>
     <input id="zip" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
@@ -29,7 +29,7 @@
 (function(){
   var API=(window.MEDIAFORGE_CONFIG&&window.MEDIAFORGE_CONFIG.API_URL||localStorage.getItem('mediaforge_api_url')||'').replace(/\/$/,'');
   var TOKEN=localStorage.getItem('mediaforge_token')||'';
-  var status=document.getElementById('status'),bar=document.getElementById('bar'),input=document.getElementById('zip');
+  var status=document.getElementById('status'),bar=document.getElementById('bar'),input=document.getElementById('zip'),statOriginal=document.getElementById('statOriginal'),statCommercial=document.getElementById('statCommercial'),statTotal=document.getElementById('statTotal');
   function setStatus(msg,cls){status.className='status '+(cls||'muted');status.textContent=msg}
   async function api(path,opt){
     opt=opt||{};var headers=Object.assign({},opt.headers||{},{authorization:'Bearer '+TOKEN});
@@ -45,7 +45,7 @@
   }
   async function refresh(){
     try{
-      var x=await api('/api/twitch-dj/status'),imp=x.dj_import||{};
+      var x=await api('/api/twitch-dj/status'),imp=x.dj_import||{};\n      statOriginal.textContent=Number(imp.original_tracks||0)||'—';\n      statCommercial.textContent=Number(imp.commercial_tracks||0)||'—';\n      statTotal.textContent=Number(imp.track_count||x.playlist_track_count||0)||'—';
       if(imp.status==='ready') setStatus('✓ Playlist ativa: '+Number(imp.original_tracks||0)+' autorais + '+Number(imp.commercial_tracks||0)+' comerciais = '+Number(imp.track_count||x.playlist_track_count||0)+' faixas.\nRTMP não foi reiniciado.','good');
       else if(imp.status==='validating') setStatus('Validando MP3s por SHA-256 na OVH…');
       else if(imp.status==='downloading') setStatus('OVH baixando o ZIP do MediaForge…');
