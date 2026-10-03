@@ -117,6 +117,108 @@ async function importTableRows(env,table,rows){
   return count;
 }
 
+
+function migrationGithubAllowed(request,env){
+  const expected=String(env.GITHUB_WORKFLOW_TOKEN||'');
+  const provided=bearer(request);
+  return !!expected&&!!provided&&provided===expected;
+}
+async function googleAccessToken(env){
+  const clientId=String(env.YOUTUBE_CLIENT_ID||'').trim();
+  const clientSecret=String(env.YOUTUBE_CLIENT_SECRET||'').trim();
+  const refreshToken=String(env.YOUTUBE_REFRESH_TOKEN||'').trim();
+  if(!clientId||!clientSecret||!refreshToken)throw new Error('Credenciais OAuth do YouTube ainda não foram migradas para a OVH.');
+  const body=new URLSearchParams({client_id:clientId,client_secret:clientSecret,refresh_token:refreshToken,grant_type:'refresh_token'});
+  const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.access_token)throw new Error('Falha ao renovar OAuth do YouTube: '+String(d.error_description||d.error||r.status));
+  return String(d.access_token);
+}
+async function youtubeFetch(env,path,{method='GET',query={},body=null,headers={}}={}){
+  const token=await googleAccessToken(env);
+  const u=new URL('https://www.googleapis.com/youtube/v3/'+path);
+  for(const [k,v] of Object.entries(query||{}))if(v!==undefined&&v!==null)u.searchParams.set(k,String(v));
+  const h={authorization:'Bearer '+token,...headers};
+  let payload=body;
+  if(body&&!(body instanceof ArrayBuffer)&&!(body instanceof Uint8Array)&&typeof body!=='string'&&!(body instanceof ReadableStream)){
+    h['content-type']='application/json';
+    payload=JSON.stringify(body);
+  }
+  const r=await fetch(u,{method,headers:h,body:payload});
+  const text=await r.text();
+  let d={};try{d=text?JSON.parse(text):{}}catch(_){d={raw:text.slice(0,1000)}}
+  if(!r.ok)throw new Error('YouTube API '+r.status+': '+String(d?.error?.message||d?.error_description||d?.raw||text.slice(0,500)));
+  return d;
+}
+async function prepareYoutubeLocal(request,env,{sessionId,slot,title,description,thumbnailUrl,durationMinutes,loopUrl,tracks,playlistKey}){
+  const cfg=await getYoutubeStations(env),station=(cfg.stations||[]).find(x=>String(x.ovh_slot||'')===String(slot));
+  if(!station||!station.youtube_stream_id)throw new Error('Slot YouTube OVH não configurado: '+slot);
+  const current=String(station.current_session_id||''),state=String(station.status||'').toLowerCase();
+  if(current&&current!==sessionId&&['live','starting'].includes(state))throw new Error('Slot YouTube ocupado por '+current);
+  const now=new Date(),scheduled=new Date(now.getTime()+20000).toISOString();
+  const broadcast=await youtubeFetch(env,'liveBroadcasts',{
+    method:'POST',
+    query:{part:'snippet,status,contentDetails'},
+    body:{
+      snippet:{title:String(title||'Peter Lofi — Live').slice(0,100),description:String(description||'').slice(0,5000),categoryId:'10',scheduledStartTime:scheduled},
+      status:{privacyStatus:'public',selfDeclaredMadeForKids:false},
+      contentDetails:{enableAutoStart:true,enableAutoStop:false,monitorStream:{enableMonitorStream:false}}
+    }
+  });
+  const bid=String(broadcast.id||'');if(!bid)throw new Error('YouTube não retornou o broadcast_id.');
+  const streamId=String(station.youtube_stream_id);
+  await youtubeFetch(env,'liveBroadcasts/bind',{method:'POST',query:{part:'id,contentDetails',id:bid,streamId}});
+  let thumbOk=false;
+  if(thumbnailUrl){
+    try{
+      const imageRes=await fetch(thumbnailUrl);
+      if(!imageRes.ok)throw new Error('thumbnail HTTP '+imageRes.status);
+      const bytes=await imageRes.arrayBuffer(),token=await googleAccessToken(env);
+      const up=await fetch('https://www.googleapis.com/upload/youtube/v3/thumbnails/set?uploadType=media&videoId='+encodeURIComponent(bid),{
+        method:'POST',headers:{authorization:'Bearer '+token,'content-type':imageRes.headers.get('content-type')||'image/jpeg'},body:bytes
+      });
+      if(!up.ok)throw new Error('thumbnail upload '+up.status+' '+(await up.text()).slice(0,300));
+      thumbOk=true;
+    }catch(e){console.log('YouTube thumbnail skipped:',e?.message||String(e))}
+  }
+  const result={platform:'youtube',runtime:'ovh',runtime_slot:slot,status:'starting',title,description,youtube_broadcast_id:bid,youtube_stream_id:streamId,youtube_url:'https://www.youtube.com/watch?v='+bid,privacy_status:'public',encoder_resolution:'1920x1080',encoder_fps:60,encoder_bitrate_kbps:8000,custom_thumbnail_applied:thumbOk,created_at:now.toISOString(),updated_at:now.toISOString()};
+  await setLocalConfig(env,'control/live-results/'+sessionId+'.json',result);
+  station.runtime='ovh';station.status='starting';station.current_session_id=sessionId;station.youtube_broadcast_id=bid;station.last_started_at=now.toISOString();
+  cfg.updated_at=now.toISOString();await setLocalConfig(env,'control/youtube-stations.json',cfg);
+  const cmd=await issueOvhCommand(env,{action:'start',platform:'youtube',runtime_slot:slot,session_id:sessionId,title,description,duration_minutes:Number(durationMinutes||0),loop_url:String(loopUrl||''),playlist_key:playlistKey||null,tracks:tracks||[],shuffle:true,repeat:true,source:'mediaforge-youtube-local'});
+  return {result,command:cmd};
+}
+async function stopYoutubeLocal(env,{sessionId,slot,title}){
+  const result=(await localConfigJson(env,'control/live-results/'+sessionId+'.json'))||{};
+  const bid=String(result.youtube_broadcast_id||'');
+  if(bid){
+    try{
+      const d=await youtubeFetch(env,'liveBroadcasts',{query:{part:'status',id:bid}});
+      const lifecycle=String(d?.items?.[0]?.status?.lifeCycleStatus||'');
+      if(lifecycle==='live')await youtubeFetch(env,'liveBroadcasts/transition',{method:'POST',query:{part:'status',id:bid,broadcastStatus:'complete'}});
+    }catch(e){console.log('YouTube complete warning:',e?.message||String(e))}
+  }
+  const now=new Date().toISOString(),cmd=await issueOvhCommand(env,{action:'stop',platform:'youtube',runtime_slot:slot,session_id:sessionId,title:String(title||result.title||''),source:'mediaforge-youtube-local-stop'});
+  const cfg=await getYoutubeStations(env),station=(cfg.stations||[]).find(x=>String(x.ovh_slot||'')===String(slot));
+  if(station&&String(station.current_session_id||'')===String(sessionId)){
+    station.status='stopped';station.current_session_id=null;station.youtube_broadcast_id=null;station.last_stopped_at=now;cfg.updated_at=now;await setLocalConfig(env,'control/youtube-stations.json',cfg);
+  }
+  const next={...result,status:'completed',runtime:'ovh',runtime_slot:slot,completed_at:now,updated_at:now};
+  await setLocalConfig(env,'control/live-results/'+sessionId+'.json',next);
+  return {result:next,command:cmd};
+}
+async function catalogGeneratedPlaylist(env,job,result){
+  const library=await getMusicLibrary(env),cfg=await getPeterLofiSeriesConfig(env);
+  const preset=(cfg.series||[]).find(x=>String(x.key||'')===String(job.series_key||''))||{};
+  const dna=preset.music_dna||{},key=String(result.library_key||('generated-'+String(job.series_key||'custom')+'-'+String(job.id).slice(0,8)));
+  const tracks=Array.isArray(result.tracks)?result.tracks:[];
+  const playlist={key,name:String(job.playlist_name||preset.name||key),category:'Generated',series:String(preset.name||job.series_key||'Custom'),genre:String((dna.style_pool||[])[0]||'Lofi'),moods:dna.mood||[],source:'mediaforge-generator-ovh',release_tag:null,master_audio_url:result.master_audio_url||null,track_count:tracks.length,total_duration_seconds:Math.round(tracks.reduce((n,t)=>n+Number(t.duration_seconds||0),0)),tracks};
+  library.playlists=[...(library.playlists||[]).filter(x=>String(x.key)!==key),playlist];
+  library.updated_at=new Date().toISOString();
+  await setLocalConfig(env,'control/music-library.json',library);
+  return playlist;
+}
+
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
 async function getYoutubeStations(env){return (await fetchGithubJson(env,'control/youtube-stations.json'))||{stations:[]};}
 async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/music-library.json'))||{version:1,playlists:[]};}
