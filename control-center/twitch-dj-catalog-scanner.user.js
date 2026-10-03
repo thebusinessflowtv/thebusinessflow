@@ -6,6 +6,8 @@
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @match        https://www.twitch.tv/dj-signup*
 // @run-at       document-start
+// @updateURL    https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js
+// @downloadURL  https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js
 // @grant        none
 // ==/UserScript==
 
