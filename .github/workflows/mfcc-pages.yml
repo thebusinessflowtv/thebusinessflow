@@ -52,7 +52,7 @@ jobs:
           assert 'app.html#/peter-lofi/ovh' in ovh, 'OVH page must return to central app'
           assert '<title>The Office Music · MediaForge</title>' in office, 'Office Music page missing'
           assert 'app-core.html' in app_shell, 'Central app loader missing'
-          for route in ['/peter-lofi','/peter-lofi/music','/peter-lofi/lives','/peter-lofi/ovh','/the-business-flow','/nba-stars','/leonidanos']:
+          for route in ['/peter-lofi','/peter-lofi/library','/peter-lofi/music','/peter-lofi/lives','/peter-lofi/ovh','/the-business-flow','/nba-stars','/leonidanos']:
               assert route in app_core, f'Central route missing: {route}'
           assert 'THEBUSINESSFLOWTV' in app_core, 'Main channel shell missing'
           assert 'CHANNELS={' in app_core, 'Channel registry missing'
