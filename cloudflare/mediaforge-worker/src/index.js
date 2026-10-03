@@ -268,6 +268,25 @@ async function handleApi(request,env,url){
     return json({ok:true,command:cmd},200,cors);
   }
 
+  if(url.pathname==='/api/ovh/visual'&&request.method==='POST'){
+    const b=await bodyJson(request),slot=String(b.runtime_slot||''),assetId=String(b.asset_id||''),directUrl=String(b.loop_url||'').trim();
+    if(!OVH_SLOTS.includes(slot))return json({error:'invalid_runtime_slot'},400,cors);
+    let loopUrl=directUrl,asset=null;
+    if(assetId){
+      asset=await readAsset(env,assetId);
+      if(!asset||asset.status!=='ready')return json({error:'visual_asset_not_ready'},404,cors);
+      if(asset.asset_type!=='loop')return json({error:'visual_asset_invalid_type'},400,cors);
+      loopUrl=assetPublicUrl(request,asset);
+    }
+    if(!loopUrl)return json({error:'loop_url_required',message:'Selecione ou envie um vídeo antes de aplicar.'},400,cors);
+    const state=await ovhState(env),svc=state?.services?.[slot]||{},sessionId=String(b.session_id||svc.session_id||'');
+    const cmd=await issueOvhCommand(env,{action:'set_visual',runtime_slot:slot,platform:mapPlatformFromSlot(slot),session_id:sessionId,title:String(svc.title||''),loop_url:loopUrl,asset_id:assetId||null,source:'mediaforge-visual-switch'});
+    if(sessionId&&assetId){
+      try{await env.DB.prepare(`INSERT OR REPLACE INTO live_session_assets(session_id,role,asset_id) VALUES(?,?,?)`).bind(sessionId,'visual',assetId).run();}catch(_){}
+    }
+    return json({ok:true,visual:{asset_id:assetId||null,title:asset?.title||null,loop_url:loopUrl},command:cmd},200,cors);
+  }
+
   if(url.pathname==='/api/catalog'&&request.method==='GET')try{const catalog=await getCatalog(env),assets=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' ORDER BY created_at DESC`).all();return json({...catalog,assets:(assets.results||[]).map(a=>({id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,metadata:JSON.parse(a.metadata_json||'{}'),public_url:assetPublicUrl(request,a)}))},200,cors);}catch(e){return json({error:'catalog_error',message:e.message},502,cors);}
   if(url.pathname==='/api/assets'&&request.method==='GET'){const q=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' ORDER BY created_at DESC`).all();return json({assets:(q.results||[]).map(a=>({id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,metadata:JSON.parse(a.metadata_json||'{}'),public_url:assetPublicUrl(request,a)}))},200,cors);}
 
