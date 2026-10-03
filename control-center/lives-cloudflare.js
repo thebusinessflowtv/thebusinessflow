@@ -207,11 +207,43 @@
       <div class="card" style="margin-top:10px"><b>Playlist da live</b><div class="tiny muted" style="margin-top:4px">Atual: ${esc((musicLibrary?.playlists||[]).find(p=>p.key===currentPlaylist)?.name||currentPlaylist||'não identificada')} · Trocar a playlist afeta somente esta plataforma. A música atual é interrompida e uma faixa da nova playlist começa.</div><div class="row wrap" style="margin-top:10px"><select id="livePlaylistSelect" class="select" style="flex:1;min-width:260px"><option value="">Selecione uma playlist</option>${options}</select><button id="applyLivePlaylist" class="btn primary">Aplicar playlist</button></div></div>
       <div class="row" style="margin-top:12px">${['queued','starting','live','reconnecting','stopping'].includes(String(s.status))?`<button id="modalStop" class="btn danger">Encerrar live</button>`:''}</div></div>`;
       document.getElementById('closeLiveModal').onclick=closeModal;
-      document.getElementById('nextTrack').onclick=()=>api('/api/ovh/control',{method:'POST',body:JSON.stringify({action:'skip',runtime_slot:slot,session_id:id})}).then(()=>setTimeout(()=>openLive(id),1800)).catch(e=>alert('Falha: '+e.message));
-      document.getElementById('prevTrack').onclick=()=>api('/api/ovh/control',{method:'POST',body:JSON.stringify({action:'previous',runtime_slot:slot,session_id:id})}).then(()=>setTimeout(()=>openLive(id),1800)).catch(e=>alert('Falha: '+e.message));
+      document.getElementById('nextTrack').onclick=()=>sendTrackControl(id,slot,'skip');
+      document.getElementById('prevTrack').onclick=()=>sendTrackControl(id,slot,'previous');
       document.getElementById('applyLivePlaylist').onclick=async()=>{const playlistKey=document.getElementById('livePlaylistSelect').value;if(!playlistKey){alert('Selecione uma playlist.');return;}const b=document.getElementById('applyLivePlaylist');b.disabled=true;b.textContent='Aplicando…';try{await api('/api/ovh/playlist',{method:'POST',body:JSON.stringify({runtime_slot:slot,session_id:id,playlist_key:playlistKey})});setTimeout(()=>openLive(id),2200)}catch(e){alert('Falha ao trocar playlist: '+e.message);b.disabled=false;b.textContent='Aplicar playlist';}};
       document.getElementById('modalStop')?.addEventListener('click',()=>stopLive(id));
     }catch(e){wrap.innerHTML=`<div class="card"><b>Falha ao carregar a live</b><div class="small muted" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="document.getElementById('liveModal')?.remove()">Fechar</button></div>`;}
+  }
+
+  async function waitOvhControl(commandId,timeoutMs=15000){
+    const started=Date.now();
+    while(Date.now()-started<timeoutMs){
+      await new Promise(r=>setTimeout(r,450));
+      const x=await api('/api/ovh/control/'+encodeURIComponent(commandId));
+      const st=String(x?.command?.status||'');
+      if(st==='completed')return x.command;
+      if(st==='failed'||st==='cancelled')throw new Error(x?.command?.error||('Comando '+st));
+    }
+    throw new Error('O agente OVH ainda não confirmou o comando.');
+  }
+
+  async function sendTrackControl(id,slot,action){
+    const next=document.getElementById('nextTrack'),prev=document.getElementById('prevTrack');
+    const btn=action==='previous'?prev:next;
+    const original=btn?.textContent||'';
+    if(next)next.disabled=true;if(prev)prev.disabled=true;
+    if(btn)btn.textContent=action==='previous'?'Voltando…':'Pulando…';
+    try{
+      const x=await api('/api/ovh/control',{method:'POST',body:JSON.stringify({action,runtime_slot:slot,session_id:id})});
+      const commandId=x?.command?.id;
+      if(!commandId)throw new Error('O MediaForge não retornou o ID do comando.');
+      await waitOvhControl(commandId);
+      await new Promise(r=>setTimeout(r,700));
+      await openLive(id);
+    }catch(e){
+      alert('Falha no controle da música: '+e.message);
+      if(next)next.disabled=false;if(prev)prev.disabled=false;
+      if(btn)btn.textContent=original;
+    }
   }
 
   async function loadDjScan(){
