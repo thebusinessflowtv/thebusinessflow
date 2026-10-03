@@ -38,6 +38,8 @@ jobs:
           twitch = Path('control-center/twitch.html').read_text(encoding='utf-8')
           ovh = Path('control-center/ovh.html').read_text(encoding='utf-8')
           office = Path('control-center/office-music.html').read_text(encoding='utf-8')
+          app_shell = Path('control-center/app.html').read_text(encoding='utf-8')
+          app_core = Path('control-center/app-core.html').read_text(encoding='utf-8')
 
           assert './secure.html' in index, 'MediaForge entry must route to secure gate'
           assert '<title>MediaForge Control Center</title>' in secure, 'Secure gate missing'
@@ -49,7 +51,18 @@ jobs:
           assert '<title>OVH VPS · MediaForge</title>' in ovh, 'OVH dashboard missing'
           assert 'ovh.html' in lives, 'OVH navigation missing from Lives'
           assert '<title>The Office Music · MediaForge</title>' in office, 'Office Music page missing'
+          assert 'app-core.html' in app_shell, 'Central app loader missing'
+          for route in ['#/peter-lofi','#/peter-lofi-series','#/lives','#/ovh']:
+              assert route in app_core, f'Central route missing: {route}'
           PY
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('control-center/app-core.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',html,re.S)
+          Path('/tmp/mediaforge-app-core.js').write_text(scripts[-1],encoding='utf-8')
+          PY
+          node --check /tmp/mediaforge-app-core.js
           node --check control-center/lives-cloudflare.js
           node --check control-center/ovh.js
           node --check control-center/office-music.js
@@ -66,9 +79,10 @@ jobs:
           # accidentally omitted from GitHub Pages.
           cp -R control-center/. _site/control-center/
 
-          # Public entry is the secure gate; the SPA itself lives at app.html.
+          # Public entry remains the secure gate. app.html is the unified MediaForge shell.
           cp control-center/secure.html _site/control-center/index.html
-          cp control-center/index.html _site/control-center/app.html
+          test -f _site/control-center/app.html
+          test -f _site/control-center/app-core.html
 
           # Friendly alias in addition to office-music.html.
           mkdir -p _site/control-center/office-music
