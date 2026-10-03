@@ -110,8 +110,12 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/ovh/control'&&request.method==='POST'){
     const b=await bodyJson(request),action=String(b.action||'').toLowerCase(),slot=String(b.runtime_slot||'');
     if(!['start','stop','restart','skip','previous'].includes(action)||!OVH_SLOTS.includes(slot))return json({error:'invalid_ovh_control'},400,cors);
-    const state=await ovhState(env),svc=state?.services?.[slot]||{};
-    const cmd=await issueOvhCommand(env,{action,runtime_slot:slot,platform:mapPlatformFromSlot(slot),session_id:String(b.session_id||svc.session_id||''),title:String(b.title||svc.title||''),loop_url:String(b.loop_url||''),source:'mediaforge-ovh-panel'});
+    const state=await ovhState(env),svc=state?.services?.[slot]||{},sessionId=String(b.session_id||svc.session_id||'');
+    if(action==='stop'&&slot.startsWith('youtube-')&&sessionId){
+      await githubDispatchWorkflow(env,'mediaforge-youtube-ovh-stop.yml',{session_id:sessionId,runtime_slot:slot});
+      return json({ok:true,action:'stop',runtime_slot:slot,session_id:sessionId,mode:'youtube-controlled-stop'},200,cors);
+    }
+    const cmd=await issueOvhCommand(env,{action,runtime_slot:slot,platform:mapPlatformFromSlot(slot),session_id:sessionId,title:String(b.title||svc.title||''),loop_url:String(b.loop_url||''),source:'mediaforge-ovh-panel'});
     return json({ok:true,command:cmd},200,cors);
   }
 
