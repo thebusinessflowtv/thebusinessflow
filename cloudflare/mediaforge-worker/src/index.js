@@ -554,7 +554,7 @@ async function handleApi(request,env,url){
 
   if(url.pathname==='/api/ovh/agent/operational-status'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
-    return json({local_runtime:String(env.LOCAL_RUNTIME||'')==='1',youtube_oauth:!!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN),youtube_channel:!!env.YOUTUBE_CHANNEL_ID,kaggle:!!(env.KAGGLE_USERNAME&&env.KAGGLE_API_TOKEN),huggingface:!!env.HF_TOKEN},200,cors);
+    return json({local_runtime:String(env.LOCAL_RUNTIME||'')==='1',youtube_oauth:!!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN),youtube_channel:!!env.YOUTUBE_CHANNEL_ID,music_agent_credentials:'external-root-readable-env'},200,cors);
   }
 
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
