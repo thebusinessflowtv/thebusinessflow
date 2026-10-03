@@ -34,10 +34,20 @@ async function githubDispatchWorkflow(env,workflow,inputs){
   return true;
 }
 async function fetchGithubJson(env,path){
+  const cached=await localConfigJson(env,path);
+  if(cached!==null)return cached;
+  if(String(env.LOCAL_RUNTIME||'')==='1')return null;
   const repo=env.GITHUB_REPO||'thebusinessflowtv/theofficemusic';
   try{const r=await fetch(`https://raw.githubusercontent.com/${repo}/main/${path}?ts=${Date.now()}`,{headers:{'user-agent':'MediaForge-Cloudflare-Worker'}});return r.ok?await r.json():null;}catch(_){return null;}
 }
-async function getCatalog(env){const repo=env.GITHUB_REPO||'thebusinessflowtv/theofficemusic',r=await fetch(`https://raw.githubusercontent.com/${repo}/main/control/mediaforge-catalog.json?ts=${Date.now()}`,{headers:{'user-agent':'MediaForge-Cloudflare-Worker'}});if(!r.ok)throw new Error(`Catálogo GitHub indisponível (${r.status}).`);return r.json();}
+async function getCatalog(env){
+  const cached=await localConfigJson(env,'control/mediaforge-catalog.json');
+  if(cached!==null)return cached;
+  if(String(env.LOCAL_RUNTIME||'')==='1')throw new Error('Catálogo local da OVH ainda não foi sincronizado.');
+  const repo=env.GITHUB_REPO||'thebusinessflowtv/theofficemusic',r=await fetch(`https://raw.githubusercontent.com/${repo}/main/control/mediaforge-catalog.json?ts=${Date.now()}`,{headers:{'user-agent':'MediaForge-Cloudflare-Worker'}});
+  if(!r.ok)throw new Error(`Catálogo GitHub indisponível (${r.status}).`);
+  return r.json();
+}
 function resolveTracks(catalog,ids){const map=new Map((catalog.tracks||[]).map(t=>[String(t.id),t]));const tracks=ids.map(id=>map.get(String(id))).filter(Boolean);return {tracks,map};}
 function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:String(t.title||'Faixa'),url:String(t.url||''),duration_seconds:Number(t.duration_seconds||0),collection_name:t.collection_name||'',style:t.style||''})).filter(t=>t.url);}
 
@@ -45,10 +55,62 @@ const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service','hot_patch_streaming'];
 function ovhAgentAllowed(request,env){
+  const localRuntime=String(env.LOCAL_RUNTIME||'')==='1';
+  if(localRuntime){
+    const expected=String(env.OVH_AGENT_TOKEN||'');
+    const provided=String(request.headers.get('x-ovh-agent-token')||'');
+    if(expected&&provided&&provided===expected)return {ok:true,ip:'local-token'};
+  }
   const ip=request.headers.get('cf-connecting-ip')||'',lower=ip.toLowerCase();
   const allowed=String(env.OVH_AGENT_IPS||'146.59.156.224,2001:41d0:305:2100::1:7dfb').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
   const v6Prefixes=String(env.OVH_AGENT_IPV6_PREFIXES||'2001:41d0:305:2100:').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
   return {ok:allowed.includes(lower)||v6Prefixes.some(p=>lower.startsWith(p)),ip};
+}
+function localMigrationAllowed(request,env){
+  if(String(env.LOCAL_RUNTIME||'')!=='1')return false;
+  const expected=String(env.LOCAL_MIGRATION_TOKEN||'');
+  const provided=String(request.headers.get('x-local-migration-token')||'');
+  return !!expected&&provided===expected;
+}
+const MIGRATION_TABLES={
+  assets:['id','title','asset_type','r2_key','mime_type','size_bytes','status','download_token','metadata_json','created_at'],
+  live_sessions:['id','platform','status','title','description','duration_minutes','track_ids_json','visual_asset_id','github_run_id','github_run_url','error_message','created_at','live_at','completed_at'],
+  live_session_assets:['session_id','role','asset_id'],
+  live_runtime:['session_id','runtime','runtime_slot','last_status_at','agent_status_json'],
+  ovh_state:['id','payload_json','updated_at'],
+  ovh_commands:['id','runtime_slot','action','payload_json','status','created_at','claimed_at','completed_at','error'],
+  ovh_deploy_commands:['id','action','target','payload_json','status','created_at','claimed_at','completed_at','error','result_json'],
+  music_generation_jobs:['id','series_key','playlist_name','duration_minutes','status','progress','phase','github_run_id','github_run_url','release_tag','master_audio_url','error','created_at','updated_at','completed_at','result_json'],
+  dj_catalog_scans:['id','token_hash','status','total','processed','allowed','restricted','not_found','ambiguous','error_count','created_at','updated_at','completed_at','expires_at'],
+  dj_catalog_results:['scan_id','position','spotify_id','title','artists','status','matched_title','matched_artists','match_score','twitch_track_id','checked_at','detail_json'],
+  dj_catalog_audio_sources:['scan_id','position','asset_id','acquisition_source','acquisition_note','verified_owned','created_at','updated_at']
+};
+async function localConfigJson(env,path){
+  try{
+    const row=await env.DB.prepare('SELECT payload_json FROM local_config WHERE path=?').bind(String(path)).first();
+    return row?JSON.parse(row.payload_json||'null'):null;
+  }catch(_){return null;}
+}
+async function setLocalConfig(env,path,payload){
+  const now=new Date().toISOString();
+  await env.DB.prepare('INSERT INTO local_config(path,payload_json,updated_at) VALUES(?,?,?) ON CONFLICT(path) DO UPDATE SET payload_json=excluded.payload_json,updated_at=excluded.updated_at').bind(String(path),JSON.stringify(payload),now).run();
+}
+async function exportTable(env,table){
+  if(!Object.prototype.hasOwnProperty.call(MIGRATION_TABLES,table))throw new Error('migration_table_not_allowed');
+  const q=await env.DB.prepare('SELECT * FROM '+table).all();
+  return q.results||[];
+}
+async function importTableRows(env,table,rows){
+  const cols=MIGRATION_TABLES[table];
+  if(!cols||!Array.isArray(rows))return 0;
+  let count=0;
+  for(const row of rows){
+    const values=cols.map(c=>row?.[c]??null);
+    const sql='INSERT OR REPLACE INTO '+table+'('+cols.join(',')+') VALUES('+cols.map(()=>'?').join(',')+')';
+    await env.DB.prepare(sql).bind(...values).run();
+    count++;
+  }
+  return count;
 }
 
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
@@ -71,12 +133,14 @@ async function issueOvhCommand(env,command){
   if(String(command?.source||'')==='mediaforge-visual-switch') command={...command,action:'set_visual'};
   const payload={...command,id,runtime:'ovh',requested_at:command.requested_at||now};
   await env.DB.prepare(`INSERT OR REPLACE INTO ovh_commands(id,runtime_slot,action,payload_json,status,created_at,claimed_at,completed_at,error) VALUES(?,?,?,?, 'pending', ?,NULL,NULL,NULL)`).bind(id,String(payload.runtime_slot||''),String(payload.action||''),JSON.stringify(payload),now).run();
-  try{
-    await githubQueueFile(env,path,payload,`mediaforge ovh command ${id}`);
-    const idx=(await fetchGithubJson(env,'control/ovh-commands/index.json'))||{version:1,commands:[]};
-    const commands=[...(idx.commands||[]).filter(x=>String(x.id)!==id),{id,path,created_at:now}].slice(-500);
-    await githubQueueFile(env,'control/ovh-commands/index.json',{version:1,updated_at:now,commands},'mediaforge ovh command index');
-  }catch(_){}
+  if(String(env.LOCAL_RUNTIME||'')!=='1'){
+    try{
+      await githubQueueFile(env,path,payload,`mediaforge ovh command ${id}`);
+      const idx=(await fetchGithubJson(env,'control/ovh-commands/index.json'))||{version:1,commands:[]};
+      const commands=[...(idx.commands||[]).filter(x=>String(x.id)!==id),{id,path,created_at:now}].slice(-500);
+      await githubQueueFile(env,'control/ovh-commands/index.json',{version:1,updated_at:now,commands},'mediaforge ovh command index');
+    }catch(_){}
+  }
   return payload;
 }
 async function runtimeForSession(env,id){
@@ -137,7 +201,47 @@ async function handleMedia(request,env,url){const parts=url.pathname.split('/').
 
 async function handleApi(request,env,url){
   const cors=corsHeaders(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
-  if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:'r2',database:'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true},200,cors);
+  if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-local-r2':'r2',database:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-sqlite-d1':'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true,local_runtime:String(env.LOCAL_RUNTIME||'')==='1'},200,cors);
+
+  if(url.pathname==='/api/migration/export'&&request.method==='GET'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_migration_export',ip:gate.ip},403,cors);
+    const tables={};
+    for(const table of Object.keys(MIGRATION_TABLES))tables[table]=await exportTable(env,table);
+    const configs={
+      'control/mediaforge-catalog.json':await getCatalog(env).catch(()=>null),
+      'control/music-library.json':await getMusicLibrary(env).catch(()=>null),
+      'control/youtube-stations.json':await getYoutubeStations(env).catch(()=>null),
+      'config/peter_lofi_series.json':await getPeterLofiSeriesConfig(env).catch(()=>null)
+    };
+    return json({version:1,exported_at:new Date().toISOString(),origin:url.origin,tables,configs},200,cors);
+  }
+
+  if(url.pathname==='/api/local/import-snapshot'&&request.method==='POST'){
+    if(!localMigrationAllowed(request,env))return json({error:'forbidden_local_migration'},403,cors);
+    const b=await bodyJson(request),counts={};
+    for(const table of Object.keys(MIGRATION_TABLES))counts[table]=await importTableRows(env,table,b?.tables?.[table]||[]);
+    for(const [path,payload] of Object.entries(b?.configs||{}))if(payload!==null&&payload!==undefined)await setLocalConfig(env,path,payload);
+    return json({ok:true,counts,configs:Object.keys(b?.configs||{}),imported_at:new Date().toISOString()},200,cors);
+  }
+
+  if(url.pathname==='/api/local/import-object'&&request.method==='PUT'){
+    if(!localMigrationAllowed(request,env))return json({error:'forbidden_local_migration'},403,cors);
+    const key=String(url.searchParams.get('key')||'').trim();if(!key)return json({error:'key_required'},400,cors);
+    const mime=String(request.headers.get('content-type')||'application/octet-stream');
+    await env.MEDIA.put(key,request.body,{httpMetadata:{contentType:mime,cacheControl:'public, max-age=3600'}});
+    return json({ok:true,key},200,cors);
+  }
+
+  if(url.pathname==='/api/local/migration-status'&&request.method==='GET'){
+    if(!localMigrationAllowed(request,env))return json({error:'forbidden_local_migration'},403,cors);
+    const counts={};
+    for(const table of Object.keys(MIGRATION_TABLES)){
+      const row=await env.DB.prepare('SELECT COUNT(*) AS n FROM '+table).first();
+      counts[table]=Number(row?.n||0);
+    }
+    const cfg=await env.DB.prepare('SELECT path,updated_at FROM local_config ORDER BY path').all();
+    return json({ok:true,counts,configs:cfg.results||[],checked_at:new Date().toISOString()},200,cors);
+  }
 
   if(url.pathname==='/api/ovh/agent/status'&&request.method==='POST'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
