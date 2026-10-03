@@ -229,22 +229,26 @@
   }
 
   async function sendTrackControl(id,slot,action){
-    const next=document.getElementById('nextTrack'),prev=document.getElementById('prevTrack');
-    const btn=action==='previous'?prev:next;
-    const original=btn?.textContent||'';
-    if(next)next.disabled=true;if(prev)prev.disabled=true;
-    if(btn)btn.textContent=action==='previous'?'Voltando…':'Pulando…';
+    const btn=action==='previous'?document.getElementById('prevTrack'):document.getElementById('nextTrack');
+    const original=action==='previous'?'↶ Anterior':'↷ Próxima';
     try{
       const x=await api('/api/ovh/control',{method:'POST',body:JSON.stringify({action,runtime_slot:slot,session_id:id})});
       const commandId=x?.command?.id;
       if(!commandId)throw new Error('O MediaForge não retornou o ID do comando.');
-      const result=await waitOvhControl(commandId);
-      if(btn)btn.textContent=result.confirmed?(action==='previous'?'✓ Voltou':'✓ Pulou'):(action==='previous'?'↶ Enviado':'↷ Enviado');
-      await new Promise(r=>setTimeout(r,900));
-      await openLive(id);
+      if(btn){
+        const n=Number(btn.dataset.queued||0)+1;
+        btn.dataset.queued=String(n);
+        btn.textContent=(action==='previous'?'↶':'↷')+' Na fila ('+n+')';
+        setTimeout(()=>{
+          const left=Math.max(0,Number(btn.dataset.queued||1)-1);
+          btn.dataset.queued=String(left);
+          btn.textContent=left?((action==='previous'?'↶':'↷')+' Na fila ('+left+')'):original;
+        },2200);
+      }
+      // Do not wait for ACK and do not disable either button. Every click is a
+      // distinct durable audio command; the OVH player executes them in order.
     }catch(e){
       alert('Falha no controle da música: '+e.message);
-      if(next)next.disabled=false;if(prev)prev.disabled=false;
       if(btn)btn.textContent=original;
     }
   }
