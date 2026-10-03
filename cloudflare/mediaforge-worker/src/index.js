@@ -280,7 +280,7 @@ async function handleApi(request,env,url){
     }
     if(!loopUrl)return json({error:'loop_url_required',message:'Selecione ou envie um vídeo antes de aplicar.'},400,cors);
     const state=await ovhState(env),svc=state?.services?.[slot]||{},sessionId=String(b.session_id||svc.session_id||'');
-    const cmd=await issueOvhCommand(env,{action:'set_visual',runtime_slot:slot,platform:mapPlatformFromSlot(slot),session_id:sessionId,title:String(svc.title||''),loop_url:loopUrl,asset_id:assetId||null,source:'mediaforge-visual-switch'});
+    const cmd=await issueOvhCommand(env,{action:'restart',runtime_slot:slot,platform:mapPlatformFromSlot(slot),session_id:sessionId,title:String(svc.title||''),loop_url:loopUrl,asset_id:assetId||null,source:'mediaforge-visual-switch'});
     if(sessionId&&assetId){
       try{await env.DB.prepare(`INSERT OR REPLACE INTO live_session_assets(session_id,role,asset_id) VALUES(?,?,?)`).bind(sessionId,'visual',assetId).run();}catch(_){}
     }
