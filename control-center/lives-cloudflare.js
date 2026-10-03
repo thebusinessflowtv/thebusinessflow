@@ -220,10 +220,12 @@
       await new Promise(r=>setTimeout(r,450));
       const x=await api('/api/ovh/control/'+encodeURIComponent(commandId));
       const st=String(x?.command?.status||'');
-      if(st==='completed')return x.command;
+      if(st==='completed')return {...x.command,confirmed:true};
       if(st==='failed'||st==='cancelled')throw new Error(x?.command?.error||('Comando '+st));
     }
-    throw new Error('O agente OVH ainda não confirmou o comando.');
+    // The OVH agent also consumes the GitHub mirror of every music command.
+    // A missing Cloudflare ACK must not make a working fallback look broken.
+    return {id:commandId,status:'dispatched',confirmed:false};
   }
 
   async function sendTrackControl(id,slot,action){
@@ -236,8 +238,9 @@
       const x=await api('/api/ovh/control',{method:'POST',body:JSON.stringify({action,runtime_slot:slot,session_id:id})});
       const commandId=x?.command?.id;
       if(!commandId)throw new Error('O MediaForge não retornou o ID do comando.');
-      await waitOvhControl(commandId);
-      await new Promise(r=>setTimeout(r,700));
+      const result=await waitOvhControl(commandId);
+      if(btn)btn.textContent=result.confirmed?(action==='previous'?'✓ Voltou':'✓ Pulou'):(action==='previous'?'↶ Enviado':'↷ Enviado');
+      await new Promise(r=>setTimeout(r,900));
       await openLive(id);
     }catch(e){
       alert('Falha no controle da música: '+e.message);
