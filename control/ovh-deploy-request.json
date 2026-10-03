@@ -1,6 +1,6 @@
 {
-  "request_id": "youtube-rainy-hotswap-20261003-0528",
-  "action": "deploy_service",
-  "target": "youtube-rainy",
+  "request_id": "hotswap-final-healthcheck-20261003-0529",
+  "action": "health_check",
+  "target": "all",
   "source": "chatgpt-all-platform-hotswap-rollout"
 }
