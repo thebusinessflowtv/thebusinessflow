@@ -1,33 +1,82 @@
 {
   "command": {
-    "id": "youtube-rainy-hotswap-20261003-0528",
-    "action": "deploy_service",
-    "target": "youtube-rainy",
+    "id": "hotswap-final-healthcheck-20261003-0529",
+    "action": "health_check",
+    "target": "all",
     "status": "completed",
-    "created_at": "2026-10-03T05:27:44.830Z",
-    "claimed_at": "2026-10-03T05:27:48.186Z",
-    "completed_at": "2026-10-03T05:28:55.759Z",
+    "created_at": "2026-10-03T05:29:28.392Z",
+    "claimed_at": "2026-10-03T05:29:31.836Z",
+    "completed_at": "2026-10-03T05:29:32.087Z",
     "error": "",
-    "result_json": "{\"old_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"new_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"service\":\"youtube-rainy\",\"health\":{\"service\":\"youtube-rainy\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:28:55.555879Z\",\"fps\":60,\"video_bitrate_kbps\":8000,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":50,\"visual_pid\":8,\"visual_status\":\"streaming\",\"generation\":1,\"visual_revision\":null},\"backup_image\":\"mediaforge-backup-youtube-rainy:20261003052748\"}",
+    "result_json": "{\"git_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"services\":{\"ovh-agent\":{\"service\":\"ovh-agent\",\"status\":\"live\"},\"control-api\":{\"service\":\"control-api\",\"status\":\"live\"},\"kick\":{\"service\":\"kick\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:29:30.957962Z\",\"fps\":30,\"video_bitrate_kbps\":5000,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":50,\"visual_pid\":8,\"visual_status\":\"streaming\",\"generation\":7,\"visual_revision\":null},\"twitch\":{\"service\":\"twitch\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:29:31.444472Z\",\"fps\":30,\"video_bitrate_kbps\":4500,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":51,\"visual_pid\":9,\"visual_status\":\"streaming\",\"generation\":1,\"visual_revision\":null},\"youtube-deep-house\":{\"service\":\"youtube-deep-house\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:29:30.089120Z\",\"fps\":60,\"video_bitrate_kbps\":8000,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":50,\"visual_pid\":8,\"visual_status\":\"streaming\",\"generation\":1,\"visual_revision\":null},\"youtube-rainy\":{\"service\":\"youtube-rainy\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:29:31.585843Z\",\"fps\":60,\"video_bitrate_kbps\":8000,\"restarts\":0,\"hot_swap\":true,\"encoder_pid\":50,\"visual_pid\":8,\"visual_status\":\"streaming\",\"generation\":1,\"visual_revision\":null}}}",
     "result": {
-      "old_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
-      "new_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
-      "service": "youtube-rainy",
-      "health": {
-        "service": "youtube-rainy",
-        "status": "live",
-        "updated_at": "2026-10-03T05:28:55.555879Z",
-        "fps": 60,
-        "video_bitrate_kbps": 8000,
-        "restarts": 0,
-        "hot_swap": true,
-        "encoder_pid": 50,
-        "visual_pid": 8,
-        "visual_status": "streaming",
-        "generation": 1,
-        "visual_revision": null
-      },
-      "backup_image": "mediaforge-backup-youtube-rainy:20261003052748"
+      "git_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
+      "services": {
+        "ovh-agent": {
+          "service": "ovh-agent",
+          "status": "live"
+        },
+        "control-api": {
+          "service": "control-api",
+          "status": "live"
+        },
+        "kick": {
+          "service": "kick",
+          "status": "live",
+          "updated_at": "2026-10-03T05:29:30.957962Z",
+          "fps": 30,
+          "video_bitrate_kbps": 5000,
+          "restarts": 0,
+          "hot_swap": true,
+          "encoder_pid": 50,
+          "visual_pid": 8,
+          "visual_status": "streaming",
+          "generation": 7,
+          "visual_revision": null
+        },
+        "twitch": {
+          "service": "twitch",
+          "status": "live",
+          "updated_at": "2026-10-03T05:29:31.444472Z",
+          "fps": 30,
+          "video_bitrate_kbps": 4500,
+          "restarts": 0,
+          "hot_swap": true,
+          "encoder_pid": 51,
+          "visual_pid": 9,
+          "visual_status": "streaming",
+          "generation": 1,
+          "visual_revision": null
+        },
+        "youtube-deep-house": {
+          "service": "youtube-deep-house",
+          "status": "live",
+          "updated_at": "2026-10-03T05:29:30.089120Z",
+          "fps": 60,
+          "video_bitrate_kbps": 8000,
+          "restarts": 0,
+          "hot_swap": true,
+          "encoder_pid": 50,
+          "visual_pid": 8,
+          "visual_status": "streaming",
+          "generation": 1,
+          "visual_revision": null
+        },
+        "youtube-rainy": {
+          "service": "youtube-rainy",
+          "status": "live",
+          "updated_at": "2026-10-03T05:29:31.585843Z",
+          "fps": 60,
+          "video_bitrate_kbps": 8000,
+          "restarts": 0,
+          "hot_swap": true,
+          "encoder_pid": 50,
+          "visual_pid": 8,
+          "visual_status": "streaming",
+          "generation": 1,
+          "visual_revision": null
+        }
+      }
     }
   }
 }
