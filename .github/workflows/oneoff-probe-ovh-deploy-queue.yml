@@ -1,0 +1,35 @@
+name: One-off — Probe OVH Deploy Queue
+
+on:
+  push:
+    paths:
+      - '.github/workflows/oneoff-probe-ovh-deploy-queue.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://mediaforge-api.guilhermeodsgn.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe queue
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/deploy-status" | jq . > control/ovh-deploy-probe.json
+          cat control/ovh-deploy-probe.json
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/ovh-deploy-probe.json
+          git commit -m "probe: OVH deploy queue" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
