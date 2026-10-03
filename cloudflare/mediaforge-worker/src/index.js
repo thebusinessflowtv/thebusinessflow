@@ -263,6 +263,19 @@ async function handleApi(request,env,url){
     const q=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id IN ('ops-20261003-host-agent-v2','ops-20261003-hot-patch-v2') ORDER BY created_at`).all();
     return json({commands:(q.results||[]).map(r=>({...r,result:r.result_json?JSON.parse(r.result_json):null}))},200,cors);
   }
+  if(url.pathname==='/api/ops/20261003-live-stability/restart-deep-house'&&request.method==='POST'){
+    const state=await ovhState(env),svc=(state?.services||{})['youtube-deep-house']||{};
+    const cmd=await issueOvhCommand(env,{
+      id:'ops-20261003-restart-youtube-deep-house-v1',
+      action:'restart',
+      runtime_slot:'youtube-deep-house',
+      platform:'youtube',
+      session_id:String(svc.session_id||'8cf99db8-3e53-4b74-b9d2-51fb67b54ff8'),
+      title:String(svc.title||'deep house radio 💻 music to work/study/focus to | Peter Lofi 🎧'),
+      source:'incident-youtube-deep-house-recovery'
+    });
+    return json({ok:true,command:cmd},202,cors);
+  }
 
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
