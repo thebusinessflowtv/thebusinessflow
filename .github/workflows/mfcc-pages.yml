@@ -47,13 +47,15 @@ jobs:
           assert '<title>Lives · MediaForge</title>' in lives, 'Lives page missing'
           assert 'data-platform="twitch"' in lives, 'Twitch tab missing from unified Lives'
           assert '<title>Twitch · MediaForge</title>' in twitch, 'Twitch compatibility page missing'
-          assert 'lives.html?platform=twitch' in twitch, 'Twitch page must redirect to unified Lives'
+          assert 'app.html#/peter-lofi/lives?platform=twitch' in twitch, 'Twitch page must redirect to PeterLofi Lives'
           assert '<title>OVH VPS · MediaForge</title>' in ovh, 'OVH dashboard missing'
-          assert 'ovh.html' in lives, 'OVH navigation missing from Lives'
+          assert 'app.html#/peter-lofi/ovh' in ovh, 'OVH page must return to central app'
           assert '<title>The Office Music · MediaForge</title>' in office, 'Office Music page missing'
           assert 'app-core.html' in app_shell, 'Central app loader missing'
-          for route in ['#/peter-lofi','#/peter-lofi-series','#/lives','#/ovh']:
+          for route in ['/peter-lofi','/peter-lofi/music','/peter-lofi/lives','/peter-lofi/ovh','/the-business-flow','/nba-stars','/leonidanos']:
               assert route in app_core, f'Central route missing: {route}'
+          assert 'THEBUSINESSFLOWTV' in app_core, 'Main channel shell missing'
+          assert 'CHANNELS={' in app_core, 'Channel registry missing'
           PY
           python - <<'PY'
           from pathlib import Path
