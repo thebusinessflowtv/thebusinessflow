@@ -3,7 +3,7 @@
   const TOKEN_KEY='mediaforge_token';
   const TWITCH_RAW='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control';
   const requestedPlatform=new URLSearchParams(location.search).get('platform');
-  let catalog=null,musicLibrary={playlists:[]},sessions=[],ovh=null,loading=false,activePlatform=['youtube','kick','twitch'].includes(requestedPlatform)?requestedPlatform:'kick';
+  let catalog=null,musicLibrary={playlists:[]},sessions=[],ovh=null,djScan=null,loading=false,activePlatform=['youtube','kick','twitch'].includes(requestedPlatform)?requestedPlatform:'kick';
   const selectedSeriesIds=new Set(),selectedMixIds=new Set(),manualTrackIds=new Set(),excludedTrackIds=new Set();
   const drafts={
     kick:{title:'Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE',description:'',duration:'0',visual:'',thumbnail:'',playlist:'gaming-radio'},
@@ -80,6 +80,30 @@
     return list.map(p=>`<option value="${esc(p.key)}" ${String(selected)===String(p.key)?'selected':''}>${esc(p.name)} · ${esc(p.track_count||0)} faixas · ${esc(p.genre||'Lofi')}</option>`).join('');
   }
 
+  function djScannerCard(){
+    if(activePlatform!=='twitch')return '';
+    const s=djScan||null,total=Number(s?.total||215),processed=Number(s?.processed||0),pct=total?Math.round(processed/total*100):0;
+    const status=s?String(s.status||'pending'):'not_started';
+    const statusLabel=status==='completed'?'Concluído':status==='running'?'Verificando':status==='pending'?'Aguardando':'Não iniciado';
+    return `<section class="card" style="margin-top:14px;border-color:#4a356d">
+      <div class="row between wrap"><div><b>DJ Music Catalog Scanner</b><div class="tiny muted" style="margin-top:4px">Cruza as 215 faixas da playlist com o catálogo oficial da Twitch usando sua sessão DJ no navegador.</div></div><span class="pill ${status==='completed'?'live':'queued'}">${esc(statusLabel)}</span></div>
+      <div class="grid" style="grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px">
+        <div class="card"><div class="tiny muted">PROCESSADAS</div><b>${processed}/${total}</b></div>
+        <div class="card"><div class="tiny muted">ALLOWED</div><b style="color:#8ff2bb">${Number(s?.allowed||0)}</b></div>
+        <div class="card"><div class="tiny muted">RESTRICTED</div><b style="color:#ff9ca6">${Number(s?.restricted||0)}</b></div>
+        <div class="card"><div class="tiny muted">NÃO ENCONTRADAS</div><b>${Number(s?.not_found||0)}</b></div>
+        <div class="card"><div class="tiny muted">REVISAR</div><b>${Number(s?.ambiguous||0)+Number(s?.error_count||0)}</b></div>
+      </div>
+      <div style="height:7px;background:#29292e;border-radius:999px;overflow:hidden;margin-top:10px"><span style="display:block;height:100%;width:${pct}%;background:#9146ff"></span></div>
+      <div class="row wrap" style="margin-top:12px">
+        <a class="btn" href="./twitch-dj-catalog-scanner.user.js" target="_blank" rel="noopener">1. Instalar scanner</a>
+        <button id="startDjCatalogScan" class="btn twitch">2. Iniciar verificação das 215</button>
+        ${s?.id?'<button id="refreshDjCatalogScan" class="btn">↻ Atualizar resultado</button>':''}
+      </div>
+      <div class="tiny muted" style="margin-top:9px">A sessão OAuth/cookies da Twitch não é enviada ao MediaForge. O script roda dentro de twitch.tv e envia apenas o resultado de cada faixa.</div>
+    </section>`;
+  }
+
   function youtubeSlotOptions(){
     const list=ovh?.youtube_slots||[];
     if(!list.length)return '<option value="">Slots OVH ainda não sincronizados</option>';
@@ -105,7 +129,7 @@
       ${activePlatform==='youtube'?`<div class="field"><label>THUMBNAIL DA LIVE NO YOUTUBE</label><select id="thumbnail" class="select"><option value="">Thumbnail padrão do Peter Lofi</option>${images.map(a=>`<option value="${esc(a.id)}" ${d.thumbnail===String(a.id)?'selected':''}>${esc(a.title)} · ${fmtBytes(a.size_bytes)}</option>`).join('')}</select></div><div class="field"><label class="assetdrop" for="thumbFile"><b>+ Enviar thumbnail JPG, PNG ou WEBP</b><small>Essa imagem será enviada como thumbnail da transmissão no YouTube.</small></label><input id="thumbFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><div class="uploadbar"><span id="thumbUploadBar"></span></div><div id="thumbUploadStatus" class="tiny muted" style="margin-top:7px"></div></div>`:''}
       <button id="start" class="btn ${activePlatform==='kick'?'kick':activePlatform==='twitch'?'twitch':''} block" style="margin-top:14px">${platformIcon(activePlatform)} Iniciar no ${platformName(activePlatform)}</button>
     </section><section class="note"><b>${platformName(activePlatform)} via OVH:</b> o MediaForge envia o comando para a VPS e o encoder permanece 24/7 fora do GitHub Actions. A playlist pode ser alterada enquanto a transmissão está no ar.</section></aside></div>
-    <div style="height:14px"></div><div class="row between"><b>Lives recentes</b><button id="refreshSessions" class="btn">↻ Atualizar</button></div><div class="grid" style="margin-top:10px">${liveCards()}</div>`;
+    ${'${djScannerCard()}'}<div style="height:14px"></div><div class="row between"><b>Lives recentes</b><button id="refreshSessions" class="btn">↻ Atualizar</button></div><div class="grid" style="margin-top:10px">${liveCards()}</div>`;
     bind();applySelection();
   }
 
@@ -115,6 +139,8 @@
     document.getElementById('thumbFile')?.addEventListener('change',e=>uploadAsset(e.target.files?.[0],'thumbnail'));
     document.getElementById('start').onclick=startLive;
     document.getElementById('refreshSessions').onclick=loadSessions;
+    document.getElementById('startDjCatalogScan')?.addEventListener('click',startDjCatalogScan);
+    document.getElementById('refreshDjCatalogScan')?.addEventListener('click',loadDjScan);
     document.querySelectorAll('.stopLive').forEach(b=>b.onclick=e=>{e.stopPropagation();stopLive(b.dataset.id)});
     document.querySelectorAll('.viewLive').forEach(b=>b.onclick=e=>{e.stopPropagation();openLive(b.dataset.id)});
     document.querySelectorAll('.livecard').forEach(card=>card.onclick=()=>openLive(card.dataset.live));
@@ -189,8 +215,27 @@
     }catch(e){wrap.innerHTML=`<div class="card"><b>Falha ao carregar a live</b><div class="small muted" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="document.getElementById('liveModal')?.remove()">Fechar</button></div>`;}
   }
 
-  async function loadSessions(){try{captureDraft();const [x,o]=await Promise.all([api('/api/live-sessions'),api('/api/ovh/status')]);sessions=x.sessions||[];ovh=o;render();}catch(e){console.error(e);}}
-  async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [cat,lib,ls,o]=await Promise.all([api('/api/catalog'),api('/api/music-library'),api('/api/live-sessions'),api('/api/ovh/status')]);catalog=cat;musicLibrary=lib||{playlists:[]};sessions=ls.sessions||[];ovh=o;render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
+  async function loadDjScan(){
+    try{
+      const x=await api('/api/dj-catalog/scans?limit=1');
+      djScan=(x.scans||[])[0]||null;
+      if(activePlatform==='twitch')render();
+    }catch(e){console.warn('DJ catalog scan status:',e)}
+  }
+  async function startDjCatalogScan(){
+    const btn=document.getElementById('startDjCatalogScan');if(btn){btn.disabled=true;btn.textContent='Preparando scanner…';}
+    try{
+      const x=await api('/api/dj-catalog/scans',{method:'POST',body:'{}'});
+      djScan=x.scan||null;render();
+      const popup=window.open(x.launch_url,'_blank','noopener');
+      if(!popup)location.href=x.launch_url;
+      alert('Scanner criado. Na aba da Twitch, faça uma busca qualquer no DJ Catalog uma única vez; depois as 215 faixas serão verificadas automaticamente.');
+    }catch(e){alert('Falha ao iniciar o scanner: '+e.message)}
+    finally{const b=document.getElementById('startDjCatalogScan');if(b){b.disabled=false;b.textContent='2. Iniciar verificação das 215';}}
+  }
+
+  async function loadSessions(){try{captureDraft();const [x,o,ds]=await Promise.all([api('/api/live-sessions'),api('/api/ovh/status'),api('/api/dj-catalog/scans?limit=1').catch(()=>({scans:[]}))]);sessions=x.sessions||[];ovh=o;djScan=(ds.scans||[])[0]||djScan;render();}catch(e){console.error(e);}}
+  async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [cat,lib,ls,o,ds]=await Promise.all([api('/api/catalog'),api('/api/music-library'),api('/api/live-sessions'),api('/api/ovh/status'),api('/api/dj-catalog/scans?limit=1').catch(()=>({scans:[]}))]);catalog=cat;musicLibrary=lib||{playlists:[]};sessions=ls.sessions||[];ovh=o;djScan=(ds.scans||[])[0]||null;render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
   document.querySelectorAll('.platform-tabs .tab[data-platform]').forEach(tab=>tab.onclick=e=>{e.preventDefault();captureDraft();activePlatform=tab.dataset.platform||'kick';history.replaceState(null,'',`?platform=${activePlatform}`);render();});
   document.getElementById('refresh')?.addEventListener('click',load);load();setInterval(()=>{if(document.visibilityState==='visible'&&catalog)loadSessions();},15000);
 })();
