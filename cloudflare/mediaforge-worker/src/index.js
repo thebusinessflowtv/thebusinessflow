@@ -17,6 +17,10 @@ async function requireAuth(request,env){const t=bearer(request);return t?verifyS
 
 function githubHeaders(env){return {'authorization':`Bearer ${env.GITHUB_WORKFLOW_TOKEN}`,'accept':'application/vnd.github+json','x-github-api-version':'2022-11-28','user-agent':'MediaForge-Cloudflare-Worker','content-type':'application/json'};}
 async function githubQueueFile(env,path,payload,message){
+  if(String(env.LOCAL_RUNTIME||'')==='1'){
+    await setLocalConfig(env,path,payload);
+    return {local:true,path};
+  }
   if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('GITHUB_WORKFLOW_TOKEN não configurado no Worker.');
   const repo=env.GITHUB_REPO||'thebusinessflowtv/theofficemusic',api=`https://api.github.com/repos/${repo}/contents/${path}`;
   let sha='';
