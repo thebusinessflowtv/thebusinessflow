@@ -198,3 +198,20 @@ CREATE TABLE IF NOT EXISTS local_config (
 
 CREATE INDEX IF NOT EXISTS idx_local_config_updated
 ON local_config(updated_at DESC);
+
+
+-- One-time encrypted relay used to move operational credentials from GitHub
+-- Actions to the OVH control plane. Payloads are CMS-encrypted to a certificate
+-- whose private key never leaves the OVH host.
+CREATE TABLE IF NOT EXISTS secret_migrations (
+  id TEXT PRIMARY KEY,
+  public_cert_pem TEXT NOT NULL,
+  encrypted_bundle_b64 TEXT,
+  status TEXT NOT NULL DEFAULT 'waiting',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_secret_migrations_status
+ON secret_migrations(status, created_at DESC);
