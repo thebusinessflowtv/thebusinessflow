@@ -1,0 +1,31 @@
+name: One-off — Probe PeterLofi Generator
+
+on:
+  push:
+    paths:
+      - '.github/workflows/oneoff-probe-peter-lofi-generator.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://mediaforge-api.guilhermeodsgn.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe generator endpoints
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/music/presets" | tee /tmp/presets.json
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/music/jobs" | tee /tmp/jobs.json
+          jq -e '.presets | length > 0' /tmp/presets.json >/dev/null
+          jq -e '.jobs | type=="array"' /tmp/jobs.json >/dev/null
+          echo "PETER_LOFI_GENERATOR_API_OK"
