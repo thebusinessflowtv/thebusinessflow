@@ -1,0 +1,76 @@
+name: MediaForge — Test Remote UI Audio Controls
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-test-remote-ui-controls.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Login local and remote
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOCAL="https://146.59.156.224:8443"
+          REMOTE="https://mediaforge-api.guilhermeodsgn.workers.dev"
+          BODY="$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')"
+          L="$(curl -kfsS -X POST "$LOCAL/api/auth/login" -H 'content-type: application/json' --data "$BODY")"
+          R="$(curl -fsS -X POST "$REMOTE/api/auth/login" -H 'content-type: application/json' --data "$BODY")"
+          LT="$(printf '%s' "$L" | jq -r '.token // empty')"
+          RT="$(printf '%s' "$R" | jq -r '.token // empty')"
+          test -n "$LT"; test -n "$RT"
+          echo "::add-mask::$LT"; echo "::add-mask::$RT"
+          printf '%s' "$LT" >/tmp/local-token
+          printf '%s' "$RT" >/tmp/remote-token
+          echo "LOGIN_LOCAL_REMOTE_OK"
+
+      - name: Snapshot OVH local state
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOCAL="https://146.59.156.224:8443"
+          LT="$(cat /tmp/local-token)"
+          curl -kfsS "$LOCAL/api/ovh/status" -H "authorization: Bearer $LT" >/tmp/before.json
+          node - <<'NODE'
+          const d=JSON.parse(require('fs').readFileSync('/tmp/before.json','utf8'));
+          const t=d.agent?.services?.twitch||{};
+          console.log('BEFORE encoder='+t.encoder_pid,'track='+t.now_playing?.track_id,'title='+t.now_playing?.title,'status='+t.status,'visual='+t.visual_status);
+          if(!t.encoder_pid||t.status!=='live')throw new Error('Twitch not ready');
+          NODE
+
+      - name: Send three rapid skips through current remote MediaForge API
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://mediaforge-api.guilhermeodsgn.workers.dev"
+          RT="$(cat /tmp/remote-token)"
+          for N in 1 2 3; do
+            curl -fsS -X POST "$REMOTE/api/ovh/control"               -H "authorization: Bearer $RT" -H 'content-type: application/json'               --data '{"action":"skip","runtime_slot":"twitch"}' | tee "/tmp/remote-skip-$N.json"
+            echo
+          done
+          sleep 14
+
+      - name: Verify remote clicks reached OVH without RTMP restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOCAL="https://146.59.156.224:8443"
+          LT="$(cat /tmp/local-token)"
+          curl -kfsS "$LOCAL/api/ovh/status" -H "authorization: Bearer $LT" >/tmp/after.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const b=JSON.parse(fs.readFileSync('/tmp/before.json','utf8')).agent?.services?.twitch||{};
+          const a=JSON.parse(fs.readFileSync('/tmp/after.json','utf8')).agent?.services?.twitch||{};
+          console.log('AFTER before_encoder='+b.encoder_pid,'after_encoder='+a.encoder_pid,'track='+a.now_playing?.track_id,'title='+a.now_playing?.title,'queued='+a.queued_actions,'status='+a.status,'visual='+a.visual_status);
+          if(String(b.encoder_pid)!==String(a.encoder_pid))throw new Error('Twitch encoder changed from remote UI controls');
+          if(a.status!=='live'||a.visual_status!=='streaming')throw new Error('Twitch A/V not healthy');
+          if(!a.now_playing?.track_id||a.now_playing.track_id===b.now_playing?.track_id)throw new Error('Remote controls did not advance track');
+          NODE
+          echo "REMOTE_UI_THREE_SKIPS_ZERO_DROP_OK"
