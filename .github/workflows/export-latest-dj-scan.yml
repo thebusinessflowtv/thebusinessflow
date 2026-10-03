@@ -1,10 +1,8 @@
 name: MediaForge — Export Latest DJ Scan
 
 on:
+  # D1 is no longer the production database.
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/export-latest-dj-scan.yml'
 
 permissions:
   contents: write
