@@ -1,6 +1,6 @@
 {
-  "request_id": "health-1791000246971",
-  "action": "health_check",
-  "target": "all",
-  "source": "chatgpt"
+  "request_id": "kick-hot-swap-agent-20261003-0147",
+  "action": "deploy_service",
+  "target": "ovh-agent",
+  "source": "chatgpt-kick-stability-fix"
 }
