@@ -1,0 +1,27 @@
+name: MediaForge — Probe Local OVH Runtime
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-probe-local-ovh-runtime.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe OVH local MediaForge
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          echo "=== HEALTH ==="
+          curl -kfsS --connect-timeout 8 --max-time 20 "$BASE/api/health"
+          echo
+          echo "=== LOCAL OPS STATUS ==="
+          curl -kfsS --connect-timeout 8 --max-time 20 "$BASE/api/ops/20261003-live-stability/status"
+          echo
+          echo "=== PUBLIC HEALTH ==="
+          curl -kfsS --connect-timeout 8 --max-time 20 "$BASE/api/ovh/public-health"
+          echo
