@@ -1,0 +1,102 @@
+name: MediaForge — Deploy Twitch DJ Import
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ops-deploy-twitch-dj-import.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Wrangler
+        working-directory: cloudflare/mediaforge-worker
+        run: npm install
+      - name: Resolve D1 binding
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json > /tmp/d1.json
+          DB_ID="$(node - <<'NODE'
+          const fs=require('fs');
+          const list=JSON.parse(fs.readFileSync('/tmp/d1.json','utf8'));
+          const row=(Array.isArray(list)?list:(list.result||[])).find(x=>x.name==='mediaforge-control');
+          process.stdout.write(row?.uuid||row?.id||'');
+          NODE
+          )"
+          test -n "$DB_ID"
+          DB_ID="$DB_ID" node - <<'NODE'
+          const fs=require('fs');
+          const p='wrangler.jsonc';
+          const cfg=JSON.parse(fs.readFileSync(p,'utf8'));
+          cfg.d1_databases=[{binding:'DB',database_name:'mediaforge-control',database_id:process.env.DB_ID}];
+          fs.writeFileSync(p,JSON.stringify(cfg,null,2)+'\n');
+          NODE
+      - name: Queue ovh-agent deploy
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="deploy-dj-agent-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"id\":\"$ID\",\"action\":\"deploy_service\",\"target\":\"ovh-agent\",\"requested_at\":\"$NOW\",\"requested_by\":\"github-ops\",\"source\":\"twitch-dj-import\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT OR REPLACE INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES('$ID','deploy_service','ovh-agent','$PAYLOAD','pending','$NOW');"
+          echo "AGENT_ID=$ID" >> "$GITHUB_ENV"
+      - name: Wait ovh-agent
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,status,error,result_json FROM ovh_deploy_commands WHERE id='$AGENT_ID';" > /tmp/agent.json
+            cat /tmp/agent.json
+            if grep -q '"status": "completed"' /tmp/agent.json; then break; fi
+            if grep -q '"status": "failed"' /tmp/agent.json; then exit 1; fi
+            sleep 5
+          done
+          grep -q '"status": "completed"' /tmp/agent.json
+      - name: Queue Twitch zero-drop hot patch
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ID="hotpatch-dj-twitch-$(date -u +%Y%m%d%H%M%S)"
+          PAYLOAD="{\"id\":\"$ID\",\"action\":\"hot_patch_streaming\",\"target\":\"twitch\",\"requested_at\":\"$NOW\",\"requested_by\":\"github-ops\",\"source\":\"twitch-dj-import\"}"
+          npx wrangler d1 execute mediaforge-control --remote --yes --command "INSERT OR REPLACE INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES('$ID','hot_patch_streaming','twitch','$PAYLOAD','pending','$NOW');"
+          echo "PATCH_ID=$ID" >> "$GITHUB_ENV"
+      - name: Wait hot patch and require encoder preservation
+        working-directory: cloudflare/mediaforge-worker
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            npx wrangler d1 execute mediaforge-control --remote --json --command "SELECT id,status,error,result_json FROM ovh_deploy_commands WHERE id='$PATCH_ID';" > /tmp/patch.json
+            cat /tmp/patch.json
+            if grep -q '"status": "completed"' /tmp/patch.json; then break; fi
+            if grep -q '"status": "failed"' /tmp/patch.json; then exit 1; fi
+            sleep 4
+          done
+          grep -q '"status": "completed"' /tmp/patch.json
+          grep -q 'encoder_pid_preserved' /tmp/patch.json
+          grep -q 'true' /tmp/patch.json
+      - name: Verify Twitch remains live
+        run: |
+          set -euo pipefail
+          sleep 8
+          curl -fsS --retry 5 --retry-all-errors https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/public-health | tee /tmp/health.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/health.json'))
+          t=(d.get('services') or {}).get('twitch') or {}
+          print(json.dumps(t,indent=2,ensure_ascii=False))
+          if t.get('status')!='live' or t.get('hot_swap') is not True:
+              raise SystemExit('Twitch did not remain live/hot-swap')
+          PY
