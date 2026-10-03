@@ -160,7 +160,7 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
 
   if(url.pathname==='/api/ovh/deploy'&&request.method==='POST'){
-    const b=await bodyJson(request),action=String(b.action||''),target=String(b.target||''),requested=String(b.request_id||'').trim();
+    const b=await bodyJson(request),action=String(b.action||''),requested=String(b.request_id||'').trim();let target=String(b.target||'');
     if(!OVH_DEPLOY_ACTIONS.includes(action))return json({error:'invalid_deploy_action'},400,cors);
     if(['deploy_service','rollback_service'].includes(action)&&!OVH_DEPLOY_TARGETS.includes(target))return json({error:'invalid_deploy_target'},400,cors);
     if(action==='deploy_all')target='all';
