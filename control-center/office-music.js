@@ -44,7 +44,12 @@
 
   async function auth(){
     const {data:{session}}=await client.auth.getSession();
-    if(!session){ location.href='./index.html'; return null; }
+    const embedded=new URLSearchParams(location.search).get('embed')==='1';
+    if(!session&&embedded){
+      const box=document.getElementById('userBox'); if(box)box.textContent='MediaForge';
+      return {user:{email:'MediaForge'},embedded:true};
+    }
+    if(!session){ location.href='./app.html#/peter-lofi/music'; return null; }
     const email=session.user?.email||'Administrador';
     const box=document.getElementById('userBox'); if(box)box.textContent=email;
     return session;
