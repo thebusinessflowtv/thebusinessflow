@@ -3,12 +3,12 @@
   "agent": {
     "agent_id": "ovh-main",
     "runtime": "ovh",
-    "reported_at": "2026-10-03T04:49:32.920044Z",
+    "reported_at": "2026-10-03T04:50:19.523152Z",
     "host": {
-      "load_1m": 5.89,
-      "memory_percent": 14.8,
+      "load_1m": 6.12,
+      "memory_percent": 14.9,
       "disk_percent": 5.2,
-      "uptime_seconds": 77426.42
+      "uptime_seconds": 77473.02
     },
     "services": {
       "kick": {
@@ -21,7 +21,7 @@
         "fps": 30,
         "video_bitrate_kbps": 6000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:49:31.231509Z",
+        "updated_at": "2026-10-03T04:50:16.246305Z",
         "now_playing": {
           "platform": "kick",
           "state": "playing",
@@ -45,7 +45,7 @@
         "fps": 30,
         "video_bitrate_kbps": 4500,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:49:29.266499Z",
+        "updated_at": "2026-10-03T04:50:19.279759Z",
         "now_playing": {
           "platform": "twitch",
           "state": "playing",
@@ -77,7 +77,7 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:49:30.223211Z",
+        "updated_at": "2026-10-03T04:50:15.233845Z",
         "now_playing": {
           "platform": "youtube-deep-house",
           "state": "playing",
@@ -109,7 +109,7 @@
         "fps": 60,
         "video_bitrate_kbps": 8000,
         "restarts": 0,
-        "updated_at": "2026-10-03T04:49:29.222134Z",
+        "updated_at": "2026-10-03T04:50:19.238012Z",
         "now_playing": {
           "platform": "youtube-rainy",
           "state": "playing",
@@ -133,7 +133,7 @@
       }
     },
     "processed_commands": 28,
-    "stored_at": "2026-10-03T04:49:32.948Z"
+    "stored_at": "2026-10-03T04:50:19.557Z"
   },
   "youtube_slots": [
     {
