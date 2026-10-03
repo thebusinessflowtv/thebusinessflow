@@ -180,6 +180,6 @@
 
   async function loadSessions(){try{captureDraft();const [x,o]=await Promise.all([api('/api/live-sessions'),api('/api/ovh/status')]);sessions=x.sessions||[];ovh=o;render();}catch(e){console.error(e);}}
   async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [cat,ls,o]=await Promise.all([api('/api/catalog'),api('/api/live-sessions'),api('/api/ovh/status')]);catalog=cat;sessions=ls.sessions||[];ovh=o;render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
-  document.querySelectorAll('.platform-tabs .tab').forEach(tab=>tab.onclick=e=>{e.preventDefault();captureDraft();activePlatform=tab.dataset.platform||'kick';history.replaceState(null,'',`?platform=${activePlatform}`);render();});
+  document.querySelectorAll('.platform-tabs .tab[data-platform]').forEach(tab=>tab.onclick=e=>{e.preventDefault();captureDraft();activePlatform=tab.dataset.platform||'kick';history.replaceState(null,'',`?platform=${activePlatform}`);render();});
   document.getElementById('refresh')?.addEventListener('click',load);load();setInterval(()=>{if(document.visibilityState==='visible'&&catalog)loadSessions();},15000);
 })();
