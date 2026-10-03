@@ -1,27 +1,18 @@
 {
   "command": {
-    "id": "kick-hotswap-rollout-20261003-0520",
-    "action": "deploy_service",
-    "target": "kick",
+    "id": "host-agent-hotswap-verifier-20261003-0522",
+    "action": "deploy_host_agent",
+    "target": "host-agent",
     "status": "completed",
-    "created_at": "2026-10-03T05:20:24.813Z",
-    "claimed_at": "2026-10-03T05:20:26.452Z",
-    "completed_at": "2026-10-03T05:20:33.724Z",
+    "created_at": "2026-10-03T05:22:19.441Z",
+    "claimed_at": "2026-10-03T05:22:21.743Z",
+    "completed_at": "2026-10-03T05:22:22.587Z",
     "error": "",
-    "result_json": "{\"old_head\":\"110331d42f012c7fb80a0e07c0e042856cb6782c\",\"new_head\":\"110331d42f012c7fb80a0e07c0e042856cb6782c\",\"service\":\"kick\",\"health\":{\"service\":\"kick\",\"status\":\"live\",\"updated_at\":\"2026-10-03T05:20:27.833883Z\",\"fps\":30,\"video_bitrate_kbps\":6000,\"restarts\":0},\"backup_image\":\"mediaforge-backup-kick:20261003052027\"}",
+    "result_json": "{\"old_head\":\"110331d42f012c7fb80a0e07c0e042856cb6782c\",\"new_head\":\"2fa8ee6aa324e04b74eabad33709c40dfd8883c2\",\"host_agent\":\"reloading\"}",
     "result": {
       "old_head": "110331d42f012c7fb80a0e07c0e042856cb6782c",
-      "new_head": "110331d42f012c7fb80a0e07c0e042856cb6782c",
-      "service": "kick",
-      "health": {
-        "service": "kick",
-        "status": "live",
-        "updated_at": "2026-10-03T05:20:27.833883Z",
-        "fps": 30,
-        "video_bitrate_kbps": 6000,
-        "restarts": 0
-      },
-      "backup_image": "mediaforge-backup-kick:20261003052027"
+      "new_head": "2fa8ee6aa324e04b74eabad33709c40dfd8883c2",
+      "host_agent": "reloading"
     }
   }
 }
