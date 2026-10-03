@@ -225,6 +225,7 @@ async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/m
 async function getPeterLofiSeriesConfig(env){return (await fetchGithubJson(env,'config/peter_lofi_series.json'))||{series:[]};}
 async function syncMusicGenerationJob(env,row){
   if(!row)return null;
+  if(String(env.LOCAL_RUNTIME||'')==='1')return row;
   if(['completed','failed'].includes(String(row.status||'')))return row;
   const remote=await fetchGithubJson(env,`control/generated-playlists/${row.id}.json`);
   if(!remote)return row;
@@ -267,9 +268,19 @@ async function syncSessionFromGitHub(env,row){
   return {...row,...remote,status,completed_at:completed||row.completed_at};
 }
 function safeName(name){return String(name||'asset').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(-140)||'asset';}
-function assetPublicUrl(request,asset){return `${new URL(request.url).origin}/media/${asset.id}/${asset.download_token}`;}
+function assetPublicUrl(request,asset,env=null){
+  const base=String(env?.PUBLIC_BASE_URL||new URL(request.url).origin).replace(/\/$/,'');
+  return `${base}/media/${asset.id}/${asset.download_token}`;
+}
+function assetRuntimeUrl(request,asset,env){
+  if(String(env.LOCAL_RUNTIME||'')==='1'){
+    const base=String(env.OVH_INTERNAL_API_URL||'http://host.docker.internal:8790').replace(/\/$/,'');
+    return `${base}/media/${asset.id}/${asset.download_token}`;
+  }
+  return assetPublicUrl(request,asset,env);
+}
 async function readAsset(env,id){return env.DB.prepare(`SELECT * FROM assets WHERE id=?`).bind(id).first();}
-async function assetSummary(request,env,id){if(!id)return null;const a=await readAsset(env,id);return a?{id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,public_url:assetPublicUrl(request,a)}:null;}
+async function assetSummary(request,env,id){if(!id)return null;const a=await readAsset(env,id);return a?{id:a.id,title:a.title,asset_type:a.asset_type,mime_type:a.mime_type,size_bytes:a.size_bytes,created_at:a.created_at,public_url:assetPublicUrl(request,a,env)}:null;}
 
 async function sha256hex(value){
   const bytes=await crypto.subtle.digest('SHA-256',enc.encode(String(value||'')));
@@ -308,6 +319,47 @@ async function handleMedia(request,env,url){const parts=url.pathname.split('/').
 async function handleApi(request,env,url){
   const cors=corsHeaders(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
   if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-local-r2':'r2',database:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-sqlite-d1':'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true,local_runtime:String(env.LOCAL_RUNTIME||'')==='1'},200,cors);
+
+  if(url.pathname==='/api/migration/ovh-secret-transfer'&&request.method==='POST'){
+    if(String(env.LOCAL_RUNTIME||'')==='1')return json({error:'remote_bridge_only'},409,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_transfer_init',ip:gate.ip},403,cors);
+    const b=await bodyJson(request),cert=String(b.public_cert_pem||'').trim();
+    if(!cert.includes('-----BEGIN CERTIFICATE-----')||!cert.includes('-----END CERTIFICATE-----'))return json({error:'invalid_public_certificate'},400,cors);
+    const id=crypto.randomUUID(),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+60*60*1000).toISOString();
+    await env.DB.prepare(`INSERT INTO secret_migrations(id,public_cert_pem,encrypted_bundle_b64,status,created_at,updated_at,expires_at) VALUES(?,?,'','waiting',?,?,?)`).bind(id,cert,created,created,expires).run();
+    await githubDispatchWorkflow(env,'mediaforge-export-secrets-to-ovh.yml',{transfer_id:id});
+    return json({ok:true,transfer_id:id,status:'waiting',expires_at:expires},202,cors);
+  }
+  const transferCert=url.pathname.match(/^\/api\/migration\/ovh-secret-transfer\/([^/]+)\/cert$/);
+  if(transferCert&&request.method==='GET'){
+    if(!migrationGithubAllowed(request,env))return json({error:'forbidden_github_transfer'},403,cors);
+    const row=await env.DB.prepare(`SELECT id,public_cert_pem,status,expires_at FROM secret_migrations WHERE id=?`).bind(transferCert[1]).first();
+    if(!row||Date.parse(row.expires_at||'')<Date.now())return json({error:'transfer_not_found_or_expired'},404,cors);
+    return json({id:row.id,public_cert_pem:row.public_cert_pem,status:row.status,expires_at:row.expires_at},200,cors);
+  }
+  const transferBundle=url.pathname.match(/^\/api\/migration\/ovh-secret-transfer\/([^/]+)\/bundle$/);
+  if(transferBundle&&request.method==='POST'){
+    if(!migrationGithubAllowed(request,env))return json({error:'forbidden_github_transfer'},403,cors);
+    const row=await env.DB.prepare(`SELECT id,expires_at FROM secret_migrations WHERE id=?`).bind(transferBundle[1]).first();
+    if(!row||Date.parse(row.expires_at||'')<Date.now())return json({error:'transfer_not_found_or_expired'},404,cors);
+    const b=await bodyJson(request),bundle=String(b.encrypted_bundle_b64||'').trim();
+    if(bundle.length<100)return json({error:'encrypted_bundle_required'},400,cors);
+    const now=new Date().toISOString();
+    await env.DB.prepare(`UPDATE secret_migrations SET encrypted_bundle_b64=?,status='ready',updated_at=? WHERE id=?`).bind(bundle,now,row.id).run();
+    return json({ok:true,transfer_id:row.id,status:'ready'},200,cors);
+  }
+  const transferPoll=url.pathname.match(/^\/api\/migration\/ovh-secret-transfer\/([^/]+)$/);
+  if(transferPoll&&request.method==='GET'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_transfer_poll',ip:gate.ip},403,cors);
+    const row=await env.DB.prepare(`SELECT id,encrypted_bundle_b64,status,created_at,updated_at,expires_at FROM secret_migrations WHERE id=?`).bind(transferPoll[1]).first();
+    if(!row||Date.parse(row.expires_at||'')<Date.now())return json({error:'transfer_not_found_or_expired'},404,cors);
+    return json({id:row.id,status:row.status,encrypted_bundle_b64:row.status==='ready'?row.encrypted_bundle_b64:null,created_at:row.created_at,updated_at:row.updated_at,expires_at:row.expires_at},200,cors);
+  }
+  if(transferPoll&&request.method==='DELETE'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_transfer_delete',ip:gate.ip},403,cors);
+    await env.DB.prepare(`DELETE FROM secret_migrations WHERE id=?`).bind(transferPoll[1]).run();
+    return json({ok:true},200,cors);
+  }
 
   if(url.pathname==='/api/migration/export'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_migration_export',ip:gate.ip},403,cors);
@@ -488,6 +540,41 @@ async function handleApi(request,env,url){
       source:'incident-youtube-deep-house-recovery'
     });
     return json({ok:true,command:cmd},202,cors);
+  }
+
+  if(url.pathname==='/api/ovh/agent/music-jobs'&&request.method==='GET'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    if(String(env.LOCAL_RUNTIME||'')!=='1')return json({jobs:[]},200,cors);
+    const row=await env.DB.prepare(`SELECT * FROM music_generation_jobs WHERE status='queued' OR (status='running' AND datetime(updated_at)<datetime('now','-15 minutes')) ORDER BY created_at ASC LIMIT 1`).first();
+    if(!row)return json({jobs:[]},200,cors);
+    const now=new Date().toISOString();
+    await env.DB.prepare(`UPDATE music_generation_jobs SET status='running',progress=CASE WHEN progress<3 THEN 3 ELSE progress END,phase='Processando na OVH',updated_at=? WHERE id=?`).bind(now,row.id).run();
+    return json({jobs:[{...row,status:'running',phase:'Processando na OVH',updated_at:now}]},200,cors);
+  }
+  if(url.pathname==='/api/ovh/agent/music-job-ack'&&request.method==='POST'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    const b=await bodyJson(request),id=String(b.id||''),status=String(b.status||'running');
+    if(!id)return json({error:'id_required'},400,cors);
+    if(!['running','completed','failed'].includes(status))return json({error:'invalid_status'},400,cors);
+    const job=await env.DB.prepare(`SELECT * FROM music_generation_jobs WHERE id=?`).bind(id).first();if(!job)return json({error:'music_job_not_found'},404,cors);
+    const progress=Math.max(0,Math.min(100,Number(b.progress??job.progress??0))),phase=String(b.phase||job.phase||''),err=String(b.error||''),now=new Date().toISOString(),completed=status==='completed'||status==='failed'?now:null,result=b.result&&typeof b.result==='object'?b.result:null;
+    let playlist=null;
+    if(status==='completed'&&result)playlist=await catalogGeneratedPlaylist(env,job,result);
+    await env.DB.prepare(`UPDATE music_generation_jobs SET status=?,progress=?,phase=?,release_tag=NULL,master_audio_url=?,error=?,updated_at=?,completed_at=?,result_json=? WHERE id=?`).bind(status,progress,phase,result?.master_audio_url||job.master_audio_url||null,err||null,now,completed,result?JSON.stringify({...result,playlist}):job.result_json||null,id).run();
+    return json({ok:true,id,status,progress,phase,playlist},200,cors);
+  }
+  if(url.pathname==='/api/ovh/agent/assets'&&request.method==='PUT'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    if(String(env.LOCAL_RUNTIME||'')!=='1')return json({error:'local_runtime_required'},409,cors);
+    const name=safeName(url.searchParams.get('name')||'audio.bin'),title=String(url.searchParams.get('title')||name).slice(0,160),assetType=['audio','thumbnail','loop'].includes(String(url.searchParams.get('asset_type')))?String(url.searchParams.get('asset_type')):'audio',mime=String(request.headers.get('content-type')||'application/octet-stream'),size=Math.max(0,Number(request.headers.get('content-length')||0)),assetId=crypto.randomUUID(),token=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),day=new Date().toISOString().slice(0,10),key=`${assetType}/${day}/${assetId}-${name}`,now=new Date().toISOString();
+    await env.MEDIA.put(key,request.body,{httpMetadata:{contentType:mime,cacheControl:'public, max-age=3600'}});
+    await env.DB.prepare(`INSERT INTO assets(id,title,asset_type,r2_key,mime_type,size_bytes,status,download_token,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(assetId,title,assetType,key,mime,size,'ready',token,JSON.stringify({source:'ovh-music-agent'}),now).run();
+    const asset=await readAsset(env,assetId);
+    return json({ok:true,asset:{id:asset.id,title:asset.title,asset_type:asset.asset_type,mime_type:asset.mime_type,size_bytes:asset.size_bytes,public_url:assetPublicUrl(request,asset,env),runtime_url:assetRuntimeUrl(request,asset,env)}},201,cors);
+  }
+  if(url.pathname==='/api/ovh/agent/operational-status'&&request.method==='GET'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    return json({local_runtime:String(env.LOCAL_RUNTIME||'')==='1',youtube_oauth:!!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN),youtube_channel:!!env.YOUTUBE_CHANNEL_ID,kaggle:!!(env.KAGGLE_USERNAME&&env.KAGGLE_API_TOKEN),huggingface:!!env.HF_TOKEN},200,cors);
   }
 
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
