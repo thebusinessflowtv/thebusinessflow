@@ -1,0 +1,68 @@
+name: MediaForge — Deploy Control Center to OVH
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ops-deploy-control-center-ovh.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://mediaforge-api.guilhermeodsgn.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Control API checkout on OVH
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          echo "::add-mask::$TOKEN"
+
+          ID="deploy-control-center-$(date -u +%Y%m%d%H%M%S)"
+          BODY="$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"control-center-dj100"}')"
+          curl -fsS -X POST "$API/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" \
+            -H 'content-type: application/json' \
+            -d "$BODY" | tee /tmp/create.json
+
+          for i in $(seq 1 60); do
+            curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/deploy-status?id=$ID" > /tmp/status.json
+            ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+            echo "[$i] $ID -> $ST"
+            if [ "$ST" = "completed" ]; then break; fi
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; exit 1; fi
+            sleep 4
+          done
+          jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
+          cat /tmp/status.json
+          jq -r '.command.result.git_head // .command.result_json // empty' /tmp/status.json
+
+      - name: Verify public Control Center has DJ 100 UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://peterlofi.odsgn.com.br/lives-cloudflare.js?verify=dj100-20261003-2315'
+          for i in $(seq 1 24); do
+            if curl -fsS --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' "$URL" -o /tmp/lives.js; then
+              if grep -q 'Verificar 100 novas' /tmp/lives.js && grep -q "dance100" /tmp/lives.js; then
+                echo 'PUBLIC_DJ100_UI_OK'
+                exit 0
+              fi
+            fi
+            echo "Public UI not updated yet ($i/24)"
+            sleep 5
+          done
+          echo '::error::Public production UI still serves the old Twitch DJ scanner.'
+          head -c 500 /tmp/lives.js 2>/dev/null || true
+          exit 1
