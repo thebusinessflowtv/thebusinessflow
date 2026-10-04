@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Direct deploy control-api on OVH
+      - name: Refresh host deploy agent safely
         shell: bash
         run: |
           set -euo pipefail
@@ -30,22 +30,49 @@ jobs:
           TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
           test -n "$TOKEN"
           echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/mf-token
 
+          ID="direct-host-agent-$(date -u +%Y%m%d%H%M%S)"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"direct-control-center-dj100"}')" \
+            | tee /tmp/host-create.json
+          for i in $(seq 1 50); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/host-status.json
+            ST="$(jq -r '.command.status // empty' /tmp/host-status.json)"
+            echo "host-agent=$ST"
+            [ "$ST" = "completed" ] && break
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/host-status.json; exit 1; fi
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/host-status.json >/dev/null
+          cat /tmp/host-status.json
+          sleep 5
+
+      - name: Publish Control Center and local API on OVH
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/mf-token)"
           ID="direct-control-center-$(date -u +%Y%m%d%H%M%S)"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"direct-control-center-dj100"}')" \
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"direct-control-center-dj100-v2"}')" \
             | tee /tmp/create.json
 
-          for i in $(seq 1 50); do
+          for i in $(seq 1 120); do
             curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
             ST="$(jq -r '.command.status // empty' /tmp/status.json)"
-            echo "control-api=$ST"
+            echo "control-plane=$ST"
             [ "$ST" = "completed" ] && break
             if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; exit 1; fi
             sleep 3
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
+          jq -e '.command.result.mediaforge_control_plane.ui_verified==true' /tmp/status.json >/dev/null
+          jq -e '.command.result.mediaforge_control_plane.dj100_manifest_seeded==true' /tmp/status.json >/dev/null
+          jq -e '.command.result.mediaforge_control_plane.publisher_pids_preserved==true' /tmp/status.json >/dev/null
           cat /tmp/status.json
 
       - name: Verify public production bundle
