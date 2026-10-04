@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MediaForge · Spotify</title>
+  <style>
+    body{margin:0;background:#090b0f;color:#f7f7f7;font:15px/1.45 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;display:grid;place-items:center}
+    .card{width:min(520px,90vw);background:#11141a;border:1px solid #2a2f39;border-radius:18px;padding:26px;box-shadow:0 30px 80px #0008}
+    .muted{color:#98a1b2}.ok{color:#83f3ad}.err{color:#ff9ca6}a{color:#8eb7ff}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin-top:0">MediaForge · Spotify</h2>
+    <div id="status" class="muted">Concluindo conexão com o Spotify…</div>
+  </div>
+<script>
+(async()=>{
+  const CLIENT_KEY='mediaforge_spotify_client_id';
+  const AUTH_KEY='mediaforge_spotify_auth';
+  const VERIFIER_KEY='mediaforge_spotify_pkce_verifier';
+  const STATE_KEY='mediaforge_spotify_oauth_state';
+  const REDIRECT_URI='https://peterlofi.odsgn.com.br/spotify-callback.html';
+  const status=document.getElementById('status');
+  const q=new URLSearchParams(location.search);
+  try{
+    if(q.get('error'))throw new Error('Spotify recusou a autorização: '+q.get('error'));
+    const code=q.get('code'),state=q.get('state'),expected=localStorage.getItem(STATE_KEY);
+    if(!code)throw new Error('Código de autorização não recebido.');
+    if(!state||!expected||state!==expected)throw new Error('Estado OAuth inválido. Inicie a conexão novamente pelo MediaForge.');
+    const clientId=localStorage.getItem(CLIENT_KEY),verifier=localStorage.getItem(VERIFIER_KEY);
+    if(!clientId||!verifier)throw new Error('Client ID ou verificador PKCE não encontrado neste navegador.');
+    const res=await fetch('https://accounts.spotify.com/api/token',{
+      method:'POST',
+      headers:{'content-type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({
+        client_id:clientId,grant_type:'authorization_code',code,
+        redirect_uri:REDIRECT_URI,code_verifier:verifier
+      })
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.error_description||data.error||('Spotify HTTP '+res.status));
+    const auth={...data,expires_at:Date.now()+Number(data.expires_in||3600)*1000,authorized_at:Date.now()};
+    localStorage.setItem(AUTH_KEY,JSON.stringify(auth));
+    localStorage.removeItem(VERIFIER_KEY);localStorage.removeItem(STATE_KEY);
+    status.className='ok';status.textContent='✓ Spotify conectado. Voltando ao MediaForge…';
+    setTimeout(()=>location.replace('./app.html#/peter-lofi/lives'),900);
+  }catch(e){
+    status.className='err';
+    status.innerHTML='Falha ao conectar: '+String(e.message||e)+'<br><br><a href="./app.html#/peter-lofi/lives">Voltar ao MediaForge</a>';
+  }
+})();
+</script>
+</body>
+</html>
