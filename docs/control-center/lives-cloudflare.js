@@ -104,6 +104,11 @@
     </section>`;
   }
 
+  function spotifyPlaylistCard(){
+    if(activePlatform!=='twitch')return '';
+    return window.MediaForgeSpotify?.card?.()||'';
+  }
+
   function youtubeSlotOptions(){
     const list=ovh?.youtube_slots||[];
     if(!list.length)return '<option value="">Slots OVH ainda não sincronizados</option>';
@@ -128,7 +133,7 @@
       <div class="field"><label class="assetdrop" for="visualFile"><b>+ Selecionar JPG, PNG, WEBP, MP4 ou MOV</b><small>O arquivo será usado como visual e repetido durante a live.</small></label><input id="visualFile" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden><div class="uploadbar"><span id="uploadBar"></span></div><div id="uploadStatus" class="tiny muted" style="margin-top:7px"></div></div>
       ${activePlatform==='youtube'?`<div class="field"><label>THUMBNAIL DA LIVE NO YOUTUBE</label><select id="thumbnail" class="select"><option value="">Thumbnail padrão do Peter Lofi</option>${images.map(a=>`<option value="${esc(a.id)}" ${d.thumbnail===String(a.id)?'selected':''}>${esc(a.title)} · ${fmtBytes(a.size_bytes)}</option>`).join('')}</select></div><div class="field"><label class="assetdrop" for="thumbFile"><b>+ Enviar thumbnail JPG, PNG ou WEBP</b><small>Essa imagem será enviada como thumbnail da transmissão no YouTube.</small></label><input id="thumbFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><div class="uploadbar"><span id="thumbUploadBar"></span></div><div id="thumbUploadStatus" class="tiny muted" style="margin-top:7px"></div></div>`:''}
       <button id="start" class="btn ${activePlatform==='kick'?'kick':activePlatform==='twitch'?'twitch':''} block" style="margin-top:14px">${platformIcon(activePlatform)} Iniciar no ${platformName(activePlatform)}</button>
-    </section><section class="note"><b>${platformName(activePlatform)} via OVH:</b> o MediaForge envia o comando para a VPS e o encoder permanece 24/7 fora do GitHub Actions. A playlist pode ser alterada enquanto a transmissão está no ar.</section></aside></div>` + djScannerCard() + `<div style="height:14px"></div><div class="row between"><b>Lives recentes</b><button id="refreshSessions" class="btn">↻ Atualizar</button></div><div class="grid" style="margin-top:10px">${liveCards()}</div>`;
+    </section><section class="note"><b>${platformName(activePlatform)} via OVH:</b> o MediaForge envia o comando para a VPS e o encoder permanece 24/7 fora do GitHub Actions. A playlist pode ser alterada enquanto a transmissão está no ar.</section></aside></div>` + djScannerCard() + spotifyPlaylistCard() + `<div style="height:14px"></div><div class="row between"><b>Lives recentes</b><button id="refreshSessions" class="btn">↻ Atualizar</button></div><div class="grid" style="margin-top:10px">${liveCards()}</div>`;
     bind();applySelection();
   }
 
@@ -141,6 +146,7 @@
     document.getElementById('startDjCatalogScan')?.addEventListener('click',()=>startDjCatalogScan('dance100'));
     document.getElementById('startDjCatalogLegacy')?.addEventListener('click',()=>startDjCatalogScan('gaming'));
     document.getElementById('refreshDjCatalogScan')?.addEventListener('click',loadDjScan);
+    window.MediaForgeSpotify?.bind?.();
     document.querySelectorAll('.stopLive').forEach(b=>b.onclick=e=>{e.stopPropagation();stopLive(b.dataset.id)});
     document.querySelectorAll('.viewLive').forEach(b=>b.onclick=e=>{e.stopPropagation();openLive(b.dataset.id)});
     document.querySelectorAll('.livecard').forEach(card=>card.onclick=()=>openLive(card.dataset.live));
