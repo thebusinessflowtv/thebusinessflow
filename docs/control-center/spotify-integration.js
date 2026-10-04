@@ -171,6 +171,45 @@
     return {src,...result};
   }
 
+  async function loadAllowedSource(){
+    const r=await fetch(DATA_URL+'?v='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('Não foi possível carregar as 75 ALLOWED.');
+    return r.json();
+  }
+
+  function downloadBlob(filename,type,text){
+    const blob=new Blob([text],{type});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+
+  async function downloadAllowedFile(format){
+    try{
+      const src=await loadAllowedSource();
+      if(format==='txt'){
+        const text=(src.tracks||[]).map(t=>String(t.artists||'')+' - '+String(t.title||'')).join('\n')+'\n';
+        downloadBlob('Peter-Lofi-Twitch-DJ-Allowed-75.txt','text/plain;charset=utf-8',text);
+      }else{
+        const csv=['title,artist'];
+        for(const t of (src.tracks||[])){
+          const q=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
+          csv.push(q(t.title)+','+q(t.artists));
+        }
+        downloadBlob('Peter-Lofi-Twitch-DJ-Allowed-75.csv','text/csv;charset=utf-8',csv.join('\n')+'\n');
+      }
+      const status=document.getElementById('spotifyStatus');
+      if(status){
+        status.style.color='';
+        status.innerHTML='✓ Arquivo com <b>'+Number(src.track_count||src.tracks?.length||0)+'</b> faixas preparado. No Soundiiz: Import Playlist → From File → escolha Spotify como destino.';
+      }
+    }catch(e){
+      const status=document.getElementById('spotifyStatus');
+      if(status){status.textContent='Falha ao exportar: '+e.message;status.style.color='#ff9ca6';}
+    }
+  }
+
   async function createPlaylist(){
     const btn=document.getElementById('spotifyCreateAllowed'),status=document.getElementById('spotifyStatus');
     const old=btn?.textContent;
@@ -220,7 +259,7 @@
       if(create)create.disabled=false;
     }catch(e){
       if(Number(e?.status)===403){
-        status.innerHTML='<b style="color:#ffca7a">Spotify conectado, mas sem acesso à Web API (HTTP 403).</b> No Spotify Developer Dashboard, abra este app → Settings → Users Management e adicione o usuário Spotify que acabou de autorizar. O dono do app também precisa ter Spotify Premium em Development Mode. Depois clique em Conectar Spotify novamente.';
+        status.innerHTML='<b style="color:#ffca7a">Spotify conectado, mas a Web API exige Premium (HTTP 403).</b> Como esta conta não tem Premium, use o modo sem API abaixo: exporte TXT/CSV e importe no Soundiiz para criar a playlist no Spotify.';
       }else{
         status.textContent='Spotify precisa ser reconectado: '+e.message;
       }
@@ -241,6 +280,9 @@
         <button id="spotifySaveClient" class="btn">Salvar Client ID</button>
         <button id="spotifyConnect" class="btn" style="border-color:#1db954">Conectar Spotify</button>
         <button id="spotifyCreateAllowed" class="btn primary" disabled>Criar playlist com 75 ALLOWED</button>
+        <button id="spotifyExportTxt" class="btn">Exportar TXT (75)</button>
+        <button id="spotifyExportCsv" class="btn">Exportar CSV (75)</button>
+        <a class="btn" href="https://soundiiz.com/webapp/playlists/import" target="_blank" rel="noopener">Abrir Soundiiz ↗</a>
         ${a?.access_token?'<button id="spotifyDisconnect" class="btn danger">Desconectar</button>':''}
       </div>
       <div id="spotifyStatus" class="tiny muted" style="margin-top:10px">Verificando conexão…</div>
@@ -255,6 +297,8 @@
     });
     document.getElementById('spotifyConnect')?.addEventListener('click',beginAuth);
     document.getElementById('spotifyCreateAllowed')?.addEventListener('click',createPlaylist);
+    document.getElementById('spotifyExportTxt')?.addEventListener('click',()=>downloadAllowedFile('txt'));
+    document.getElementById('spotifyExportCsv')?.addEventListener('click',()=>downloadAllowedFile('csv'));
     document.getElementById('spotifyDisconnect')?.addEventListener('click',()=>{
       localStorage.removeItem(AUTH_KEY);localStorage.removeItem(RESOLVED_KEY);location.reload();
     });
