@@ -1,0 +1,55 @@
+name: MediaForge — Probe DJ100 OVH Publish
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ops-probe-dj100-ovh.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Probe command and public bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN=""
+          for i in $(seq 1 30); do
+            LOGIN="$(curl -kfsS --connect-timeout 8 --max-time 20 -X POST "$BASE/api/auth/login" \
+              -H 'content-type: application/json' \
+              --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')" 2>/dev/null || true)"
+            TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty' 2>/dev/null || true)"
+            [ -n "$TOKEN" ] && break
+            echo "waiting API login $i/30"
+            sleep 4
+          done
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          ID='direct-control-center-20261004022424'
+          curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" | tee /tmp/status.json || true
+          echo "COMMAND_STATUS=$(jq -r '.command.status // "unavailable"' /tmp/status.json 2>/dev/null || echo unavailable)"
+          echo "COMMAND_ERROR=$(jq -r '.command.error // ""' /tmp/status.json 2>/dev/null || true)"
+          jq '.command.result // {}' /tmp/status.json 2>/dev/null || true
+
+          for i in $(seq 1 20); do
+            curl -fsS --connect-timeout 8 --max-time 20 -H 'Cache-Control: no-cache' \
+              "https://peterlofi.odsgn.com.br/lives-cloudflare.js?probe=$(date +%s)" -o /tmp/lives.js || true
+            if grep -q 'Verificar 100 novas' /tmp/lives.js 2>/dev/null && grep -q "dance100" /tmp/lives.js 2>/dev/null; then
+              echo 'PUBLIC_DJ100_UI_OK'
+              exit 0
+            fi
+            sleep 3
+          done
+          echo 'PUBLIC_DJ100_UI_OLD'
+          grep -n 'Iniciar verificação\|Verificar 100' /tmp/lives.js 2>/dev/null | head || true
+          exit 1
