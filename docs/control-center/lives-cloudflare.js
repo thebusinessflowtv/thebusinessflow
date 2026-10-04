@@ -98,7 +98,7 @@
       <div class="row wrap" style="margin-top:12px">
         <a class="btn" href="./twitch-dj-catalog-scanner.user.js?v=20261004-112" target="_blank" rel="noopener">1. Instalar scanner</a>
         <button id="startDjCatalogScan" class="btn twitch">2. Verificar 100 novas</button><button id="startDjCatalogLegacy" class="btn">Lista anterior (215)</button>
-        ${s?.id?'<button id="refreshDjCatalogScan" class="btn">↻ Atualizar resultado</button>':''}<a class="btn twitch" href="./twitch-dj-upload-v2.html?v=20261004-2">3. Enviar ZIP MP3</a>
+        ${s?.id?'<button id="refreshDjCatalogScan" class="btn">↻ Atualizar resultado</button>':''}<a class="btn twitch" href="./twitch-dj-upload-v2.html?v=20261004-4">3. Enviar ZIP MP3</a><button id="resumeLatestDjZip" class="btn twitch">↻ Retomar último ZIP</button>
       </div>
       <div class="tiny muted" style="margin-top:9px">A sessão OAuth/cookies da Twitch não é enviada ao MediaForge. O script roda dentro de twitch.tv e envia apenas o resultado de cada faixa.</div>
     </section>`;
@@ -267,6 +267,32 @@
     }
   }
 
+  async function resumeLatestDjZip(){
+    const btn=document.getElementById('resumeLatestDjZip');
+    const original=btn?.textContent||'↻ Retomar último ZIP';
+    if(btn){btn.disabled=true;btn.textContent='Localizando ZIP…';}
+    try{
+      const a=await api('/api/assets');
+      const archives=(a.assets||[]).filter(x=>x&&String(x.asset_type)==='dj_archive'&&String(x.status||'ready')==='ready');
+      if(!archives.length)throw new Error('Nenhum ZIP DJ já enviado foi encontrado na OVH.');
+      archives.sort((x,y)=>String(y.created_at||'').localeCompare(String(x.created_at||'')));
+      const asset=archives[0];
+      if(btn)btn.textContent='Retomando auditoria…';
+      const r=await api('/api/twitch-dj/import-archive',{
+        method:'POST',
+        body:JSON.stringify({asset_id:String(asset.id),mode:'shared_commercial_replace'})
+      });
+      const title=String(asset.title||'último ZIP');
+      alert('Retomada iniciada usando '+title+'. O arquivo NÃO será reenviado. A OVH vai auditar, validar as novas faixas e só depois remover as 36 autorais.');
+      location.href='./twitch-dj-upload-v2.html?v=20261004-4';
+      return r;
+    }catch(e){
+      alert('Falha ao retomar o último ZIP: '+e.message);
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent=original;}
+    }
+  }
+
   async function loadDjScan(){
     try{
       const x=await api('/api/dj-catalog/scans?limit=1');
@@ -294,5 +320,9 @@
   async function loadSessions(){try{captureDraft();const [x,o,ds]=await Promise.all([api('/api/live-sessions'),api('/api/ovh/status'),api('/api/dj-catalog/scans?limit=1').catch(()=>({scans:[]}))]);sessions=x.sessions||[];ovh=o;djScan=(ds.scans||[])[0]||djScan;render();}catch(e){console.error(e);}}
   async function load(){if(loading)return;loading=true;try{if(!API){render();return;}await api('/api/me');const [cat,lib,ls,o,ds]=await Promise.all([api('/api/catalog'),api('/api/music-library'),api('/api/live-sessions'),api('/api/ovh/status'),api('/api/dj-catalog/scans?limit=1').catch(()=>({scans:[]}))]);catalog=cat;musicLibrary=lib||{playlists:[]};sessions=ls.sessions||[];ovh=o;djScan=(ds.scans||[])[0]||null;render();}catch(e){root().innerHTML=`<div class="card" style="color:#ffb2ba"><b>Falha ao carregar o MediaForge</b><div class="small" style="margin-top:7px">${esc(e.message)}</div><button class="btn" style="margin-top:12px" onclick="location.reload()">↻ Tentar novamente</button></div>`;}finally{loading=false;}}
   document.querySelectorAll('.platform-tabs .tab[data-platform]').forEach(tab=>tab.onclick=e=>{e.preventDefault();captureDraft();activePlatform=tab.dataset.platform||'kick';history.replaceState(null,'',`?platform=${activePlatform}`);render();});
+  document.addEventListener('click',e=>{
+    const b=e.target?.closest?.('#resumeLatestDjZip');
+    if(b){e.preventDefault();resumeLatestDjZip();}
+  });
   document.getElementById('refresh')?.addEventListener('click',load);load();setInterval(()=>{if(document.visibilityState==='visible'&&catalog)loadSessions();},15000);
 })();
