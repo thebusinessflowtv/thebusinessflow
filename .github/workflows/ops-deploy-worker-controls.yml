@@ -1,5 +1,5 @@
 name: MediaForge — Deploy Control Fix
-# production-token-auth-fix: 2026-10-03T20:46
+# production-token-auth-fix: 2026-10-03T22:58-dj-scan-v110
 
 on:
   workflow_dispatch:
