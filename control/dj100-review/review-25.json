@@ -1,0 +1,1366 @@
+{
+  "scan_id": "dance100-37922f91-1626-48f9-a0f7-228b5d4cfdba",
+  "generated_at": "2026-10-04T04:47:06Z",
+  "count": 25,
+  "tracks": [
+    {
+      "position": 6,
+      "title": "Levels",
+      "artists": "Avicii",
+      "matched_title": "LEVELS",
+      "matched_artists": "Boslen",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Levels Avicii",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Levels (Instrumental)",
+              "artists": "Avicii",
+              "score": 0.7533,
+              "title_score": 0.6667,
+              "artist_score": 1,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Levels",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "LEVELS",
+              "artists": "Boslen",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:39:34.781Z"
+    },
+    {
+      "position": 8,
+      "title": "I Could Be The One",
+      "artists": "Avicii, Nicky Romero",
+      "matched_title": "I Could Be the One",
+      "matched_artists": "Donna Lewis",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "I Could Be The One Avicii, Nicky Romero",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "I Could Be The One (Avicii Vs. Nicky Romero) (Radio Edit)",
+              "artists": "Avicii,",
+              "score": 0.6289,
+              "title_score": 0.625,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "I Could Be The One avicii",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Hey Brother / You Make Me / I Could Be The One",
+              "artists": "Avicii",
+              "score": 0.6597,
+              "title_score": 0.6667,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "I Could Be The One",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "I Could Be the One",
+              "artists": "Donna Lewis",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:39:43.065Z"
+    },
+    {
+      "position": 12,
+      "title": "Feel So Close - Radio Edit",
+      "artists": "Calvin Harris",
+      "matched_title": "Feel So Close",
+      "matched_artists": "Calvin Harris",
+      "match_score": 0.815,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "no_candidate_passed_confidence_gate",
+        "attempts": [
+          {
+            "term": "Feel So Close - Radio Edit Calvin Harris",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Feel So Close",
+              "artists": "Calvin Harris",
+              "score": 0.815,
+              "title_score": 0.75,
+              "artist_score": 1,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Feel So Close - Radio Edit",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Feel So Close",
+              "artists": "Calvin Harris",
+              "score": 0.815,
+              "title_score": 0.75,
+              "artist_score": 1,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Feel So Close calvin harris",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Feel So Close",
+              "artists": "Calvin Harris",
+              "score": 0.815,
+              "title_score": 0.75,
+              "artist_score": 1,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Feel So Close",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Feel So Close",
+              "artists": "Calvin Harris",
+              "score": 0.815,
+              "title_score": 0.75,
+              "artist_score": 1,
+              "version_match": false
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:39:55.278Z"
+    },
+    {
+      "position": 13,
+      "title": "Outside",
+      "artists": "Calvin Harris, Ellie Goulding",
+      "matched_title": "Outside",
+      "matched_artists": "Staind",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Outside Calvin Harris, Ellie Goulding",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Outside (Hardwell Remix)",
+              "artists": "Calvin Harris",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Outside calvin harris",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Outside (Hardwell Remix)",
+              "artists": "Calvin Harris",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Outside",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Outside",
+              "artists": "Staind",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:39:59.713Z"
+    },
+    {
+      "position": 20,
+      "title": "We Found Love",
+      "artists": "Rihanna, Calvin Harris",
+      "matched_title": "We Found Love",
+      "matched_artists": "We Found Love Karaoke",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "We Found Love Rihanna, Calvin Harris",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Let's Go (Calvin Harris Remix)",
+              "artists": "Calvin Harris",
+              "score": 0.0936,
+              "title_score": 0,
+              "artist_score": 0.36,
+              "version_match": false
+            }
+          },
+          {
+            "term": "We Found Love rihanna",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "We Found Love",
+              "artists": "We Found Love Karaoke",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          },
+          {
+            "term": "We Found Love",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "We Found Love",
+              "artists": "We Found Love Karaoke",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:40:19.107Z"
+    },
+    {
+      "position": 42,
+      "title": "Play Hard",
+      "artists": "David Guetta, Ne-Yo, Akon",
+      "matched_title": "Play Hard",
+      "matched_artists": "Krewella",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Play Hard David Guetta, Ne-Yo, Akon",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Play Hard (feat. Ne-Yo & Akon)",
+              "artists": "David Guetta",
+              "score": 0.5893,
+              "title_score": 0.5714,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Play Hard david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Flames (David Guetta Remix)",
+              "artists": "David Guetta & Sia",
+              "score": 0.1664,
+              "title_score": 0,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Play Hard",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Play Hard",
+              "artists": "Krewella",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:14.303Z"
+    },
+    {
+      "position": 43,
+      "title": "Without You",
+      "artists": "David Guetta, Usher",
+      "matched_title": "Without You",
+      "matched_artists": "Without You",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Without You David Guetta, Usher",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Without You (feat. Usher)",
+              "artists": "David Guetta",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Without You david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Without You (feat. Usher)",
+              "artists": "David Guetta",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Without You",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Without You",
+              "artists": "Without You",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:19.208Z"
+    },
+    {
+      "position": 44,
+      "title": "Where Them Girls At",
+      "artists": "David Guetta, Flo Rida, Nicki Minaj",
+      "matched_title": "Where Them Girls At (Instrumental)",
+      "matched_artists": "David Guetta",
+      "match_score": 0.8242,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "different_version_or_remix",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Where Them Girls At David Guetta, Flo Rida, Nicki Minaj",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Where Them Girls At (feat. Nicki Minaj & Flo Rida)",
+              "artists": "David Guetta, Nicki Minaj & Flo Rida",
+              "score": 0.7533,
+              "title_score": 0.6667,
+              "artist_score": 1,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Where Them Girls At david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Where Them Girls At (Instrumental)",
+              "artists": "David Guetta",
+              "score": 0.8242,
+              "title_score": 0.8889,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Where Them Girls At",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Where Them Girls At",
+              "artists": "Megan Thee Stallion",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:24.093Z"
+    },
+    {
+      "position": 45,
+      "title": "Turn Me On",
+      "artists": "David Guetta, Nicki Minaj",
+      "matched_title": "Turn Me On (Extended)",
+      "matched_artists": "David Guetta",
+      "match_score": 0.8007,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "different_version_or_remix",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Turn Me On David Guetta, Nicki Minaj",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Turn Me On (Extended)",
+              "artists": "David Guetta",
+              "score": 0.8007,
+              "title_score": 0.8571,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Turn Me On david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Turn Me On (Extended)",
+              "artists": "David Guetta",
+              "score": 0.8007,
+              "title_score": 0.8571,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Turn Me On",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Turn Me On",
+              "artists": "Riton,",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:28.976Z"
+    },
+    {
+      "position": 46,
+      "title": "Hey Mama",
+      "artists": "David Guetta, Afrojack, Bebe Rexha, Nicki Minaj",
+      "matched_title": "Hey Mama",
+      "matched_artists": "Kanye West",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Hey Mama David Guetta, Afrojack, Bebe Rexha, Nicki Minaj",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Hey Mama (feat. Nicki Minaj, Bebe Rexha & Afrojack)",
+              "artists": "David Guetta",
+              "score": 0.4953,
+              "title_score": 0.4444,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Hey Mama david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Hey Mama (feat. Nicki Minaj, Bebe Rexha & Afrojack)",
+              "artists": "David Guetta",
+              "score": 0.4953,
+              "title_score": 0.4444,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Hey Mama",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Hey Mama",
+              "artists": "Kanye West",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:34.249Z"
+    },
+    {
+      "position": 47,
+      "title": "Bad",
+      "artists": "David Guetta, Showtek, Vassy",
+      "matched_title": "Bad",
+      "matched_artists": "Michael Jackson",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Bad David Guetta, Showtek, Vassy",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Bad (feat. Vassy)",
+              "artists": "David Guetta & Showtek",
+              "score": 0.7533,
+              "title_score": 0.6667,
+              "artist_score": 1,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Bad david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Flames (David Guetta Remix)",
+              "artists": "David Guetta & Sia",
+              "score": 0.1664,
+              "title_score": 0,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Bad",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Bad",
+              "artists": "Michael Jackson",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:38.931Z"
+    },
+    {
+      "position": 48,
+      "title": "Memories",
+      "artists": "David Guetta, Kid Cudi",
+      "matched_title": "Memories",
+      "matched_artists": "Domastic",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Memories David Guetta, Kid Cudi",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Memories (feat. Kid Cudi)",
+              "artists": "David Guetta",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Memories david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Memories (feat. Kid Cudi)",
+              "artists": "David Guetta",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Memories",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Memories",
+              "artists": "Domastic",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:43.378Z"
+    },
+    {
+      "position": 49,
+      "title": "Dangerous",
+      "artists": "David Guetta, Sam Martin",
+      "matched_title": "Dangerous",
+      "matched_artists": "Kardinal Offishall",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Dangerous David Guetta, Sam Martin",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Dangerous (feat. Sam Martin)",
+              "artists": "David Guetta",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Dangerous david guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Dangerous (feat. Sam Martin)",
+              "artists": "David Guetta",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Dangerous",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Dangerous",
+              "artists": "Kardinal Offishall",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:41:48.043Z"
+    },
+    {
+      "position": 55,
+      "title": "Timber",
+      "artists": "Pitbull, Kesha",
+      "matched_title": "Timber",
+      "matched_artists": "KIDZ BOP Kids",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Timber Pitbull, Kesha",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Timber (R3hab Remix)",
+              "artists": "Pitbull,",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Timber pitbull",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Timber (Team Pitbull Remix)",
+              "artists": "Pitbull,",
+              "score": 0.4624,
+              "title_score": 0.4,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Timber",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Timber",
+              "artists": "KIDZ BOP Kids",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:42:03.118Z"
+    },
+    {
+      "position": 58,
+      "title": "Fireball",
+      "artists": "Pitbull, John Ryan",
+      "matched_title": "Fireball",
+      "matched_artists": "The Fireballs",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Fireball Pitbull, John Ryan",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Maldito Alcohol (Pitbull vs. Afrojack)",
+              "artists": "Pitbull,",
+              "score": 0.1664,
+              "title_score": 0,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Fireball pitbull",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Maldito Alcohol (Pitbull vs. Afrojack)",
+              "artists": "Pitbull,",
+              "score": 0.1664,
+              "title_score": 0,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Fireball",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Fireball",
+              "artists": "The Fireballs",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:42:13.648Z"
+    },
+    {
+      "position": 61,
+      "title": "DJ Got Us Fallin' In Love",
+      "artists": "Usher, Pitbull",
+      "matched_title": "DJ Got Us Fallin' In Love (HyperCrush Remix)",
+      "matched_artists": "Usher",
+      "match_score": 0.8007,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "different_version_or_remix",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "DJ Got Us Fallin' In Love Usher, Pitbull",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "DJ Got Us Fallin' In Love (Versatile Dub)",
+              "artists": "Usher",
+              "score": 0.8007,
+              "title_score": 0.8571,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "DJ Got Us Fallin' In Love usher",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "DJ Got Us Fallin' In Love (HyperCrush Remix)",
+              "artists": "Usher",
+              "score": 0.8007,
+              "title_score": 0.8571,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "DJ Got Us Fallin' In Love",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "DJ Got Us Fallin' In Love",
+              "artists": "BETASTIC,",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:42:25.077Z"
+    },
+    {
+      "position": 63,
+      "title": "Club Can't Handle Me",
+      "artists": "Flo Rida, David Guetta",
+      "matched_title": "Club can't handle me",
+      "matched_artists": "Made famous by Florida feat David Guetta",
+      "match_score": 0.8336,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Club Can't Handle Me Flo Rida, David Guetta",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Club Can't Handle Me (feat. David Guetta) [Ridney Remix]",
+              "artists": "Flo Rida",
+              "score": 0.695,
+              "title_score": 0.7143,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Club Can't Handle Me flo rida",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Club Can't Handle Me",
+              "artists": "Club Can't Handle Me Right Now",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Club Can't Handle Me",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Club can't handle me",
+              "artists": "Made famous by Florida feat David Guetta",
+              "score": 0.8336,
+              "title_score": 1,
+              "artist_score": 0.36,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:42:32.023Z"
+    },
+    {
+      "position": 64,
+      "title": "Wild Ones",
+      "artists": "Flo Rida, Sia",
+      "matched_title": "Wild Ones",
+      "matched_artists": "Jessie Murph,",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Wild Ones Flo Rida, Sia",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Wild Ones (feat. Sia)",
+              "artists": "Flo Rida",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Wild Ones flo rida",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Wild Ones (feat. Sia)",
+              "artists": "Flo Rida",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Wild Ones",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Wild Ones",
+              "artists": "Jessie Murph,",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:42:36.703Z"
+    },
+    {
+      "position": 71,
+      "title": "Body",
+      "artists": "Loud Luxury, Brando",
+      "matched_title": "Body",
+      "matched_artists": "A Boogie Wit da Hoodie, Cash Cobain",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Body Loud Luxury, Brando",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Body (Extended Mix)",
+              "artists": "Loud Luxury",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Body loud luxury",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Body On My",
+              "artists": "Loud Luxury",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Body",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Body",
+              "artists": "A Boogie Wit da Hoodie, Cash Cobain",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:42:54.059Z"
+    },
+    {
+      "position": 79,
+      "title": "Sweet Lovin'",
+      "artists": "Sigala, Bryn Christopher",
+      "matched_title": "Sweet Lovin'",
+      "matched_artists": "UNDERGROUND RETREATS,",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Sweet Lovin' Sigala, Bryn Christopher",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sweet Lovin' (Instrumental)",
+              "artists": "Sigala,",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Sweet Lovin' sigala",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sweet Lovin' (Instrumental)",
+              "artists": "Sigala,",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": false
+            }
+          },
+          {
+            "term": "Sweet Lovin'",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sweet Lovin'",
+              "artists": "UNDERGROUND RETREATS,",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:43:15.961Z"
+    },
+    {
+      "position": 83,
+      "title": "Head & Heart",
+      "artists": "Joel Corry, MNEK",
+      "matched_title": "Head & Heart",
+      "matched_artists": "Sarah Close",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Head & Heart Joel Corry, MNEK",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Head & Heart (feat. MNEK)",
+              "artists": "Joel Corry",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Head & Heart joel corry",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Head & Heart (feat. MNEK)",
+              "artists": "Joel Corry",
+              "score": 0.7584,
+              "title_score": 0.8,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Head & Heart",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Head & Heart",
+              "artists": "Sarah Close",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:43:27.392Z"
+    },
+    {
+      "position": 90,
+      "title": "Sugar",
+      "artists": "Robin Schulz, Francesco Yates",
+      "matched_title": "Sugar",
+      "matched_artists": "Maroon 5",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Sugar Robin Schulz, Francesco Yates",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sugar (feat. Francesco Yates)",
+              "artists": "Robin Schulz",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Sugar robin schulz",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sugar (feat. Francesco Yates)",
+              "artists": "Robin Schulz",
+              "score": 0.5364,
+              "title_score": 0.5,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Sugar",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sugar",
+              "artists": "Maroon 5",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:43:44.527Z"
+    },
+    {
+      "position": 91,
+      "title": "Waves - Robin Schulz Radio Edit",
+      "artists": "Mr. Probz, Robin Schulz",
+      "matched_title": "Prayer in C (Robin Schulz Radio Edit)",
+      "matched_artists": "Lilly Wood & The Prick and Robin Schulz",
+      "match_score": 0.5869,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "no_candidate_passed_confidence_gate",
+        "attempts": [
+          {
+            "term": "Waves - Robin Schulz Radio Edit Mr. Probz, Robin Schulz",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Prayer in C (Robin Schulz Radio Edit)",
+              "artists": "Lilly Wood & The Prick and Robin Schulz",
+              "score": 0.5869,
+              "title_score": 0.6667,
+              "artist_score": 0.36,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Waves - Robin Schulz Radio Edit mr probz",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Prayer in C (Robin Schulz Radio Edit)",
+              "artists": "Lilly Wood & The Prick and Robin Schulz",
+              "score": 0.5869,
+              "title_score": 0.6667,
+              "artist_score": 0.36,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Waves - Robin Schulz Radio Edit",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Prayer in C (Robin Schulz Radio Edit)",
+              "artists": "Lilly Wood & The Prick and Robin Schulz",
+              "score": 0.5869,
+              "title_score": 0.6667,
+              "artist_score": 0.36,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:43:50.684Z"
+    },
+    {
+      "position": 92,
+      "title": "Sun Goes Down - Radio Mix",
+      "artists": "Robin Schulz, Jasmine Thompson",
+      "matched_title": "Sun Goes Down (feat. Jasmine Thompson) [Radio Mix]",
+      "matched_artists": "Robin Schulz",
+      "match_score": 0.7831,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "no_candidate_passed_confidence_gate",
+        "attempts": [
+          {
+            "term": "Sun Goes Down - Radio Mix Robin Schulz, Jasmine Thompson",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sun Goes Down (feat. Jasmine Thompson) [Radio Mix]",
+              "artists": "Robin Schulz",
+              "score": 0.7831,
+              "title_score": 0.8333,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Sun Goes Down - Radio Mix robin schulz",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sun Goes Down (feat. Jasmine Thompson) [Radio Mix]",
+              "artists": "Robin Schulz",
+              "score": 0.7831,
+              "title_score": 0.8333,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Sun Goes Down - Radio Mix",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Sun Goes Down (feat. Jasmine Thompson) [Radio Mix]",
+              "artists": "Robin Schulz",
+              "score": 0.7831,
+              "title_score": 0.8333,
+              "artist_score": 0.64,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:44:03.087Z"
+    },
+    {
+      "position": 100,
+      "title": "Everytime We Touch",
+      "artists": "Cascada",
+      "matched_title": "Everytime We Touch",
+      "matched_artists": "Rhonda,",
+      "match_score": 0.74,
+      "detail": {
+        "source": "twitch_dashboard_dom_v2",
+        "reason": "title_match_artist_mismatch",
+        "candidate_status": "allowed",
+        "attempts": [
+          {
+            "term": "Everytime We Touch Cascada",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Everytime We Touch",
+              "artists": "Rhonda,",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          },
+          {
+            "term": "Everytime We Touch",
+            "kind": "rows",
+            "top": {
+              "status": "allowed",
+              "title": "Everytime We Touch",
+              "artists": "owlh",
+              "score": 0.74,
+              "title_score": 1,
+              "artist_score": 0,
+              "version_match": true
+            }
+          }
+        ]
+      },
+      "checked_at": "2026-10-04T04:44:20.830Z"
+    }
+  ]
+}

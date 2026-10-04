@@ -1,0 +1,682 @@
+{
+  "scan_id": "dance100-37922f91-1626-48f9-a0f7-228b5d4cfdba",
+  "generated_at": "2026-10-04T04:47:06Z",
+  "count": 75,
+  "tracks": [
+    {
+      "position": 1,
+      "title": "Don't Worry",
+      "artists": "Madcon, Ray Dalton",
+      "matched_title": "Don't Worry",
+      "matched_artists": "Madcon",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:39:23.370Z"
+    },
+    {
+      "position": 2,
+      "title": "Wake Me Up",
+      "artists": "Avicii",
+      "matched_title": "Wake Me Up",
+      "matched_artists": "Avicii",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:39:25.422Z"
+    },
+    {
+      "position": 3,
+      "title": "The Nights",
+      "artists": "Avicii",
+      "matched_title": "The Nights",
+      "matched_artists": "Avicii",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:39:27.469Z"
+    },
+    {
+      "position": 4,
+      "title": "Waiting For Love",
+      "artists": "Avicii",
+      "matched_title": "Waiting For Love",
+      "matched_artists": "Avicii",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:39:29.290Z"
+    },
+    {
+      "position": 5,
+      "title": "Hey Brother",
+      "artists": "Avicii",
+      "matched_title": "Hey Brother",
+      "matched_artists": "Avicii",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:39:30.907Z"
+    },
+    {
+      "position": 7,
+      "title": "Without You",
+      "artists": "Avicii, Sandro Cavazza",
+      "matched_title": "Without You",
+      "matched_artists": "Avicii,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:39:36.837Z"
+    },
+    {
+      "position": 9,
+      "title": "Addicted To You",
+      "artists": "Avicii",
+      "matched_title": "Addicted To You",
+      "matched_artists": "Avicii",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:39:44.892Z"
+    },
+    {
+      "position": 10,
+      "title": "You Make Me",
+      "artists": "Avicii",
+      "matched_title": "You Make Me",
+      "matched_artists": "Avicii",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:39:46.717Z"
+    },
+    {
+      "position": 11,
+      "title": "Summer",
+      "artists": "Calvin Harris",
+      "matched_title": "Summer",
+      "matched_artists": "Calvin Harris",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:39:49.166Z"
+    },
+    {
+      "position": 14,
+      "title": "I Need Your Love",
+      "artists": "Calvin Harris, Ellie Goulding",
+      "matched_title": "I Need Your Love",
+      "matched_artists": "Calvin Harris",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:02.222Z"
+    },
+    {
+      "position": 15,
+      "title": "Blame",
+      "artists": "Calvin Harris, John Newman",
+      "matched_title": "Blame",
+      "matched_artists": "Calvin Harris",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:04.055Z"
+    },
+    {
+      "position": 16,
+      "title": "This Is What You Came For",
+      "artists": "Calvin Harris, Rihanna",
+      "matched_title": "This Is What You Came For",
+      "matched_artists": "Calvin Harris,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:07.857Z"
+    },
+    {
+      "position": 17,
+      "title": "How Deep Is Your Love",
+      "artists": "Calvin Harris, Disciples",
+      "matched_title": "How Deep Is Your Love",
+      "matched_artists": "Calvin Harris,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:10.131Z"
+    },
+    {
+      "position": 18,
+      "title": "My Way",
+      "artists": "Calvin Harris",
+      "matched_title": "My Way",
+      "matched_artists": "Calvin Harris",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:11.955Z"
+    },
+    {
+      "position": 19,
+      "title": "Under Control",
+      "artists": "Calvin Harris, Alesso, Hurts",
+      "matched_title": "Under Control",
+      "matched_artists": "Calvin Harris,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:13.782Z"
+    },
+    {
+      "position": 21,
+      "title": "Don't You Worry Child - Radio Edit",
+      "artists": "Swedish House Mafia, John Martin",
+      "matched_title": "Don't You Worry Child (Radio Edit)",
+      "matched_artists": "Swedish House Mafia",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:21.766Z"
+    },
+    {
+      "position": 22,
+      "title": "Save the World",
+      "artists": "Swedish House Mafia",
+      "matched_title": "Save The World",
+      "matched_artists": "Swedish House Mafia",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:23.824Z"
+    },
+    {
+      "position": 23,
+      "title": "Miami 2 Ibiza",
+      "artists": "Swedish House Mafia, Tinie Tempah",
+      "matched_title": "Miami 2 Ibiza",
+      "matched_artists": "Swedish House Mafia,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:25.638Z"
+    },
+    {
+      "position": 24,
+      "title": "More Than You Know",
+      "artists": "Axwell /\\ Ingrosso",
+      "matched_title": "More Than You Know",
+      "matched_artists": "Axwell Λ Ingrosso,",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:27.695Z"
+    },
+    {
+      "position": 25,
+      "title": "Sun Is Shining",
+      "artists": "Axwell /\\ Ingrosso",
+      "matched_title": "Sun Is Shining",
+      "matched_artists": "Axwell Λ Ingrosso,",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:29.744Z"
+    },
+    {
+      "position": 26,
+      "title": "Heroes (we could be)",
+      "artists": "Alesso, Tove Lo",
+      "matched_title": "Heroes (We Could Be)",
+      "matched_artists": "Alesso",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:32.397Z"
+    },
+    {
+      "position": 27,
+      "title": "Calling (Lose My Mind) - Radio Edit",
+      "artists": "Sebastian Ingrosso, Alesso, Ryan Tedder",
+      "matched_title": "Calling (Lose My Mind) (Radio Edit)",
+      "matched_artists": "Sebastian Ingrosso,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:34.247Z"
+    },
+    {
+      "position": 28,
+      "title": "Reload - Radio Edit",
+      "artists": "Sebastian Ingrosso, Tommy Trash, John Martin",
+      "matched_title": "Reload (Radio Edit)",
+      "matched_artists": "Sebastian Ingrosso,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:36.071Z"
+    },
+    {
+      "position": 29,
+      "title": "If I Lose Myself - Alesso vs OneRepublic",
+      "artists": "OneRepublic, Alesso",
+      "matched_title": "If I Lose Myself (Alesso vs OneRepublic)",
+      "matched_artists": "OneRepublic,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:38.349Z"
+    },
+    {
+      "position": 30,
+      "title": "This Is What It Feels Like",
+      "artists": "Armin van Buuren, Trevor Guthrie",
+      "matched_title": "This Is What It Feels Like",
+      "matched_artists": "Armin van Buuren,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:40.193Z"
+    },
+    {
+      "position": 31,
+      "title": "Runaway (U & I)",
+      "artists": "Galantis",
+      "matched_title": "Runaway (U & I)",
+      "matched_artists": "Galantis",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:42.891Z"
+    },
+    {
+      "position": 32,
+      "title": "No Money",
+      "artists": "Galantis",
+      "matched_title": "No Money",
+      "matched_artists": "Galantis",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:44.696Z"
+    },
+    {
+      "position": 33,
+      "title": "Peanut Butter Jelly",
+      "artists": "Galantis",
+      "matched_title": "Peanut Butter Jelly",
+      "matched_artists": "Galantis",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:46.293Z"
+    },
+    {
+      "position": 34,
+      "title": "Love on Me",
+      "artists": "Galantis, Hook N Sling",
+      "matched_title": "Love on Me",
+      "matched_artists": "Galantis & Hook N Sling",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:40:48.118Z"
+    },
+    {
+      "position": 35,
+      "title": "Lean On",
+      "artists": "Major Lazer, MØ, DJ Snake",
+      "matched_title": "Lean On",
+      "matched_artists": "Major Lazer,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:40:50.395Z"
+    },
+    {
+      "position": 36,
+      "title": "Light It Up - Remix",
+      "artists": "Major Lazer, Nyla, Fuse ODG",
+      "matched_title": "Light It Up (4B Remix)",
+      "matched_artists": "Major Lazer",
+      "match_score": 0.8242,
+      "checked_at": "2026-10-04T04:40:58.951Z"
+    },
+    {
+      "position": 37,
+      "title": "Cold Water",
+      "artists": "Major Lazer, Justin Bieber, MØ",
+      "matched_title": "Cold Water",
+      "matched_artists": "Major Lazer",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:41:00.780Z"
+    },
+    {
+      "position": 38,
+      "title": "Let Me Love You",
+      "artists": "DJ Snake, Justin Bieber",
+      "matched_title": "Let Me Love You",
+      "matched_artists": "DJ Snake",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:41:02.839Z"
+    },
+    {
+      "position": 39,
+      "title": "Middle",
+      "artists": "DJ Snake, Bipolar Sunshine",
+      "matched_title": "Middle",
+      "matched_artists": "DJ Snake,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:41:04.666Z"
+    },
+    {
+      "position": 40,
+      "title": "Turn Down for What",
+      "artists": "DJ Snake, Lil Jon",
+      "matched_title": "Turn Down for What",
+      "matched_artists": "DJ Snake,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:41:06.486Z"
+    },
+    {
+      "position": 41,
+      "title": "Titanium",
+      "artists": "David Guetta, Sia",
+      "matched_title": "Titanium",
+      "matched_artists": "David Guetta",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:41:09.614Z"
+    },
+    {
+      "position": 50,
+      "title": "I Gotta Feeling",
+      "artists": "The Black Eyed Peas",
+      "matched_title": "I Gotta Feeling",
+      "matched_artists": "The Black Eyed Peas",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:41:50.089Z"
+    },
+    {
+      "position": 51,
+      "title": "Pump It",
+      "artists": "The Black Eyed Peas",
+      "matched_title": "Pump It",
+      "matched_artists": "The Black Eyed Peas",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:41:52.973Z"
+    },
+    {
+      "position": 52,
+      "title": "Rock That Body",
+      "artists": "The Black Eyed Peas",
+      "matched_title": "Rock That Body",
+      "matched_artists": "The Black Eyed Peas",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:41:55.028Z"
+    },
+    {
+      "position": 53,
+      "title": "Party Rock Anthem",
+      "artists": "LMFAO, Lauren Bennett, GoonRock",
+      "matched_title": "Party Rock Anthem",
+      "matched_artists": "LMFAO",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:41:56.624Z"
+    },
+    {
+      "position": 54,
+      "title": "Sexy and I Know It",
+      "artists": "LMFAO",
+      "matched_title": "Sexy And I Know It",
+      "matched_artists": "LMFAO",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:41:58.673Z"
+    },
+    {
+      "position": 56,
+      "title": "Give Me Everything",
+      "artists": "Pitbull, Afrojack, Ne-Yo, Nayer",
+      "matched_title": "Give Me Everything",
+      "matched_artists": "Pitbull,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:05.769Z"
+    },
+    {
+      "position": 57,
+      "title": "Time of Our Lives",
+      "artists": "Pitbull, Ne-Yo",
+      "matched_title": "Time of Our Lives",
+      "matched_artists": "Pitbull,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:08.288Z"
+    },
+    {
+      "position": 59,
+      "title": "Rain Over Me",
+      "artists": "Pitbull, Marc Anthony",
+      "matched_title": "Rain Over Me",
+      "matched_artists": "Pitbull",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:16.151Z"
+    },
+    {
+      "position": 60,
+      "title": "On The Floor",
+      "artists": "Jennifer Lopez, Pitbull",
+      "matched_title": "On The Floor",
+      "matched_artists": "Jennifer Lopez",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:18.434Z"
+    },
+    {
+      "position": 62,
+      "title": "Good Feeling",
+      "artists": "Flo Rida",
+      "matched_title": "Good Feeling",
+      "matched_artists": "Flo Rida",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:42:26.901Z"
+    },
+    {
+      "position": 65,
+      "title": "Dynamite",
+      "artists": "Taio Cruz",
+      "matched_title": "Dynamite",
+      "matched_artists": "Taio Cruz",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:42:38.295Z"
+    },
+    {
+      "position": 66,
+      "title": "Higher",
+      "artists": "Taio Cruz, Kylie Minogue",
+      "matched_title": "Higher",
+      "matched_artists": "Taio Cruz",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:40.749Z"
+    },
+    {
+      "position": 67,
+      "title": "Break Your Heart",
+      "artists": "Taio Cruz",
+      "matched_title": "Break Your Heart",
+      "matched_artists": "Taio Cruz",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:42:42.576Z"
+    },
+    {
+      "position": 68,
+      "title": "Perfect Strangers",
+      "artists": "Jonas Blue, JP Cooper",
+      "matched_title": "Perfect Strangers",
+      "matched_artists": "Jonas Blue",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:44.403Z"
+    },
+    {
+      "position": 69,
+      "title": "Mama",
+      "artists": "Jonas Blue, William Singe",
+      "matched_title": "Mama",
+      "matched_artists": "Jonas Blue,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:46.228Z"
+    },
+    {
+      "position": 70,
+      "title": "Fast Car",
+      "artists": "Jonas Blue, Dakota",
+      "matched_title": "Fast Car",
+      "matched_artists": "Jonas Blue",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:48.059Z"
+    },
+    {
+      "position": 72,
+      "title": "In My Mind",
+      "artists": "Dynoro, GIGI D'AGOSTINO",
+      "matched_title": "In My Mind",
+      "matched_artists": "Dynoro,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:42:56.112Z"
+    },
+    {
+      "position": 73,
+      "title": "Tuesday",
+      "artists": "Burak Yeter, Danelle Sandoval",
+      "matched_title": "Tuesday",
+      "matched_artists": "Burak Yeter and Danelle Sandoval",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:42:57.705Z"
+    },
+    {
+      "position": 74,
+      "title": "Hideaway",
+      "artists": "Kiesza",
+      "matched_title": "Hideaway",
+      "matched_artists": "Kiesza",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:42:59.304Z"
+    },
+    {
+      "position": 75,
+      "title": "Ain't Nobody (Loves Me Better)",
+      "artists": "Felix Jaehn, Jasmine Thompson",
+      "matched_title": "Ain't Nobody (Loves Me Better)",
+      "matched_artists": "felix jaehn",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:43:01.581Z"
+    },
+    {
+      "position": 76,
+      "title": "This Girl (Kungs Vs. Cookin' On 3 Burners)",
+      "artists": "Kungs, Cookin' On 3 Burners",
+      "matched_title": "This Girl (Kungs Vs. Cookin' On 3 Burners)",
+      "matched_artists": "Kungs,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:43:04.252Z"
+    },
+    {
+      "position": 77,
+      "title": "Never Going Home",
+      "artists": "Kungs",
+      "matched_title": "Never Going Home",
+      "matched_artists": "Kungs",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:43:06.533Z"
+    },
+    {
+      "position": 78,
+      "title": "Easy Love",
+      "artists": "Sigala",
+      "matched_title": "Easy Love",
+      "matched_artists": "Sigala",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:43:08.806Z"
+    },
+    {
+      "position": 80,
+      "title": "Came Here for Love",
+      "artists": "Sigala, Ella Eyre",
+      "matched_title": "Came Here for Love",
+      "matched_artists": "Sigala,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:43:17.806Z"
+    },
+    {
+      "position": 81,
+      "title": "Are You With Me",
+      "artists": "Lost Frequencies",
+      "matched_title": "Are You With Me",
+      "matched_artists": "Lost Frequencies",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:43:20.675Z"
+    },
+    {
+      "position": 82,
+      "title": "Reality",
+      "artists": "Lost Frequencies, Janieck Devy",
+      "matched_title": "Reality",
+      "matched_artists": "Lost Frequencies",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:43:22.725Z"
+    },
+    {
+      "position": 84,
+      "title": "BED",
+      "artists": "Joel Corry, RAYE, David Guetta",
+      "matched_title": "BED",
+      "matched_artists": "Joel Corry x RAYE x David Guetta",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:43:29.448Z"
+    },
+    {
+      "position": 85,
+      "title": "I Got U",
+      "artists": "Duke Dumont, Jax Jones",
+      "matched_title": "I Got U",
+      "matched_artists": "Duke Dumont",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:43:31.279Z"
+    },
+    {
+      "position": 86,
+      "title": "Ocean Drive",
+      "artists": "Duke Dumont",
+      "matched_title": "Ocean Drive",
+      "matched_artists": "Duke Dumont",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:43:33.710Z"
+    },
+    {
+      "position": 87,
+      "title": "You Don't Know Me",
+      "artists": "Jax Jones, RAYE",
+      "matched_title": "You Don't Know Me",
+      "matched_artists": "Jax Jones,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:43:35.987Z"
+    },
+    {
+      "position": 88,
+      "title": "Breathe",
+      "artists": "Jax Jones, Ina Wroldsen",
+      "matched_title": "Breathe",
+      "matched_artists": "Jax Jones",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:43:37.819Z"
+    },
+    {
+      "position": 89,
+      "title": "Prayer in C - Robin Schulz Radio Edit",
+      "artists": "Lilly Wood and The Prick, Robin Schulz",
+      "matched_title": "Prayer in C (Robin Schulz Radio Edit)",
+      "matched_artists": "Lilly Wood & The Prick and Robin Schulz",
+      "match_score": 0.9272,
+      "checked_at": "2026-10-04T04:43:40.090Z"
+    },
+    {
+      "position": 93,
+      "title": "Breaking Me",
+      "artists": "Topic, A7S",
+      "matched_title": "Breaking Me",
+      "matched_artists": "Topic,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:44:04.887Z"
+    },
+    {
+      "position": 94,
+      "title": "Piece Of Your Heart",
+      "artists": "MEDUZA, Goodboys",
+      "matched_title": "Piece Of Your Heart",
+      "matched_artists": "MEDUZA,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:44:07.390Z"
+    },
+    {
+      "position": 95,
+      "title": "Lose Control",
+      "artists": "MEDUZA, Becky Hill, Goodboys",
+      "matched_title": "Lose Control",
+      "matched_artists": "MEDUZA,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:44:09.215Z"
+    },
+    {
+      "position": 96,
+      "title": "Five More Hours",
+      "artists": "Deorro, Chris Brown",
+      "matched_title": "Five More Hours",
+      "matched_artists": "Deorro,",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:44:12.133Z"
+    },
+    {
+      "position": 97,
+      "title": "Red Lights",
+      "artists": "Tiësto",
+      "matched_title": "Red Lights",
+      "matched_artists": "Tiësto",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:44:13.953Z"
+    },
+    {
+      "position": 98,
+      "title": "Gecko (Overdrive) - Radio Edit",
+      "artists": "Oliver Heldens, Becky Hill",
+      "matched_title": "Gecko (Overdrive) [Radio Edit]",
+      "matched_artists": "Oliver Heldens & Becky Hill",
+      "match_score": 1,
+      "checked_at": "2026-10-04T04:44:15.780Z"
+    },
+    {
+      "position": 99,
+      "title": "I Want You To Know",
+      "artists": "Zedd, Selena Gomez",
+      "matched_title": "I Want You To Know",
+      "matched_artists": "Zedd",
+      "match_score": 0.9064,
+      "checked_at": "2026-10-04T04:44:17.601Z"
+    }
+  ]
+}
