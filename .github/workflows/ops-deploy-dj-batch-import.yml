@@ -1,0 +1,117 @@
+name: MediaForge — Deploy DJ Batch Import
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ops-deploy-dj-batch-import.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      BASE: https://146.59.156.224:8443
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate and snapshot live encoder PIDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            LOGIN="$(curl -kfsS --connect-timeout 8 --max-time 20 -X POST "$BASE/api/auth/login"               -H 'content-type: application/json'               --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')" 2>/dev/null || true)"
+            TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty' 2>/dev/null || true)"
+            [ -n "$TOKEN" ] && break
+            sleep 3
+          done
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/token
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/before.json
+          jq '{twitch:.agent.services.twitch.encoder_pid,kick:.agent.services.kick.encoder_pid}' /tmp/before.json
+          jq -r '.agent.services.twitch.encoder_pid // empty' /tmp/before.json > /tmp/twitch.pid
+          jq -r '.agent.services.kick.encoder_pid // empty' /tmp/before.json > /tmp/kick.pid
+
+      - name: Refresh host deploy agent checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          ID="djbatch-host-$(date -u +%Y%m%d%H%M%S)"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"dj-batch-import"}')" >/tmp/create.json
+          for i in $(seq 1 60); do
+            R="$(curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" 2>/dev/null || true)"
+            ST="$(printf '%s' "$R" | jq -r '.command.status // empty' 2>/dev/null || true)"
+            echo "host-agent=$ST"
+            [ "$ST" = "completed" ] && exit 0
+            [ "$ST" = "failed" ] && { echo "$R"; exit 1; }
+            sleep 3
+          done
+          exit 1
+
+      - name: Deploy command agent only
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          sleep 5
+          ID="djbatch-agent-$(date -u +%Y%m%d%H%M%S)"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"ovh-agent",request_id:$id,source:"dj-batch-import"}')" >/tmp/create-agent.json
+          for i in $(seq 1 80); do
+            R="$(curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" 2>/dev/null || true)"
+            ST="$(printf '%s' "$R" | jq -r '.command.status // empty' 2>/dev/null || true)"
+            echo "ovh-agent=$ST"
+            [ "$ST" = "completed" ] && exit 0
+            [ "$ST" = "failed" ] && { echo "$R"; exit 1; }
+            sleep 3
+          done
+          exit 1
+
+      - name: Deploy MediaForge API and public uploader
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          ID="djbatch-control-$(date -u +%Y%m%d%H%M%S)"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"dj-batch-import"}')" >/tmp/create-control.json
+          for i in $(seq 1 160); do
+            R="$(curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" 2>/dev/null || true)"
+            ST="$(printf '%s' "$R" | jq -r '.command.status // empty' 2>/dev/null || true)"
+            echo "control-api=$ST"
+            [ "$ST" = "completed" ] && exit 0
+            [ "$ST" = "failed" ] && { echo "$R"; exit 1; }
+            sleep 3
+          done
+          exit 1
+
+      - name: Verify uploader, API, and preserved encoders
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          for i in $(seq 1 40); do
+            curl -kfsS "$BASE/api/health" >/tmp/health.json 2>/dev/null && break || true
+            sleep 3
+          done
+          jq -e '.ok==true' /tmp/health.json >/dev/null
+
+          curl -fsS -H 'Cache-Control: no-cache'             "https://peterlofi.odsgn.com.br/twitch-dj-upload.html?v=$(date +%s)" >/tmp/uploader.html
+          grep -q 'Auditar e importar ZIP' /tmp/uploader.html
+          grep -q 'shared_commercial_replace' /tmp/uploader.html
+
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/after.json
+          BEFORE_TWITCH="$(cat /tmp/twitch.pid)"
+          BEFORE_KICK="$(cat /tmp/kick.pid)"
+          AFTER_TWITCH="$(jq -r '.agent.services.twitch.encoder_pid // empty' /tmp/after.json)"
+          AFTER_KICK="$(jq -r '.agent.services.kick.encoder_pid // empty' /tmp/after.json)"
+          echo "Twitch PID: $BEFORE_TWITCH -> $AFTER_TWITCH"
+          echo "Kick PID: $BEFORE_KICK -> $AFTER_KICK"
+          test -n "$BEFORE_TWITCH" && test "$BEFORE_TWITCH" = "$AFTER_TWITCH"
+          test -n "$BEFORE_KICK" && test "$BEFORE_KICK" = "$AFTER_KICK"
+          echo "DJ_BATCH_IMPORT_DEPLOYED=OK"
