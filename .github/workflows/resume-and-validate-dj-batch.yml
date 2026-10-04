@@ -1,0 +1,120 @@
+name: Resume and validate DJ batch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/resume-and-validate-dj-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      BASE: https://146.59.156.224:8443
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate and resume latest ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login"             -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" >/tmp/token
+
+          curl -kfsS "$BASE/api/assets" -H "authorization: Bearer $TOKEN" >/tmp/assets.json
+          ASSET_ID="$(jq -r '[.assets[] | select(.asset_type=="dj_archive" and (.status // "ready")=="ready")] | sort_by(.created_at) | reverse | .[0].id // empty' /tmp/assets.json)"
+          test -n "$ASSET_ID"
+          echo "Using asset: $ASSET_ID"
+
+          curl -kfsS -X POST "$BASE/api/twitch-dj/import-archive"             -H "authorization: Bearer $TOKEN"             -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ASSET_ID" '{asset_id:$id,mode:"shared_commercial_replace"}')" >/tmp/resume.json
+          cat /tmp/resume.json
+
+      - name: Poll until terminal state
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          FINAL=""
+          for i in $(seq 1 180); do
+            curl -kfsS "$BASE/api/twitch-dj/status" -H "authorization: Bearer $TOKEN" >/tmp/dj.json
+            ST="$(jq -r '.dj_import.status // "none"' /tmp/dj.json)"
+            FINAL="$ST"
+            echo "[$i/180] status=$ST"
+            jq -c '{
+              zip_mp3_files:(.dj_import.zip_mp3_files // 0),
+              new_valid_tracks:(.dj_import.new_valid_tracks // 0),
+              duplicates_existing:(.dj_import.duplicates_existing // 0),
+              duplicates_in_batch:(.dj_import.duplicates_in_batch // 0),
+              rejected_files:((.dj_import.rejected_files // [])|length),
+              original_tracks:(.dj_import.original_tracks // null),
+              originals_removed:(.dj_import.originals_removed // 0),
+              commercial_tracks:(.dj_import.commercial_tracks // 0),
+              twitch_track_count:(.dj_import.twitch_track_count // .playlist_track_count // 0),
+              kick_track_count:(.dj_import.kick_track_count // .kick.playlist_track_count // 0),
+              error:(.dj_import.error // "")
+            }' /tmp/dj.json
+            if [ "$ST" = "ready" ] || [ "$ST" = "failed" ] || [ "$ST" = "error" ]; then break; fi
+            sleep 5
+          done
+          printf '%s' "$FINAL" >/tmp/final
+
+      - name: Capture OVH state and report
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/ovh.json
+          mkdir -p control/dj-batch-validation
+          jq -n             --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             --slurpfile dj /tmp/dj.json             --slurpfile ovh /tmp/ovh.json             '{
+              checked_at:$checked_at,
+              import:{
+                status:($dj[0].dj_import.status // "none"),
+                zip_mp3_files:($dj[0].dj_import.zip_mp3_files // 0),
+                new_valid_tracks:($dj[0].dj_import.new_valid_tracks // 0),
+                duplicates_existing:($dj[0].dj_import.duplicates_existing // 0),
+                duplicates_in_batch:($dj[0].dj_import.duplicates_in_batch // 0),
+                rejected_files:(($dj[0].dj_import.rejected_files // [])|length),
+                error:($dj[0].dj_import.error // ""),
+                original_tracks:($dj[0].dj_import.original_tracks // null),
+                originals_removed:($dj[0].dj_import.originals_removed // 0),
+                commercial_tracks:($dj[0].dj_import.commercial_tracks // 0),
+                twitch_track_count:($dj[0].dj_import.twitch_track_count // $dj[0].playlist_track_count // 0),
+                kick_track_count:($dj[0].dj_import.kick_track_count // $dj[0].kick.playlist_track_count // 0),
+                rtmp_restart:($dj[0].dj_import.rtmp_restart // null),
+                container_restart:($dj[0].dj_import.container_restart // null)
+              },
+              twitch:{
+                status:($ovh[0].agent.services.twitch.status // "unknown"),
+                playlist_track_count:($ovh[0].agent.services.twitch.playlist_track_count // 0),
+                restarts:($ovh[0].agent.services.twitch.restarts // 0)
+              },
+              kick:{
+                status:($ovh[0].agent.services.kick.status // "unknown"),
+                playlist_track_count:($ovh[0].agent.services.kick.playlist_track_count // 0),
+                restarts:($ovh[0].agent.services.kick.restarts // 0)
+              }
+            }' > control/dj-batch-validation/latest.json
+          cat control/dj-batch-validation/latest.json
+
+      - name: Commit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MediaForge Validator"
+          git config user.email "actions@users.noreply.github.com"
+          git add control/dj-batch-validation/latest.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update resumed DJ batch validation"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+# run: 2026-10-04T20:48-03:00
