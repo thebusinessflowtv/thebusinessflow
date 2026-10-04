@@ -1,0 +1,607 @@
+{
+  "scan_id": "dance100-37922f91-1626-48f9-a0f7-228b5d4cfdba",
+  "saved_at": "2026-10-04T04:49:15.398Z",
+  "count": 75,
+  "tracks": [
+    {
+      "position": 1,
+      "title": "Don't Worry",
+      "artists": "Madcon, Ray Dalton",
+      "twitch_title": "Don't Worry",
+      "twitch_artists": "Madcon",
+      "status": "allowed"
+    },
+    {
+      "position": 2,
+      "title": "Wake Me Up",
+      "artists": "Avicii",
+      "twitch_title": "Wake Me Up",
+      "twitch_artists": "Avicii",
+      "status": "allowed"
+    },
+    {
+      "position": 3,
+      "title": "The Nights",
+      "artists": "Avicii",
+      "twitch_title": "The Nights",
+      "twitch_artists": "Avicii",
+      "status": "allowed"
+    },
+    {
+      "position": 4,
+      "title": "Waiting For Love",
+      "artists": "Avicii",
+      "twitch_title": "Waiting For Love",
+      "twitch_artists": "Avicii",
+      "status": "allowed"
+    },
+    {
+      "position": 5,
+      "title": "Hey Brother",
+      "artists": "Avicii",
+      "twitch_title": "Hey Brother",
+      "twitch_artists": "Avicii",
+      "status": "allowed"
+    },
+    {
+      "position": 7,
+      "title": "Without You",
+      "artists": "Avicii, Sandro Cavazza",
+      "twitch_title": "Without You",
+      "twitch_artists": "Avicii,",
+      "status": "allowed"
+    },
+    {
+      "position": 9,
+      "title": "Addicted To You",
+      "artists": "Avicii",
+      "twitch_title": "Addicted To You",
+      "twitch_artists": "Avicii",
+      "status": "allowed"
+    },
+    {
+      "position": 10,
+      "title": "You Make Me",
+      "artists": "Avicii",
+      "twitch_title": "You Make Me",
+      "twitch_artists": "Avicii",
+      "status": "allowed"
+    },
+    {
+      "position": 11,
+      "title": "Summer",
+      "artists": "Calvin Harris",
+      "twitch_title": "Summer",
+      "twitch_artists": "Calvin Harris",
+      "status": "allowed"
+    },
+    {
+      "position": 14,
+      "title": "I Need Your Love",
+      "artists": "Calvin Harris, Ellie Goulding",
+      "twitch_title": "I Need Your Love",
+      "twitch_artists": "Calvin Harris",
+      "status": "allowed"
+    },
+    {
+      "position": 15,
+      "title": "Blame",
+      "artists": "Calvin Harris, John Newman",
+      "twitch_title": "Blame",
+      "twitch_artists": "Calvin Harris",
+      "status": "allowed"
+    },
+    {
+      "position": 16,
+      "title": "This Is What You Came For",
+      "artists": "Calvin Harris, Rihanna",
+      "twitch_title": "This Is What You Came For",
+      "twitch_artists": "Calvin Harris,",
+      "status": "allowed"
+    },
+    {
+      "position": 17,
+      "title": "How Deep Is Your Love",
+      "artists": "Calvin Harris, Disciples",
+      "twitch_title": "How Deep Is Your Love",
+      "twitch_artists": "Calvin Harris,",
+      "status": "allowed"
+    },
+    {
+      "position": 18,
+      "title": "My Way",
+      "artists": "Calvin Harris",
+      "twitch_title": "My Way",
+      "twitch_artists": "Calvin Harris",
+      "status": "allowed"
+    },
+    {
+      "position": 19,
+      "title": "Under Control",
+      "artists": "Calvin Harris, Alesso, Hurts",
+      "twitch_title": "Under Control",
+      "twitch_artists": "Calvin Harris,",
+      "status": "allowed"
+    },
+    {
+      "position": 21,
+      "title": "Don't You Worry Child - Radio Edit",
+      "artists": "Swedish House Mafia, John Martin",
+      "twitch_title": "Don't You Worry Child (Radio Edit)",
+      "twitch_artists": "Swedish House Mafia",
+      "status": "allowed"
+    },
+    {
+      "position": 22,
+      "title": "Save the World",
+      "artists": "Swedish House Mafia",
+      "twitch_title": "Save The World",
+      "twitch_artists": "Swedish House Mafia",
+      "status": "allowed"
+    },
+    {
+      "position": 23,
+      "title": "Miami 2 Ibiza",
+      "artists": "Swedish House Mafia, Tinie Tempah",
+      "twitch_title": "Miami 2 Ibiza",
+      "twitch_artists": "Swedish House Mafia,",
+      "status": "allowed"
+    },
+    {
+      "position": 24,
+      "title": "More Than You Know",
+      "artists": "Axwell /\\ Ingrosso",
+      "twitch_title": "More Than You Know",
+      "twitch_artists": "Axwell Λ Ingrosso,",
+      "status": "allowed"
+    },
+    {
+      "position": 25,
+      "title": "Sun Is Shining",
+      "artists": "Axwell /\\ Ingrosso",
+      "twitch_title": "Sun Is Shining",
+      "twitch_artists": "Axwell Λ Ingrosso,",
+      "status": "allowed"
+    },
+    {
+      "position": 26,
+      "title": "Heroes (we could be)",
+      "artists": "Alesso, Tove Lo",
+      "twitch_title": "Heroes (We Could Be)",
+      "twitch_artists": "Alesso",
+      "status": "allowed"
+    },
+    {
+      "position": 27,
+      "title": "Calling (Lose My Mind) - Radio Edit",
+      "artists": "Sebastian Ingrosso, Alesso, Ryan Tedder",
+      "twitch_title": "Calling (Lose My Mind) (Radio Edit)",
+      "twitch_artists": "Sebastian Ingrosso,",
+      "status": "allowed"
+    },
+    {
+      "position": 28,
+      "title": "Reload - Radio Edit",
+      "artists": "Sebastian Ingrosso, Tommy Trash, John Martin",
+      "twitch_title": "Reload (Radio Edit)",
+      "twitch_artists": "Sebastian Ingrosso,",
+      "status": "allowed"
+    },
+    {
+      "position": 29,
+      "title": "If I Lose Myself - Alesso vs OneRepublic",
+      "artists": "OneRepublic, Alesso",
+      "twitch_title": "If I Lose Myself (Alesso vs OneRepublic)",
+      "twitch_artists": "OneRepublic,",
+      "status": "allowed"
+    },
+    {
+      "position": 30,
+      "title": "This Is What It Feels Like",
+      "artists": "Armin van Buuren, Trevor Guthrie",
+      "twitch_title": "This Is What It Feels Like",
+      "twitch_artists": "Armin van Buuren,",
+      "status": "allowed"
+    },
+    {
+      "position": 31,
+      "title": "Runaway (U & I)",
+      "artists": "Galantis",
+      "twitch_title": "Runaway (U & I)",
+      "twitch_artists": "Galantis",
+      "status": "allowed"
+    },
+    {
+      "position": 32,
+      "title": "No Money",
+      "artists": "Galantis",
+      "twitch_title": "No Money",
+      "twitch_artists": "Galantis",
+      "status": "allowed"
+    },
+    {
+      "position": 33,
+      "title": "Peanut Butter Jelly",
+      "artists": "Galantis",
+      "twitch_title": "Peanut Butter Jelly",
+      "twitch_artists": "Galantis",
+      "status": "allowed"
+    },
+    {
+      "position": 34,
+      "title": "Love on Me",
+      "artists": "Galantis, Hook N Sling",
+      "twitch_title": "Love on Me",
+      "twitch_artists": "Galantis & Hook N Sling",
+      "status": "allowed"
+    },
+    {
+      "position": 35,
+      "title": "Lean On",
+      "artists": "Major Lazer, MØ, DJ Snake",
+      "twitch_title": "Lean On",
+      "twitch_artists": "Major Lazer,",
+      "status": "allowed"
+    },
+    {
+      "position": 36,
+      "title": "Light It Up - Remix",
+      "artists": "Major Lazer, Nyla, Fuse ODG",
+      "twitch_title": "Light It Up (4B Remix)",
+      "twitch_artists": "Major Lazer",
+      "status": "allowed"
+    },
+    {
+      "position": 37,
+      "title": "Cold Water",
+      "artists": "Major Lazer, Justin Bieber, MØ",
+      "twitch_title": "Cold Water",
+      "twitch_artists": "Major Lazer",
+      "status": "allowed"
+    },
+    {
+      "position": 38,
+      "title": "Let Me Love You",
+      "artists": "DJ Snake, Justin Bieber",
+      "twitch_title": "Let Me Love You",
+      "twitch_artists": "DJ Snake",
+      "status": "allowed"
+    },
+    {
+      "position": 39,
+      "title": "Middle",
+      "artists": "DJ Snake, Bipolar Sunshine",
+      "twitch_title": "Middle",
+      "twitch_artists": "DJ Snake,",
+      "status": "allowed"
+    },
+    {
+      "position": 40,
+      "title": "Turn Down for What",
+      "artists": "DJ Snake, Lil Jon",
+      "twitch_title": "Turn Down for What",
+      "twitch_artists": "DJ Snake,",
+      "status": "allowed"
+    },
+    {
+      "position": 41,
+      "title": "Titanium",
+      "artists": "David Guetta, Sia",
+      "twitch_title": "Titanium",
+      "twitch_artists": "David Guetta",
+      "status": "allowed"
+    },
+    {
+      "position": 50,
+      "title": "I Gotta Feeling",
+      "artists": "The Black Eyed Peas",
+      "twitch_title": "I Gotta Feeling",
+      "twitch_artists": "The Black Eyed Peas",
+      "status": "allowed"
+    },
+    {
+      "position": 51,
+      "title": "Pump It",
+      "artists": "The Black Eyed Peas",
+      "twitch_title": "Pump It",
+      "twitch_artists": "The Black Eyed Peas",
+      "status": "allowed"
+    },
+    {
+      "position": 52,
+      "title": "Rock That Body",
+      "artists": "The Black Eyed Peas",
+      "twitch_title": "Rock That Body",
+      "twitch_artists": "The Black Eyed Peas",
+      "status": "allowed"
+    },
+    {
+      "position": 53,
+      "title": "Party Rock Anthem",
+      "artists": "LMFAO, Lauren Bennett, GoonRock",
+      "twitch_title": "Party Rock Anthem",
+      "twitch_artists": "LMFAO",
+      "status": "allowed"
+    },
+    {
+      "position": 54,
+      "title": "Sexy and I Know It",
+      "artists": "LMFAO",
+      "twitch_title": "Sexy And I Know It",
+      "twitch_artists": "LMFAO",
+      "status": "allowed"
+    },
+    {
+      "position": 56,
+      "title": "Give Me Everything",
+      "artists": "Pitbull, Afrojack, Ne-Yo, Nayer",
+      "twitch_title": "Give Me Everything",
+      "twitch_artists": "Pitbull,",
+      "status": "allowed"
+    },
+    {
+      "position": 57,
+      "title": "Time of Our Lives",
+      "artists": "Pitbull, Ne-Yo",
+      "twitch_title": "Time of Our Lives",
+      "twitch_artists": "Pitbull,",
+      "status": "allowed"
+    },
+    {
+      "position": 59,
+      "title": "Rain Over Me",
+      "artists": "Pitbull, Marc Anthony",
+      "twitch_title": "Rain Over Me",
+      "twitch_artists": "Pitbull",
+      "status": "allowed"
+    },
+    {
+      "position": 60,
+      "title": "On The Floor",
+      "artists": "Jennifer Lopez, Pitbull",
+      "twitch_title": "On The Floor",
+      "twitch_artists": "Jennifer Lopez",
+      "status": "allowed"
+    },
+    {
+      "position": 62,
+      "title": "Good Feeling",
+      "artists": "Flo Rida",
+      "twitch_title": "Good Feeling",
+      "twitch_artists": "Flo Rida",
+      "status": "allowed"
+    },
+    {
+      "position": 65,
+      "title": "Dynamite",
+      "artists": "Taio Cruz",
+      "twitch_title": "Dynamite",
+      "twitch_artists": "Taio Cruz",
+      "status": "allowed"
+    },
+    {
+      "position": 66,
+      "title": "Higher",
+      "artists": "Taio Cruz, Kylie Minogue",
+      "twitch_title": "Higher",
+      "twitch_artists": "Taio Cruz",
+      "status": "allowed"
+    },
+    {
+      "position": 67,
+      "title": "Break Your Heart",
+      "artists": "Taio Cruz",
+      "twitch_title": "Break Your Heart",
+      "twitch_artists": "Taio Cruz",
+      "status": "allowed"
+    },
+    {
+      "position": 68,
+      "title": "Perfect Strangers",
+      "artists": "Jonas Blue, JP Cooper",
+      "twitch_title": "Perfect Strangers",
+      "twitch_artists": "Jonas Blue",
+      "status": "allowed"
+    },
+    {
+      "position": 69,
+      "title": "Mama",
+      "artists": "Jonas Blue, William Singe",
+      "twitch_title": "Mama",
+      "twitch_artists": "Jonas Blue,",
+      "status": "allowed"
+    },
+    {
+      "position": 70,
+      "title": "Fast Car",
+      "artists": "Jonas Blue, Dakota",
+      "twitch_title": "Fast Car",
+      "twitch_artists": "Jonas Blue",
+      "status": "allowed"
+    },
+    {
+      "position": 72,
+      "title": "In My Mind",
+      "artists": "Dynoro, GIGI D'AGOSTINO",
+      "twitch_title": "In My Mind",
+      "twitch_artists": "Dynoro,",
+      "status": "allowed"
+    },
+    {
+      "position": 73,
+      "title": "Tuesday",
+      "artists": "Burak Yeter, Danelle Sandoval",
+      "twitch_title": "Tuesday",
+      "twitch_artists": "Burak Yeter and Danelle Sandoval",
+      "status": "allowed"
+    },
+    {
+      "position": 74,
+      "title": "Hideaway",
+      "artists": "Kiesza",
+      "twitch_title": "Hideaway",
+      "twitch_artists": "Kiesza",
+      "status": "allowed"
+    },
+    {
+      "position": 75,
+      "title": "Ain't Nobody (Loves Me Better)",
+      "artists": "Felix Jaehn, Jasmine Thompson",
+      "twitch_title": "Ain't Nobody (Loves Me Better)",
+      "twitch_artists": "felix jaehn",
+      "status": "allowed"
+    },
+    {
+      "position": 76,
+      "title": "This Girl (Kungs Vs. Cookin' On 3 Burners)",
+      "artists": "Kungs, Cookin' On 3 Burners",
+      "twitch_title": "This Girl (Kungs Vs. Cookin' On 3 Burners)",
+      "twitch_artists": "Kungs,",
+      "status": "allowed"
+    },
+    {
+      "position": 77,
+      "title": "Never Going Home",
+      "artists": "Kungs",
+      "twitch_title": "Never Going Home",
+      "twitch_artists": "Kungs",
+      "status": "allowed"
+    },
+    {
+      "position": 78,
+      "title": "Easy Love",
+      "artists": "Sigala",
+      "twitch_title": "Easy Love",
+      "twitch_artists": "Sigala",
+      "status": "allowed"
+    },
+    {
+      "position": 80,
+      "title": "Came Here for Love",
+      "artists": "Sigala, Ella Eyre",
+      "twitch_title": "Came Here for Love",
+      "twitch_artists": "Sigala,",
+      "status": "allowed"
+    },
+    {
+      "position": 81,
+      "title": "Are You With Me",
+      "artists": "Lost Frequencies",
+      "twitch_title": "Are You With Me",
+      "twitch_artists": "Lost Frequencies",
+      "status": "allowed"
+    },
+    {
+      "position": 82,
+      "title": "Reality",
+      "artists": "Lost Frequencies, Janieck Devy",
+      "twitch_title": "Reality",
+      "twitch_artists": "Lost Frequencies",
+      "status": "allowed"
+    },
+    {
+      "position": 84,
+      "title": "BED",
+      "artists": "Joel Corry, RAYE, David Guetta",
+      "twitch_title": "BED",
+      "twitch_artists": "Joel Corry x RAYE x David Guetta",
+      "status": "allowed"
+    },
+    {
+      "position": 85,
+      "title": "I Got U",
+      "artists": "Duke Dumont, Jax Jones",
+      "twitch_title": "I Got U",
+      "twitch_artists": "Duke Dumont",
+      "status": "allowed"
+    },
+    {
+      "position": 86,
+      "title": "Ocean Drive",
+      "artists": "Duke Dumont",
+      "twitch_title": "Ocean Drive",
+      "twitch_artists": "Duke Dumont",
+      "status": "allowed"
+    },
+    {
+      "position": 87,
+      "title": "You Don't Know Me",
+      "artists": "Jax Jones, RAYE",
+      "twitch_title": "You Don't Know Me",
+      "twitch_artists": "Jax Jones,",
+      "status": "allowed"
+    },
+    {
+      "position": 88,
+      "title": "Breathe",
+      "artists": "Jax Jones, Ina Wroldsen",
+      "twitch_title": "Breathe",
+      "twitch_artists": "Jax Jones",
+      "status": "allowed"
+    },
+    {
+      "position": 89,
+      "title": "Prayer in C - Robin Schulz Radio Edit",
+      "artists": "Lilly Wood and The Prick, Robin Schulz",
+      "twitch_title": "Prayer in C (Robin Schulz Radio Edit)",
+      "twitch_artists": "Lilly Wood & The Prick and Robin Schulz",
+      "status": "allowed"
+    },
+    {
+      "position": 93,
+      "title": "Breaking Me",
+      "artists": "Topic, A7S",
+      "twitch_title": "Breaking Me",
+      "twitch_artists": "Topic,",
+      "status": "allowed"
+    },
+    {
+      "position": 94,
+      "title": "Piece Of Your Heart",
+      "artists": "MEDUZA, Goodboys",
+      "twitch_title": "Piece Of Your Heart",
+      "twitch_artists": "MEDUZA,",
+      "status": "allowed"
+    },
+    {
+      "position": 95,
+      "title": "Lose Control",
+      "artists": "MEDUZA, Becky Hill, Goodboys",
+      "twitch_title": "Lose Control",
+      "twitch_artists": "MEDUZA,",
+      "status": "allowed"
+    },
+    {
+      "position": 96,
+      "title": "Five More Hours",
+      "artists": "Deorro, Chris Brown",
+      "twitch_title": "Five More Hours",
+      "twitch_artists": "Deorro,",
+      "status": "allowed"
+    },
+    {
+      "position": 97,
+      "title": "Red Lights",
+      "artists": "Tiësto",
+      "twitch_title": "Red Lights",
+      "twitch_artists": "Tiësto",
+      "status": "allowed"
+    },
+    {
+      "position": 98,
+      "title": "Gecko (Overdrive) - Radio Edit",
+      "artists": "Oliver Heldens, Becky Hill",
+      "twitch_title": "Gecko (Overdrive) [Radio Edit]",
+      "twitch_artists": "Oliver Heldens & Becky Hill",
+      "status": "allowed"
+    },
+    {
+      "position": 99,
+      "title": "I Want You To Know",
+      "artists": "Zedd, Selena Gomez",
+      "twitch_title": "I Want You To Know",
+      "twitch_artists": "Zedd",
+      "status": "allowed"
+    }
+  ]
+}
