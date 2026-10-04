@@ -573,7 +573,7 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/ovh/agent/runtime-config'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
     const path=String(url.searchParams.get('path')||'').trim();
-    if(!['control/music-library.json','control/mediaforge-catalog.json','control/youtube-stations.json','config/peter_lofi_series.json','control/gaming-reference-production/references.json','control/twitch-dj-supplied-2026-10-03.json'].includes(path))return json({error:'config_path_not_allowed'},400,cors);
+    if(!['control/music-library.json','control/mediaforge-catalog.json','control/youtube-stations.json','config/peter_lofi_series.json','control/gaming-reference-production/references.json','control/twitch-dj-candidates-2026-10-03.json','control/twitch-dj-supplied-2026-10-03.json'].includes(path))return json({error:'config_path_not_allowed'},400,cors);
     const payload=await localConfigJson(env,path);
     if(url.searchParams.get('raw')==='1')return json(payload,payload===null?404:200,cors);
     return json({path,payload},payload===null?404:200,cors);
@@ -581,7 +581,7 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/ovh/agent/runtime-config'&&request.method==='POST'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
     const b=await bodyJson(request),path=String(b.path||'').trim(),payload=b.payload;
-    if(!['control/music-library.json','control/mediaforge-catalog.json','control/youtube-stations.json','config/peter_lofi_series.json','control/gaming-reference-production/references.json','control/twitch-dj-supplied-2026-10-03.json'].includes(path))return json({error:'config_path_not_allowed'},400,cors);
+    if(!['control/music-library.json','control/mediaforge-catalog.json','control/youtube-stations.json','config/peter_lofi_series.json','control/gaming-reference-production/references.json','control/twitch-dj-candidates-2026-10-03.json','control/twitch-dj-supplied-2026-10-03.json'].includes(path))return json({error:'config_path_not_allowed'},400,cors);
     if(payload===undefined||payload===null)return json({error:'payload_required'},400,cors);
     await setLocalConfig(env,path,payload);
     return json({ok:true,path,updated_at:new Date().toISOString()},200,cors);
