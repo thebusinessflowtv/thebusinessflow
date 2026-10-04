@@ -86,7 +86,7 @@
     const status=s?String(s.status||'pending'):'not_started';
     const statusLabel=status==='completed'?'Concluído':status==='running'?'Verificando':status==='pending'?'Aguardando':'Não iniciado';
     return `<section class="card" style="margin-top:14px;border-color:#4a356d">
-      <div class="row between wrap"><div><b>DJ Music Catalog Scanner</b><div class="tiny muted" style="margin-top:4px">Cruza as 215 faixas da playlist com o catálogo oficial da Twitch usando sua sessão DJ no navegador.</div></div><span class="pill ${status==='completed'?'live':'queued'}">${esc(statusLabel)}</span></div>
+      <div class="row between wrap"><div><b>DJ Music Catalog Scanner</b><div class="tiny muted" style="margin-top:4px">Cruza a lista selecionada com o catálogo oficial da Twitch usando sua sessão DJ no navegador.</div></div><span class="pill ${status==='completed'?'live':'queued'}">${esc(statusLabel)}</span></div>
       <div class="grid" style="grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px">
         <div class="card"><div class="tiny muted">PROCESSADAS</div><b>${processed}/${total}</b></div>
         <div class="card"><div class="tiny muted">ALLOWED</div><b style="color:#8ff2bb">${Number(s?.allowed||0)}</b></div>
@@ -138,7 +138,8 @@
     document.getElementById('thumbFile')?.addEventListener('change',e=>uploadAsset(e.target.files?.[0],'thumbnail'));
     document.getElementById('start').onclick=startLive;
     document.getElementById('refreshSessions').onclick=loadSessions;
-    document.getElementById('startDjCatalogScan')?.addEventListener('click',()=>startDjCatalogScan('dance100'));\n    document.getElementById('startDjCatalogLegacy')?.addEventListener('click',()=>startDjCatalogScan('gaming'));
+    document.getElementById('startDjCatalogScan')?.addEventListener('click',()=>startDjCatalogScan('dance100'));
+    document.getElementById('startDjCatalogLegacy')?.addEventListener('click',()=>startDjCatalogScan('gaming'));
     document.getElementById('refreshDjCatalogScan')?.addEventListener('click',loadDjScan);
     document.querySelectorAll('.stopLive').forEach(b=>b.onclick=e=>{e.stopPropagation();stopLive(b.dataset.id)});
     document.querySelectorAll('.viewLive').forEach(b=>b.onclick=e=>{e.stopPropagation();openLive(b.dataset.id)});
