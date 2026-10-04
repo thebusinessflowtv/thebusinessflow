@@ -1,20 +1,21 @@
 // ==UserScript==
 // @name         MediaForge — Twitch DJ Catalog Scanner
 // @namespace    https://thebusinessflowtv.github.io/thebusinessflow/
-// @version      1.1.0
+// @version      1.1.1
 // @description  Verifica listas do MediaForge no Twitch DJ Music Catalog com busca em cascata, validação forte de título/artista/versão e revisão automática de resultados incertos.
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @run-at       document-idle
 // @updateURL    https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js
 // @downloadURL  https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      peterlofi.odsgn.com.br
+// @connect      mediaforge-api.guilhermeodsgn.workers.dev
 // ==/UserScript==
 
 (function(){
   'use strict';
 
   const DEFAULT_API='https://mediaforge-api.guilhermeodsgn.workers.dev';
-  const originalFetch=window.fetch.bind(window);
   let running=false,ui=null;
   let progress={done:0,total:0,allowed:0,restricted:0,not_found:0,ambiguous:0,error:0};
 
@@ -42,7 +43,36 @@
   const bridge=parseBridge();
 
   async function bridgeFetch(path,opt={}){
-    const res=await originalFetch(bridge.api+path,{...opt,headers:{'content-type':'application/json',...(opt.headers||{})}});
+    const url=bridge.api+path;
+    const method=String(opt.method||'GET').toUpperCase();
+    const headers={'content-type':'application/json',...(opt.headers||{})};
+    const body=opt.body==null?undefined:String(opt.body);
+
+    if(typeof GM_xmlhttpRequest==='function'){
+      return await new Promise((resolve,reject)=>{
+        GM_xmlhttpRequest({
+          method,
+          url,
+          headers,
+          data:body,
+          timeout:20000,
+          anonymous:false,
+          onload:r=>{
+            let data={};
+            try{data=r.responseText?JSON.parse(r.responseText):{}}catch(_){data={raw:String(r.responseText||'').slice(0,1000)}}
+            if(r.status<200||r.status>=300){
+              reject(new Error(data?.message||data?.error||('MediaForge HTTP '+r.status)));
+              return;
+            }
+            resolve(data);
+          },
+          ontimeout:()=>reject(new Error('MediaForge timeout')),
+          onerror:e=>reject(new Error('MediaForge request failed'+(e?.error?': '+e.error:'')))
+        });
+      });
+    }
+
+    const res=await fetch(url,{...opt,headers});
     let data={};try{data=await res.json()}catch(_){}
     if(!res.ok)throw new Error(data?.message||data?.error||('MediaForge HTTP '+res.status));
     return data;
