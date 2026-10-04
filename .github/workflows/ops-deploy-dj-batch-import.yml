@@ -1,5 +1,5 @@
 name: MediaForge — Deploy DJ Batch Import
-# redeploy-token: 20261004-2045-python-download
+# redeploy-token: 20261004-2052-reload-agent
 # cache-bust: 2026-10-04T03:08-03
 
 on:
@@ -64,7 +64,7 @@ jobs:
           TOKEN="$(cat /tmp/token)"
           sleep 5
           ID="djbatch-agent-$(date -u +%Y%m%d%H%M%S)"
-          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"ovh-agent",request_id:$id,source:"dj-batch-import"}')" >/tmp/create-agent.json
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"reload_control_agent",target:"ovh-agent",request_id:$id,source:"dj-batch-import"}')" >/tmp/create-agent.json
           for i in $(seq 1 80); do
             R="$(curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" 2>/dev/null || true)"
             ST="$(printf '%s' "$R" | jq -r '.command.status // empty' 2>/dev/null || true)"
