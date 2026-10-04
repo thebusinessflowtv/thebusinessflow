@@ -31,7 +31,7 @@
     <div class="row" style="margin-top:18px">
       <div class="row">
         <a class="btn" href="./lives.html?platform=twitch">← Voltar para Lives</a>
-        <button id="refresh" class="btn">Atualizar status</button>
+        <button id="refresh" class="btn">Atualizar status</button><button id="resume" class="btn">Retomar último ZIP enviado</button>
       </div>
       <button id="upload" class="btn primary" disabled>Auditar e importar ZIP</button>
     </div>
@@ -131,6 +131,8 @@
         setStatus('OVH auditando MP3s, SHA-256, duração e duplicatas…');
       }else if(imp.status==='downloading'){
         setStatus('OVH baixando o ZIP enviado para iniciar a auditoria…');
+      }else if(imp.status==='failed'){
+        setStatus('Falha na importação: '+String(imp.error||'erro não informado')+'. Use “Retomar último ZIP enviado” depois da correção.','bad');
       }else if(!silent){
         setStatus('Twitch: '+String(x.status||'unknown')+' · hot-swap: '+(x.hot_swap?'ativo':'indisponível')+' · Kick hot-swap: '+(x.kick&&x.kick.hot_swap?'ativo':'indisponível')+'.');
       }
@@ -140,6 +142,37 @@
       return null;
     }
   }
+  async function resumeLatest(){
+    if(busy)return;
+    busy=true;
+    var btn=document.getElementById('resume');
+    if(btn)btn.disabled=true;
+    try{
+      setStatus('Procurando o último ZIP já enviado para a OVH…');
+      var data=await api('/api/assets');
+      var assets=(data&&data.assets||[]).filter(function(a){return a&&a.asset_type==='dj_archive'});
+      if(!assets.length)throw new Error('Nenhum ZIP DJ pronto foi encontrado.');
+      assets.sort(function(a,b){return String(b.created_at||'').localeCompare(String(a.created_at||''))});
+      var asset=assets[0];
+      setStatus('Retomando '+String(asset.title||asset.id)+' · '+fmt(asset.size_bytes)+' sem reenviar o arquivo…');
+      await api('/api/twitch-dj/import-archive',{method:'POST',body:JSON.stringify({asset_id:asset.id,mode:'shared_commercial_replace'})});
+      var until=Date.now()+20*60*1000;
+      while(Date.now()<until){
+        await new Promise(function(r){setTimeout(r,3500)});
+        var x=await refresh(true);
+        var st=String(x&&x.dj_import&&x.dj_import.status||'');
+        if(st==='ready'||st==='failed'){await refresh(false);return;}
+        if(['downloading','validating','staged'].indexOf(st)>=0)await refresh(false);
+      }
+      setStatus('A retomada continua na OVH. Clique em “Atualizar status” para acompanhar.','warn');
+    }catch(e){
+      setStatus('Falha ao retomar: '+e.message,'bad');
+    }finally{
+      busy=false;
+      if(btn)btn.disabled=false;
+    }
+  }
+
   async function upload(file){
     if(busy)return;
     if(!file||!/\.zip$/i.test(file.name)){choose(file);return;}
@@ -202,6 +235,7 @@
   input.addEventListener('change',function(){choose(input.files&&input.files[0])});
   uploadBtn.addEventListener('click',function(){upload(selectedFile)});
   document.getElementById('refresh').addEventListener('click',function(){refresh(false)});
+  document.getElementById('resume').addEventListener('click',resumeLatest);
   ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();drop.classList.add('drag')})});
   ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();drop.classList.remove('drag')})});
   drop.addEventListener('drop',function(e){var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];choose(f)});
