@@ -1,5 +1,5 @@
 name: MediaForge — Deploy DJ Batch Import
-# redeploy-token: 20261004-2105-localhost-media
+# redeploy-token: 20261004-2110-pin-localhost
 # cache-bust: 2026-10-04T03:08-03
 
 on:
