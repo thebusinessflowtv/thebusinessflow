@@ -312,7 +312,7 @@ function assetPublicUrl(request,asset,env=null){
 }
 function assetRuntimeUrl(request,asset,env){
   if(String(env.LOCAL_RUNTIME||'')==='1'){
-    const base=String(env.OVH_INTERNAL_API_URL||'http://host.docker.internal:8790').replace(/\/$/,'');
+    const base=String(env.OVH_INTERNAL_API_URL||'http://127.0.0.1:8790').replace(/\/$/,'');
     return `${base}/media/${asset.id}/${asset.download_token}`;
   }
   return assetPublicUrl(request,asset,env);
