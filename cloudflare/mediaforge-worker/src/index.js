@@ -732,10 +732,40 @@ async function handleApi(request,env,url){
     return json(library,200,cors);
   }
   if(url.pathname==='/api/twitch-dj/import-archive'&&request.method==='POST'){
-    const b=await bodyJson(request),assetId=String(b.asset_id||'');
+    const b=await bodyJson(request),assetId=String(b.asset_id||''),mode=String(b.mode||'legacy').toLowerCase();
     const asset=await readAsset(env,assetId);
     if(!asset||asset.status!=='ready')return json({error:'dj_archive_not_ready'},404,cors);
     if(asset.asset_type!=='dj_archive')return json({error:'invalid_dj_archive_type'},400,cors);
+
+    const state=await ovhState(env),twitch=state?.services?.twitch||{},kick=state?.services?.kick||{};
+    if(twitch.hot_swap!==true)return json({error:'twitch_hot_swap_not_ready',message:'Importação bloqueada para proteger a live: Twitch ainda não confirmou hot-swap.'},409,cors);
+
+    if(mode==='shared_commercial_replace'){
+      if(kick.hot_swap!==true)return json({error:'kick_hot_swap_not_ready',message:'Importação bloqueada para proteger a live: Kick ainda não confirmou hot-swap.'},409,cors);
+      const cmd=await issueOvhCommand(env,{
+        action:'import_shared_dj_archive',
+        runtime_slot:'twitch',
+        platform:'twitch',
+        session_id:String(twitch.session_id||''),
+        title:String(twitch.title||''),
+        archive_asset_id:asset.id,
+        archive_url:assetRuntimeUrl(request,asset,env),
+        expected_original_tracks:36,
+        shuffle:true,
+        repeat:true,
+        source:'mediaforge-shared-dj-batch-import'
+      });
+      return json({
+        ok:true,
+        mode:'shared_commercial_replace',
+        rtmp_restart:false,
+        container_restart:false,
+        safety_order:['audit_zip','stage_new_tracks_with_originals','validate_stage','remove_36_originals','sync_independent_kick_playlist'],
+        asset:{id:asset.id,title:asset.title,size_bytes:asset.size_bytes},
+        command:cmd
+      },202,cors);
+    }
+
     const manifest=await fetchGithubJson(env,'control/twitch-dj-supplied-2026-10-03.json');
     if(!manifest||!Array.isArray(manifest.tracks)||!manifest.tracks.length)return json({error:'dj_manifest_unavailable'},503,cors);
     const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)==='twitch-dj-mixed');
@@ -743,15 +773,27 @@ async function handleApi(request,env,url){
     const allowedPlatforms=Array.isArray(playlist.allowed_platforms)?playlist.allowed_platforms.map(x=>String(x).toLowerCase()):[];
     if(!allowedPlatforms.includes('twitch')||allowedPlatforms.some(x=>x!=='twitch'))return json({error:'twitch_dj_platform_lock_invalid'},409,cors);
     const baseTracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({id:String(t.id||`twitch-dj-original-${i+1}`),title:String(t.title||'Peter Lofi'),url:String(t.url),duration_seconds:Number(t.duration_seconds||0),source:'peter_lofi_original'}));
-    const state=await ovhState(env),svc=state?.services?.twitch||{};
-    if(svc.hot_swap!==true)return json({error:'twitch_hot_swap_not_ready',message:'Importação bloqueada para proteger a live: o runtime Twitch ainda não confirmou hot-swap.'},409,cors);
-    const cmd=await issueOvhCommand(env,{action:'import_twitch_dj_archive',runtime_slot:'twitch',platform:'twitch',session_id:String(svc.session_id||''),title:String(svc.title||''),playlist_key:'twitch-dj-mixed',archive_asset_id:asset.id,archive_url:assetRuntimeUrl(request,asset,env),manifest:String(env.LOCAL_RUNTIME||'')==='1'?manifest:undefined,manifest_url:String(env.LOCAL_RUNTIME||'')==='1'?(String(env.OVH_INTERNAL_API_URL||'http://host.docker.internal:8790').replace(/\/$/,'')+'/api/ovh/agent/runtime-config?path='+encodeURIComponent('control/twitch-dj-supplied-2026-10-03.json')+'&raw=1'):'https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/twitch-dj-supplied-2026-10-03.json',base_tracks:baseTracks,shuffle:true,repeat:true,source:'mediaforge-twitch-dj-import'});
+    const cmd=await issueOvhCommand(env,{action:'import_twitch_dj_archive',runtime_slot:'twitch',platform:'twitch',session_id:String(twitch.session_id||''),title:String(twitch.title||''),playlist_key:'twitch-dj-mixed',archive_asset_id:asset.id,archive_url:assetRuntimeUrl(request,asset,env),manifest:String(env.LOCAL_RUNTIME||'')==='1'?manifest:undefined,manifest_url:String(env.LOCAL_RUNTIME||'')==='1'?(String(env.OVH_INTERNAL_API_URL||'http://host.docker.internal:8790').replace(/\/$/,'')+'/api/ovh/agent/runtime-config?path='+encodeURIComponent('control/twitch-dj-supplied-2026-10-03.json')+'&raw=1'):'https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/twitch-dj-supplied-2026-10-03.json',base_tracks:baseTracks,shuffle:true,repeat:true,source:'mediaforge-twitch-dj-import'});
     return json({ok:true,mode:'twitch_only_hot_import',rtmp_restart:false,asset:{id:asset.id,title:asset.title,size_bytes:asset.size_bytes},expected_unique_tracks:Number(manifest.unique_audio_files||manifest.tracks.length),command:cmd},202,cors);
   }
 
   if(url.pathname==='/api/twitch-dj/status'&&request.method==='GET'){
-    const state=await ovhState(env),svc=state?.services?.twitch||{};
-    return json({playlist_key:String(svc.playlist_key||''),playlist_track_count:Number(svc.playlist_track_count||0),dj_import:svc.dj_import||null,status:String(svc.status||'unknown'),hot_swap:svc.hot_swap===true,now_playing:svc.now_playing||null},200,cors);
+    const state=await ovhState(env),svc=state?.services?.twitch||{},kick=state?.services?.kick||{};
+    return json({
+      playlist_key:String(svc.playlist_key||''),
+      playlist_track_count:Number(svc.playlist_track_count||0),
+      dj_import:svc.dj_import||null,
+      status:String(svc.status||'unknown'),
+      hot_swap:svc.hot_swap===true,
+      now_playing:svc.now_playing||null,
+      kick:{
+        playlist_key:String(kick.playlist_key||''),
+        playlist_track_count:Number(kick.playlist_track_count||0),
+        status:String(kick.status||'unknown'),
+        hot_swap:kick.hot_swap===true,
+        dj_import:kick.dj_import||null
+      }
+    },200,cors);
   }
 
   if(url.pathname==='/api/ovh/playlist'&&request.method==='POST'){
