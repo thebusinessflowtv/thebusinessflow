@@ -1,0 +1,66 @@
+name: MediaForge — Publish music queue monitor
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ops-deploy-music-monitor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate for control-panel deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://peterlofi.odsgn.com.br"
+          LOGIN="$(curl -fsS --connect-timeout 8 --max-time 25 -X POST "$BASE/api/auth/login" \
+            -H 'content-type: application/json' \
+            --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/mf-token
+
+      - name: Publish Control Center and local API on OVH
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://peterlofi.odsgn.com.br"
+          TOKEN="$(cat /tmp/mf-token)"
+          ID="direct-control-center-$(date -u +%Y%m%d%H%M%S)"
+          curl -fsS -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"music-monitor-20261004"}')" \
+            | tee /tmp/create.json
+
+          for i in $(seq 1 120); do
+            curl -fsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+            ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+            echo "control-plane=$ST"
+            [ "$ST" = "completed" ] && break
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; exit 1; fi
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
+          jq -e '.command.result.mediaforge_control_plane.ui_verified==true' /tmp/status.json >/dev/null
+          jq -e '.command.result.mediaforge_control_plane.dj100_manifest_seeded==true' /tmp/status.json >/dev/null
+          jq -e '.command.result.mediaforge_control_plane.publisher_pids_preserved==true' /tmp/status.json >/dev/null
+          cat /tmp/status.json
+
+      - name: Verify music monitor on production
+        run: |
+          set -euo pipefail
+          curl -fsS --connect-timeout 8 --max-time 25 "https://peterlofi.odsgn.com.br/office-music.js?music-monitor=20261004" -o /tmp/music.js
+          grep -q 'monitorGamingQueue' /tmp/music.js
+          echo MUSIC_MONITOR_PUBLISHED
