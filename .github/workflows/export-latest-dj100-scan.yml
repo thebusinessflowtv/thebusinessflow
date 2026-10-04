@@ -1,0 +1,64 @@
+name: Export latest Twitch DJ 100 scan
+
+on:
+  push:
+    paths:
+      - '.github/workflows/export-latest-dj100-scan.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://peterlofi.odsgn.com.br
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest completed dance100 scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          echo "::add-mask::$TOKEN"
+
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/dj-catalog/scans?limit=20" > /tmp/scans.json
+          SCAN_ID="$(jq -r '[.scans[] | select((.id|startswith("dance100-")) and .status=="completed")] | sort_by(.created_at) | last | .id // empty' /tmp/scans.json)"
+          test -n "$SCAN_ID"
+
+          mkdir -p control/dj100-review
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/dj-catalog/scans/$SCAN_ID" > control/dj100-review/latest-scan.json
+
+          jq '{
+            scan_id:.scan.id,
+            generated_at:(now|todateiso8601),
+            count:([.scan.results[]|select(.status=="allowed")]|length),
+            tracks:[.scan.results[]|select(.status=="allowed")|{position,title,artists,matched_title,matched_artists,match_score,checked_at}]
+          }' control/dj100-review/latest-scan.json > control/dj100-review/allowed-75.json
+
+          jq '{
+            scan_id:.scan.id,
+            generated_at:(now|todateiso8601),
+            count:([.scan.results[]|select(.status=="ambiguous")]|length),
+            tracks:[.scan.results[]|select(.status=="ambiguous")|{position,title,artists,matched_title,matched_artists,match_score,detail,checked_at}]
+          }' control/dj100-review/latest-scan.json > control/dj100-review/review-25.json
+
+          jq '{id:.scan.id,status:.scan.status,total:.scan.total,processed:.scan.processed,allowed:.scan.allowed,restricted:.scan.restricted,not_found:.scan.not_found,ambiguous:.scan.ambiguous,error_count:.scan.error_count}' control/dj100-review/latest-scan.json
+
+      - name: Commit exported scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MediaForge Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add control/dj100-review
+          git diff --cached --quiet && exit 0
+          git commit -m "Export latest Twitch DJ 100 scan results"
+          git push
