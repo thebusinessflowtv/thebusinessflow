@@ -460,7 +460,8 @@ async function handleApi(request,env,url){
     const [,scanId,bridgeToken,op]=djBridgeMatch,row=await djScanRowByBridgeToken(env,scanId,bridgeToken);
     if(!row)return json({error:'invalid_or_expired_scan_token'},403,cors);
     if(op==='manifest'&&request.method==='GET'){
-      const refs=await fetchGithubJson(env,'control/gaming-reference-production/references.json'),tracks=(refs?.tracks||[]).map(t=>({position:Number(t.position||0),spotify_id:String(t.spotify_id||''),title:String(t.title||''),artists:String(t.artists||'')})).filter(t=>t.position&&t.title);
+      const manifestPath=String(scanId).startsWith('dance100-')?'control/twitch-dj-candidates-2026-10-03.json':'control/gaming-reference-production/references.json';
+      const refs=await fetchGithubJson(env,manifestPath),tracks=(refs?.tracks||[]).map(t=>({position:Number(t.position||0),spotify_id:String(t.spotify_id||''),title:String(t.title||''),artists:String(t.artists||'')})).filter(t=>t.position&&t.title);
       if(!tracks.length)return json({error:'reference_manifest_unavailable'},503,cors);
       return json({scan_id:scanId,total:tracks.length,playlist:refs?.playlist||null,tracks},200,cors);
     }
@@ -594,12 +595,20 @@ async function handleApi(request,env,url){
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
   if(url.pathname==='/api/dj-catalog/scans'&&request.method==='POST'){
-    const refs=await fetchGithubJson(env,'control/gaming-reference-production/references.json'),total=Number((refs?.tracks||[]).length||0);
-    if(!total)return json({error:'reference_manifest_unavailable',message:'As referências da playlist Gaming ainda não estão disponíveis.'},503,cors);
-    const id=crypto.randomUUID(),bridgeToken=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),tokenHash=await sha256hex(bridgeToken),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+6*60*60*1000).toISOString();
+    const b=await bodyJson(request),source=String(b.source||'gaming').trim().toLowerCase();
+    const manifests={
+      gaming:'control/gaming-reference-production/references.json',
+      dance100:'control/twitch-dj-candidates-2026-10-03.json'
+    };
+    const manifestPath=manifests[source];
+    if(!manifestPath)return json({error:'invalid_dj_scan_source',message:'Fonte de verificação desconhecida.'},400,cors);
+    const refs=await fetchGithubJson(env,manifestPath),total=Number((refs?.tracks||[]).length||0);
+    if(!total)return json({error:'reference_manifest_unavailable',message:'A lista selecionada ainda não está disponível.'},503,cors);
+    const prefix=source==='dance100'?'dance100-':'gaming-';
+    const id=prefix+crypto.randomUUID(),bridgeToken=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),tokenHash=await sha256hex(bridgeToken),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+6*60*60*1000).toISOString();
     await env.DB.prepare(`INSERT INTO dj_catalog_scans(id,token_hash,status,total,processed,allowed,restricted,not_found,ambiguous,error_count,created_at,updated_at,expires_at) VALUES(?,?,'pending',?,0,0,0,0,0,0,?,?,?)`).bind(id,tokenHash,total,created,created,expires).run();
     const origin=new URL(request.url).origin,launchUrl=`https://dashboard.twitch.tv/u/peterlofi/dj#mediaforge_scan=${encodeURIComponent(id)}&mediaforge_token=${encodeURIComponent(bridgeToken)}&mediaforge_api=${encodeURIComponent(origin)}`;
-    return json({ok:true,scan:{id,status:'pending',total,processed:0,allowed:0,restricted:0,not_found:0,ambiguous:0,error_count:0,created_at:created,updated_at:created,expires_at:expires},launch_url:launchUrl,install_url:'https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js'},200,cors);
+    return json({ok:true,source,playlist:refs?.playlist||null,scan:{id,status:'pending',total,processed:0,allowed:0,restricted:0,not_found:0,ambiguous:0,error_count:0,created_at:created,updated_at:created,expires_at:expires},launch_url:launchUrl,install_url:'https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js'},200,cors);
   }
   if(url.pathname==='/api/dj-catalog/scans'&&request.method==='GET'){
     const limit=Math.max(1,Math.min(20,Number(url.searchParams.get('limit')||5))),q=await env.DB.prepare(`SELECT * FROM dj_catalog_scans ORDER BY created_at DESC LIMIT ?`).bind(limit).all();
