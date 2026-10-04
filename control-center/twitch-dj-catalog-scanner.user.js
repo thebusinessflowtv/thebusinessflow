@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         MediaForge — Twitch DJ Catalog Scanner
 // @namespace    https://thebusinessflowtv.github.io/thebusinessflow/
-// @version      1.0.6
-// @description  Verifica automaticamente uma lista MediaForge no Twitch DJ Music Catalog pela própria interface autenticada, sem enviar cookies/OAuth da Twitch ao MediaForge.
+// @version      1.1.0
+// @description  Verifica listas do MediaForge no Twitch DJ Music Catalog com busca em cascata, validação forte de título/artista/versão e revisão automática de resultados incertos.
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @run-at       document-idle
 // @updateURL    https://thebusinessflowtv.github.io/thebusinessflow/control-center/twitch-dj-catalog-scanner.user.js
@@ -141,8 +141,13 @@
     return out;
   }
   function versionWords(text){
-    const s=norm(text),keys=['remix','remastered','remaster','edit','mix','version','acoustic','live','radio','extended','vip','instrumental'];
-    return new Set(keys.filter(k=>new RegExp('\\b'+k+'\\b').test(s)));
+    const s=norm(text);
+    const phrases=['sped up','slowed down','radio edit','radio version','extended mix','original mix'];
+    const keys=['remix','remastered','remaster','edit','mix','version','acoustic','live','radio','extended','vip','instrumental','karaoke'];
+    const out=new Set();
+    for(const p of phrases)if(s.includes(p))out.add(p);
+    for(const k of keys)if(new RegExp('\\b'+k+'\\b').test(s))out.add(k);
+    return out;
   }
   function versionCompatible(referenceTitle,resultTitle){
     const A=versionWords(referenceTitle),B=versionWords(resultTitle);
@@ -151,53 +156,210 @@
     for(const x of A)if(!B.has(x))return false;
     return true;
   }
-  function artistParts(text){
-    return String(text||'').split(/[,;&]/).map(norm).filter(x=>x.length>=2);
+  function stripFeature(text){
+    return String(text||'')
+      .replace(/[\[(](?:[^\])]*(?:feat(?:uring)?|ft\.)[^\])]*?)[\])]/ig,' ')
+      .replace(/\b(?:feat(?:uring)?|ft\.)\b.*$/ig,' ')
+      .replace(/\s+/g,' ').trim();
   }
-  function artistCompatible(referenceArtists,resultArtists){
-    const ref=artistParts(referenceArtists),res=norm(resultArtists);
-    if(!ref.length||!res)return false;
-    return ref.some(a=>a.length>=3&&(res.includes(a)||a.includes(res)));
+  function stripVersion(text){
+    let s=String(text||'');
+    s=s.replace(/[\[(]([^\])]+)[\])]/g,(m,inside)=>versionWords(inside).size? ' ' : m);
+    s=s.replace(/\s+-\s+(?:radio edit|radio version|extended mix|original mix|remix|remaster(?:ed)?|acoustic|live|instrumental)\b.*$/ig,' ');
+    return stripFeature(s).replace(/\s+/g,' ').trim();
+  }
+  function artistParts(text){
+    return String(text||'')
+      .split(/\s*(?:,|;|&|\bx\b|\bfeat(?:uring)?\.?\b|\bft\.?\b)\s*/i)
+      .map(norm).filter(x=>x.length>=2);
+  }
+  function primaryArtist(text){return artistParts(text)[0]||norm(text);}
+  function artistSimilarity(referenceArtists,resultArtists){
+    const refs=artistParts(referenceArtists),res=artistParts(resultArtists);
+    const raw=norm(resultArtists);
+    if(!refs.length||(!res.length&&!raw))return 0;
+    let matched=0;
+    for(const a of refs){
+      if(!a)continue;
+      const ok=res.some(b=>a===b||a.includes(b)||b.includes(a)||sim(a,b)>=0.80)||raw.includes(a);
+      if(ok)matched++;
+    }
+    const coverage=matched/Math.max(1,Math.min(refs.length,2));
+    const primary=refs[0]&&(raw.includes(refs[0])||res.some(b=>b===refs[0]||sim(b,refs[0])>=0.86))?1:0;
+    return Math.min(1,coverage*.72+primary*.28);
+  }
+  function titleSimilarity(referenceTitle,resultTitle){
+    const a=norm(referenceTitle),b=norm(resultTitle);
+    if(!a||!b)return 0;
+    if(a===b)return 1;
+    if(a.includes(b)||b.includes(a)){
+      const ratio=Math.min(a.length,b.length)/Math.max(a.length,b.length);
+      if(ratio>=0.72)return Math.max(.90,ratio);
+    }
+    return sim(referenceTitle,resultTitle);
+  }
+  function candidateKey(c){
+    return [norm(c.title),norm(c.artists),c.status].join('|');
+  }
+  function candidateSignature(rows){
+    return rows.map(r=>candidateKey(r)).sort().join('||');
+  }
+  function scoreRows(ref,rows){
+    return rows.map(r=>{
+      const titleScore=titleSimilarity(ref.title,r.title);
+      const artistScore=artistSimilarity(ref.artists,r.artists);
+      const versionOk=versionCompatible(ref.title,r.title);
+      const primaryOk=artistScore>=0.48;
+      const score=titleScore*.74+artistScore*.26;
+      const exactish=titleScore>=0.96&&artistScore>=0.58&&versionOk;
+      const acceptable=titleScore>=0.84&&artistScore>=0.46&&versionOk&&score>=0.76;
+      return {...r,titleScore,artistScore,versionOk,primaryOk,score,exactish,acceptable};
+    }).sort((a,b)=>b.score-a.score);
+  }
+  function buildTerms(ref){
+    const fullTitle=String(ref.title||'').trim();
+    const cleanTitle=stripVersion(fullTitle);
+    const fullArtists=String(ref.artists||'').trim();
+    const first=primaryArtist(fullArtists);
+    const variants=[
+      [fullTitle,fullArtists].filter(Boolean).join(' '),
+      [fullTitle,first].filter(Boolean).join(' '),
+      fullTitle,
+      [cleanTitle,first].filter(Boolean).join(' '),
+      cleanTitle
+    ].map(x=>String(x||'').replace(/\s+/g,' ').trim()).filter(Boolean);
+    return [...new Set(variants.map(x=>norm(x)))].map(n=>variants.find(x=>norm(x)===n)).filter(Boolean);
   }
 
-  async function waitForResults(ref,previousText,timeout=12000){
+  async function waitForResults(ref,beforeSig,timeout=9000){
     const start=Date.now();
+    let lastRows=[];
     while(Date.now()-start<timeout){
       const rows=rowCandidates();
-      const changed=String(document.body.innerText||'')!==previousText;
-      if(changed&&rows.length){
-        const scored=rows.map(r=>{
-          const titleScore=sim(ref.title,r.title),artistScore=sim(ref.artists,r.artists),versionOk=versionCompatible(ref.title,r.title),artistOk=artistCompatible(ref.artists,r.artists);
-          return {...r,titleScore,artistScore,versionOk,artistOk,score:titleScore*0.72+artistScore*0.28};
-        }).sort((a,b)=>b.score-a.score);
-        const best=scored.find(x=>x.titleScore>=0.68&&x.artistOk&&x.versionOk);
-        if(best){
-          return {status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',version_match:true,artist_match:true}};
-        }
-        const wrongVersion=scored.find(x=>x.titleScore>=0.68&&x.artistOk&&!x.versionOk);
-        if(wrongVersion){
-          return {status:'ambiguous',matched_title:wrongVersion.title,matched_artists:wrongVersion.artists,match_score:Number(wrongVersion.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',reason:'different_version_or_remix',candidate_status:wrongVersion.status}};
-        }
-        const wrongArtist=scored.find(x=>x.titleScore>=0.68&&x.versionOk&&!x.artistOk);
-        if(wrongArtist){
-          return {status:'ambiguous',matched_title:wrongArtist.title,matched_artists:wrongArtist.artists,match_score:Number(wrongArtist.score.toFixed(4)),detail:{source:'twitch_dashboard_dom',reason:'title_match_artist_mismatch',candidate_status:wrongArtist.status}};
-        }
+      lastRows=rows;
+      const sig=candidateSignature(rows);
+      if(rows.length&&(sig!==beforeSig||Date.now()-start>1200)){
+        const scored=scoreRows(ref,rows);
+        if(scored.length)return {kind:'rows',scored};
       }
-      await sleep(250);
+      const body=norm(document.body.innerText||'');
+      if((body.includes('nenhum resultado')||body.includes('no results'))&&Date.now()-start>650){
+        return {kind:'no_results',scored:[]};
+      }
+      await sleep(220);
     }
-    const body=norm(document.body.innerText||'');
-    if(body.includes('nenhum resultado')||body.includes('no results'))return {status:'not_found',match_score:0,detail:{source:'twitch_dashboard_dom',reason:'no_results_message'}};
-    return {status:'not_found',match_score:0,detail:{source:'twitch_dashboard_dom',reason:'no_matching_row'}};
+    return {kind:'timeout',scored:scoreRows(ref,lastRows)};
+  }
+
+  async function searchTerm(ref,term,timeout){
+    const {input,button}=await waitSearchUI();
+    const beforeSig=candidateSignature(rowCandidates());
+    setInput(input,'');
+    await sleep(80);
+    setInput(input,term);
+    await sleep(140);
+    button.click();
+    const result=await waitForResults(ref,beforeSig,timeout||9000);
+    return {term,...result};
+  }
+
+  function summarizeCandidate(x){
+    if(!x)return null;
+    return {
+      status:x.status,title:x.title,artists:x.artists,
+      score:Number(x.score.toFixed(4)),
+      title_score:Number(x.titleScore.toFixed(4)),
+      artist_score:Number(x.artistScore.toFixed(4)),
+      version_match:!!x.versionOk
+    };
+  }
+
+  function finalizeAttempts(ref,attempts){
+    const all=[];
+    for(const a of attempts)for(const x of (a.scored||[]))all.push({...x,term:a.term});
+    all.sort((a,b)=>b.score-a.score);
+
+    const strong=all.filter(x=>x.acceptable);
+    const exactRestricted=strong.find(x=>x.status==='restricted'&&x.exactish);
+    if(exactRestricted){
+      return {
+        status:'restricted',matched_title:exactRestricted.title,matched_artists:exactRestricted.artists,
+        match_score:Number(exactRestricted.score.toFixed(4)),
+        detail:{source:'twitch_dashboard_dom_v2',confidence:'high',reason:'exact_restricted_match',attempts:attempts.map(a=>({term:a.term,kind:a.kind,top:summarizeCandidate(a.scored?.[0])}))}
+      };
+    }
+
+    const exactAllowed=strong.find(x=>x.status==='allowed'&&x.exactish);
+    const conflictingExact=strong.find(x=>x.exactish&&exactAllowed&&x.status!==exactAllowed.status&&norm(x.title)===norm(exactAllowed.title)&&artistSimilarity(x.artists,exactAllowed.artists)>=.8);
+    if(exactAllowed&&!conflictingExact){
+      return {
+        status:'allowed',matched_title:exactAllowed.title,matched_artists:exactAllowed.artists,
+        match_score:Number(exactAllowed.score.toFixed(4)),
+        detail:{source:'twitch_dashboard_dom_v2',confidence:'high',reason:'exact_allowed_match',attempts:attempts.map(a=>({term:a.term,kind:a.kind,top:summarizeCandidate(a.scored?.[0])}))}
+      };
+    }
+
+    const best=strong[0];
+    if(best){
+      const sameTrack=strong.filter(x=>norm(x.title)===norm(best.title)&&artistSimilarity(x.artists,best.artists)>=.80&&x.versionOk===best.versionOk);
+      const statuses=new Set(sameTrack.map(x=>x.status));
+      if(statuses.size>1){
+        return {
+          status:'ambiguous',matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),
+          detail:{source:'twitch_dashboard_dom_v2',reason:'conflicting_catalog_status',candidates:sameTrack.slice(0,5).map(summarizeCandidate),attempts:attempts.map(a=>({term:a.term,kind:a.kind,top:summarizeCandidate(a.scored?.[0])}))}
+        };
+      }
+
+      const corroboration=strong.filter(x=>x.status===best.status&&norm(x.title)===norm(best.title)&&artistSimilarity(x.artists,best.artists)>=.80).length;
+      const threshold=best.status==='restricted'?.76:.82;
+      if(best.score>=threshold&&(best.status==='restricted'||corroboration>=2)){
+        return {
+          status:best.status,matched_title:best.title,matched_artists:best.artists,match_score:Number(best.score.toFixed(4)),
+          detail:{source:'twitch_dashboard_dom_v2',confidence:best.status==='restricted'?'medium_high':'medium',reason:'corroborated_multi_query_match',corroboration,attempts:attempts.map(a=>({term:a.term,kind:a.kind,top:summarizeCandidate(a.scored?.[0])}))}
+        };
+      }
+    }
+
+    const wrongVersion=all.find(x=>x.titleScore>=.82&&x.artistScore>=.46&&!x.versionOk);
+    if(wrongVersion){
+      return {
+        status:'ambiguous',matched_title:wrongVersion.title,matched_artists:wrongVersion.artists,match_score:Number(wrongVersion.score.toFixed(4)),
+        detail:{source:'twitch_dashboard_dom_v2',reason:'different_version_or_remix',candidate_status:wrongVersion.status,attempts:attempts.map(a=>({term:a.term,kind:a.kind,top:summarizeCandidate(a.scored?.[0])}))}
+      };
+    }
+
+    const wrongArtist=all.find(x=>x.titleScore>=.88&&x.artistScore<.46&&x.versionOk);
+    if(wrongArtist){
+      return {
+        status:'ambiguous',matched_title:wrongArtist.title,matched_artists:wrongArtist.artists,match_score:Number(wrongArtist.score.toFixed(4)),
+        detail:{source:'twitch_dashboard_dom_v2',reason:'title_match_artist_mismatch',candidate_status:wrongArtist.status,attempts:attempts.map(a=>({term:a.term,kind:a.kind,top:summarizeCandidate(a.scored?.[0])}))}
+      };
+    }
+
+    const anyRows=attempts.some(a=>(a.scored||[]).length);
+    return {
+      status:anyRows?'ambiguous':'not_found',
+      match_score:all[0]?Number(all[0].score.toFixed(4)):0,
+      matched_title:all[0]?.title,matched_artists:all[0]?.artists,
+      detail:{source:'twitch_dashboard_dom_v2',reason:anyRows?'no_candidate_passed_confidence_gate':'exhausted_query_variants',attempts:attempts.map(a=>({term:a.term,kind:a.kind,top:summarizeCandidate(a.scored?.[0])}))}
+    };
   }
 
   async function scanOne(ref){
-    const {input,button}=await waitSearchUI();
-    const term=(ref.title+' '+ref.artists).trim();
-    const before=String(document.body.innerText||'');
-    setInput(input,term);
-    await sleep(120);
-    button.click();
-    return await waitForResults(ref,before);
+    const terms=buildTerms(ref),attempts=[];
+    for(let i=0;i<terms.length;i++){
+      const attempt=await searchTerm(ref,terms[i],i<2?8500:6500);
+      attempts.push(attempt);
+      const top=attempt.scored?.[0];
+      if(top?.status==='restricted'&&top.exactish){
+        return finalizeAttempts(ref,attempts);
+      }
+      if(top?.status==='allowed'&&top.exactish){
+        return finalizeAttempts(ref,attempts);
+      }
+      await sleep(240);
+    }
+    return finalizeAttempts(ref,attempts);
   }
 
   async function sendBatch(batch){
@@ -209,7 +371,7 @@
 
   async function run(){
     if(running||!bridge.scan||!bridge.token)return;
-    running=true;updateUI('Carregando as 215 faixas do MediaForge…');
+    running=true;updateUI('Carregando as faixas do MediaForge…');
     try{
       await waitSearchUI();
       const manifest=await bridgeFetch('/api/dj-catalog/bridge/'+encodeURIComponent(bridge.scan)+'/'+encodeURIComponent(bridge.token)+'/manifest');
