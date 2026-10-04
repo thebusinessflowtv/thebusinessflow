@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MediaForge — Twitch DJ Catalog Scanner
 // @namespace    https://thebusinessflowtv.github.io/thebusinessflow/
-// @version      1.1.1
+// @version      1.1.2
 // @description  Verifica listas do MediaForge no Twitch DJ Music Catalog com busca em cascata, validação forte de título/artista/versão e revisão automática de resultados incertos.
 // @match        https://dashboard.twitch.tv/u/*/dj*
 // @run-at       document-idle
@@ -10,6 +10,7 @@
 // @grant        GM_xmlhttpRequest
 // @connect      peterlofi.odsgn.com.br
 // @connect      mediaforge-api.guilhermeodsgn.workers.dev
+// @connect      146.59.156.224
 // ==/UserScript==
 
 (function(){
@@ -132,8 +133,8 @@
 
   function stateOf(text){
     const s=norm(text);
-    if(/\b(nao permitido|not allowed|restrito|restricted|bloqueado|blocked)\b/.test(s))return 'restricted';
-    if(/\b(permitido|permitted|allowed)\b/.test(s))return 'allowed';
+    if(/\b(nao permitid[oa]s?|not allowed|restrit[oa]s?|restricted|bloquead[oa]s?|blocked)\b/.test(s))return 'restricted';
+    if(/\b(permitid[oa]s?|permitted|allowed)\b/.test(s))return 'allowed';
     return '';
   }
   function cleanLines(text){
