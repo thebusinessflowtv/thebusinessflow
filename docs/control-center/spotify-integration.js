@@ -79,7 +79,10 @@
     if(res.status===429&&retry){const wait=Math.min(15,Number(res.headers.get('retry-after')||2));await sleep(wait*1000);return spotify(path,opt,false);}
     const ct=res.headers.get('content-type')||'';
     const data=ct.includes('json')?await res.json().catch(()=>({})):await res.text().catch(()=>'');
-    if(!res.ok)throw new Error(data?.error?.message||data?.error_description||data?.error||('Spotify HTTP '+res.status));
+    if(!res.ok){
+      const msg=data?.error?.message||data?.error_description||data?.error||('Spotify HTTP '+res.status);
+      const err=new Error(msg);err.status=res.status;err.spotify=data;throw err;
+    }
     return data;
   }
 
@@ -216,7 +219,11 @@
       if(connect)connect.textContent='Reconectar Spotify';
       if(create)create.disabled=false;
     }catch(e){
-      status.textContent='Spotify precisa ser reconectado: '+e.message;
+      if(Number(e?.status)===403){
+        status.innerHTML='<b style="color:#ffca7a">Spotify conectado, mas sem acesso à Web API (HTTP 403).</b> No Spotify Developer Dashboard, abra este app → Settings → Users Management e adicione o usuário Spotify que acabou de autorizar. O dono do app também precisa ter Spotify Premium em Development Mode. Depois clique em Conectar Spotify novamente.';
+      }else{
+        status.textContent='Spotify precisa ser reconectado: '+e.message;
+      }
       if(create)create.disabled=true;
     }
   }
