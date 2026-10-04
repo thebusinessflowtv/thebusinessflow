@@ -44,7 +44,11 @@
       code_challenge_method:'S256',code_challenge:await challenge(verifier),
       state,scope:SCOPES
     });
-    location.href='https://accounts.spotify.com/authorize?'+params.toString();
+    const authUrl='https://accounts.spotify.com/authorize?'+params.toString();
+    try{
+      if(window.top&&window.top!==window){window.top.location.href=authUrl;}
+      else{window.location.href=authUrl;}
+    }catch(_){window.location.href=authUrl;}
   }
 
   async function refreshToken(){
