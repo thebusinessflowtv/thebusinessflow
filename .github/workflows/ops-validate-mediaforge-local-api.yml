@@ -1,0 +1,26 @@
+name: Ops — Validate MediaForge Local API Build
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ops-validate-mediaforge-local-api.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and package validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check cloudflare/mediaforge-worker/src/index.js
+          cd cloudflare/mediaforge-worker
+          npm install
+          npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
+          echo LOCAL_API_BUILD_VALID
