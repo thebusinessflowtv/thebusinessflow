@@ -1,0 +1,188 @@
+{
+  "scan_id": "dance100-37922f91-1626-48f9-a0f7-228b5d4cfdba",
+  "reviewed_at": "2026-10-04T04:49:15.402Z",
+  "summary": {
+    "already_allowed": 75,
+    "manual_same_track_allowed": 12,
+    "alternate_version_allowed": 9,
+    "unresolved": 4,
+    "confirmed_or_resolvable_total": 96
+  },
+  "manual_same_track_allowed": [
+    {
+      "position": 8,
+      "title": "I Could Be The One",
+      "artists": "Avicii, Nicky Romero",
+      "twitch_title": "I Could Be The One (Avicii Vs. Nicky Romero) (Radio Edit)",
+      "note": "Mesma música; metadados/versão comercial explicitados no catálogo."
+    },
+    {
+      "position": 42,
+      "title": "Play Hard",
+      "artists": "David Guetta, Ne-Yo, Akon",
+      "twitch_title": "Play Hard (feat. Ne-Yo & Akon)",
+      "note": "Mesma gravação; convidados estão no título do catálogo."
+    },
+    {
+      "position": 43,
+      "title": "Without You",
+      "artists": "David Guetta, Usher",
+      "twitch_title": "Without You (feat. Usher)",
+      "note": "Mesma gravação; convidado no título do catálogo."
+    },
+    {
+      "position": 44,
+      "title": "Where Them Girls At",
+      "artists": "David Guetta, Flo Rida, Nicki Minaj",
+      "twitch_title": "Where Them Girls At (feat. Nicki Minaj & Flo Rida)",
+      "note": "Mesma gravação; ordem/metadados dos convidados diferente."
+    },
+    {
+      "position": 46,
+      "title": "Hey Mama",
+      "artists": "David Guetta, Afrojack, Bebe Rexha, Nicki Minaj",
+      "twitch_title": "Hey Mama (feat. Nicki Minaj, Bebe Rexha & Afrojack)",
+      "note": "Mesma gravação; convidados estão no título do catálogo."
+    },
+    {
+      "position": 47,
+      "title": "Bad",
+      "artists": "David Guetta, Showtek, Vassy",
+      "twitch_title": "Bad (feat. Vassy)",
+      "note": "Mesma gravação; Vassy está no título e David Guetta & Showtek como artistas."
+    },
+    {
+      "position": 48,
+      "title": "Memories",
+      "artists": "David Guetta, Kid Cudi",
+      "twitch_title": "Memories (feat. Kid Cudi)",
+      "note": "Mesma gravação; convidado no título do catálogo."
+    },
+    {
+      "position": 49,
+      "title": "Dangerous",
+      "artists": "David Guetta, Sam Martin",
+      "twitch_title": "Dangerous (feat. Sam Martin)",
+      "note": "Mesma gravação; convidado no título do catálogo."
+    },
+    {
+      "position": 64,
+      "title": "Wild Ones",
+      "artists": "Flo Rida, Sia",
+      "twitch_title": "Wild Ones (feat. Sia)",
+      "note": "Mesma gravação; convidada no título do catálogo."
+    },
+    {
+      "position": 83,
+      "title": "Head & Heart",
+      "artists": "Joel Corry, MNEK",
+      "twitch_title": "Head & Heart (feat. MNEK)",
+      "note": "Mesma gravação; convidado no título do catálogo."
+    },
+    {
+      "position": 90,
+      "title": "Sugar",
+      "artists": "Robin Schulz, Francesco Yates",
+      "twitch_title": "Sugar (feat. Francesco Yates)",
+      "note": "Mesma gravação; convidado no título do catálogo."
+    },
+    {
+      "position": 92,
+      "title": "Sun Goes Down - Radio Mix",
+      "artists": "Robin Schulz, Jasmine Thompson",
+      "twitch_title": "Sun Goes Down (feat. Jasmine Thompson) [Radio Mix]",
+      "note": "Mesma versão Radio Mix; diferença apenas de formatação/metadados."
+    }
+  ],
+  "alternate_version_allowed": [
+    {
+      "position": 6,
+      "title": "Levels",
+      "artists": "Avicii",
+      "catalog_option": "Levels (Instrumental)",
+      "note": "Permitida apenas a versão instrumental encontrada; não assumir que a original vocal está liberada."
+    },
+    {
+      "position": 12,
+      "title": "Feel So Close - Radio Edit",
+      "artists": "Calvin Harris",
+      "catalog_option": "Feel So Close",
+      "note": "Mesmo título/artista, mas o catálogo não identificou explicitamente Radio Edit; exige usar a versão do catálogo ou nova confirmação."
+    },
+    {
+      "position": 13,
+      "title": "Outside",
+      "artists": "Calvin Harris, Ellie Goulding",
+      "catalog_option": "Outside (Hardwell Remix)",
+      "note": "Foi localizada uma versão remix permitida, não a original."
+    },
+    {
+      "position": 45,
+      "title": "Turn Me On",
+      "artists": "David Guetta, Nicki Minaj",
+      "catalog_option": "Turn Me On (Extended)",
+      "note": "A versão Extended foi localizada como permitida; não confirmar a original a partir disso."
+    },
+    {
+      "position": 55,
+      "title": "Timber",
+      "artists": "Pitbull, Kesha",
+      "catalog_option": "Timber (R3hab Remix)",
+      "note": "Remix permitido localizado; original não confirmado."
+    },
+    {
+      "position": 61,
+      "title": "DJ Got Us Fallin' In Love",
+      "artists": "Usher, Pitbull",
+      "catalog_option": "DJ Got Us Fallin' In Love (Versatile Dub)",
+      "note": "Versões remix/dub permitidas localizadas; original não confirmado."
+    },
+    {
+      "position": 63,
+      "title": "Club Can't Handle Me",
+      "artists": "Flo Rida, David Guetta",
+      "catalog_option": "Club Can't Handle Me (feat. David Guetta) [Ridney Remix]",
+      "note": "Remix permitido localizado; original não confirmado."
+    },
+    {
+      "position": 71,
+      "title": "Body",
+      "artists": "Loud Luxury, Brando",
+      "catalog_option": "Body (Extended Mix)",
+      "note": "Extended Mix permitida; original não confirmado."
+    },
+    {
+      "position": 79,
+      "title": "Sweet Lovin'",
+      "artists": "Sigala, Bryn Christopher",
+      "catalog_option": "Sweet Lovin' (Instrumental)",
+      "note": "Instrumental permitida; original não confirmado."
+    }
+  ],
+  "unresolved": [
+    {
+      "position": 20,
+      "title": "We Found Love",
+      "artists": "Rihanna, Calvin Harris",
+      "reason": "Nenhum resultado confiável do artista/gravação alvo; apareceram karaoke/outros resultados."
+    },
+    {
+      "position": 58,
+      "title": "Fireball",
+      "artists": "Pitbull, John Ryan",
+      "reason": "Não apareceu correspondência confiável da faixa alvo."
+    },
+    {
+      "position": 91,
+      "title": "Waves - Robin Schulz Radio Edit",
+      "artists": "Mr. Probz, Robin Schulz",
+      "reason": "A busca retornou Prayer in C, não Waves."
+    },
+    {
+      "position": 100,
+      "title": "Everytime We Touch",
+      "artists": "Cascada",
+      "reason": "Resultados com o mesmo título, mas artistas diferentes; Cascada não foi confirmada."
+    }
+  ]
+}
