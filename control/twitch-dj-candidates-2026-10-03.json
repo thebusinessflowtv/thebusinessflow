@@ -1,0 +1,613 @@
+{
+  "playlist": {
+    "key": "twitch-dance-100",
+    "name": "Twitch DJ · Dance/Pop 100",
+    "platform": "twitch",
+    "purpose": "catalog_scan_candidates",
+    "inspiration_url": "https://open.spotify.com/playlist/20VbdrwgklKralOrhZ1BNZ",
+    "created_at": "2026-10-03",
+    "notes": "Curadoria de dance-pop/EDM popular e animado para validação no Twitch DJ Music Catalog. Nenhuma faixa deve ser tratada como liberada antes do scanner."
+  },
+  "tracks": [
+    {
+      "position": 1,
+      "spotify_id": "",
+      "title": "Don't Worry",
+      "artists": "Madcon, Ray Dalton"
+    },
+    {
+      "position": 2,
+      "spotify_id": "",
+      "title": "Wake Me Up",
+      "artists": "Avicii"
+    },
+    {
+      "position": 3,
+      "spotify_id": "",
+      "title": "The Nights",
+      "artists": "Avicii"
+    },
+    {
+      "position": 4,
+      "spotify_id": "",
+      "title": "Waiting For Love",
+      "artists": "Avicii"
+    },
+    {
+      "position": 5,
+      "spotify_id": "",
+      "title": "Hey Brother",
+      "artists": "Avicii"
+    },
+    {
+      "position": 6,
+      "spotify_id": "",
+      "title": "Levels",
+      "artists": "Avicii"
+    },
+    {
+      "position": 7,
+      "spotify_id": "",
+      "title": "Without You",
+      "artists": "Avicii, Sandro Cavazza"
+    },
+    {
+      "position": 8,
+      "spotify_id": "",
+      "title": "I Could Be The One",
+      "artists": "Avicii, Nicky Romero"
+    },
+    {
+      "position": 9,
+      "spotify_id": "",
+      "title": "Addicted To You",
+      "artists": "Avicii"
+    },
+    {
+      "position": 10,
+      "spotify_id": "",
+      "title": "You Make Me",
+      "artists": "Avicii"
+    },
+    {
+      "position": 11,
+      "spotify_id": "",
+      "title": "Summer",
+      "artists": "Calvin Harris"
+    },
+    {
+      "position": 12,
+      "spotify_id": "",
+      "title": "Feel So Close - Radio Edit",
+      "artists": "Calvin Harris"
+    },
+    {
+      "position": 13,
+      "spotify_id": "",
+      "title": "Outside",
+      "artists": "Calvin Harris, Ellie Goulding"
+    },
+    {
+      "position": 14,
+      "spotify_id": "",
+      "title": "I Need Your Love",
+      "artists": "Calvin Harris, Ellie Goulding"
+    },
+    {
+      "position": 15,
+      "spotify_id": "",
+      "title": "Blame",
+      "artists": "Calvin Harris, John Newman"
+    },
+    {
+      "position": 16,
+      "spotify_id": "",
+      "title": "This Is What You Came For",
+      "artists": "Calvin Harris, Rihanna"
+    },
+    {
+      "position": 17,
+      "spotify_id": "",
+      "title": "How Deep Is Your Love",
+      "artists": "Calvin Harris, Disciples"
+    },
+    {
+      "position": 18,
+      "spotify_id": "",
+      "title": "My Way",
+      "artists": "Calvin Harris"
+    },
+    {
+      "position": 19,
+      "spotify_id": "",
+      "title": "Under Control",
+      "artists": "Calvin Harris, Alesso, Hurts"
+    },
+    {
+      "position": 20,
+      "spotify_id": "",
+      "title": "We Found Love",
+      "artists": "Rihanna, Calvin Harris"
+    },
+    {
+      "position": 21,
+      "spotify_id": "",
+      "title": "Don't You Worry Child - Radio Edit",
+      "artists": "Swedish House Mafia, John Martin"
+    },
+    {
+      "position": 22,
+      "spotify_id": "",
+      "title": "Save the World",
+      "artists": "Swedish House Mafia"
+    },
+    {
+      "position": 23,
+      "spotify_id": "",
+      "title": "Miami 2 Ibiza",
+      "artists": "Swedish House Mafia, Tinie Tempah"
+    },
+    {
+      "position": 24,
+      "spotify_id": "",
+      "title": "More Than You Know",
+      "artists": "Axwell /\\ Ingrosso"
+    },
+    {
+      "position": 25,
+      "spotify_id": "",
+      "title": "Sun Is Shining",
+      "artists": "Axwell /\\ Ingrosso"
+    },
+    {
+      "position": 26,
+      "spotify_id": "",
+      "title": "Heroes (we could be)",
+      "artists": "Alesso, Tove Lo"
+    },
+    {
+      "position": 27,
+      "spotify_id": "",
+      "title": "Calling (Lose My Mind) - Radio Edit",
+      "artists": "Sebastian Ingrosso, Alesso, Ryan Tedder"
+    },
+    {
+      "position": 28,
+      "spotify_id": "",
+      "title": "Reload - Radio Edit",
+      "artists": "Sebastian Ingrosso, Tommy Trash, John Martin"
+    },
+    {
+      "position": 29,
+      "spotify_id": "",
+      "title": "If I Lose Myself - Alesso vs OneRepublic",
+      "artists": "OneRepublic, Alesso"
+    },
+    {
+      "position": 30,
+      "spotify_id": "",
+      "title": "This Is What It Feels Like",
+      "artists": "Armin van Buuren, Trevor Guthrie"
+    },
+    {
+      "position": 31,
+      "spotify_id": "",
+      "title": "Runaway (U & I)",
+      "artists": "Galantis"
+    },
+    {
+      "position": 32,
+      "spotify_id": "",
+      "title": "No Money",
+      "artists": "Galantis"
+    },
+    {
+      "position": 33,
+      "spotify_id": "",
+      "title": "Peanut Butter Jelly",
+      "artists": "Galantis"
+    },
+    {
+      "position": 34,
+      "spotify_id": "",
+      "title": "Love on Me",
+      "artists": "Galantis, Hook N Sling"
+    },
+    {
+      "position": 35,
+      "spotify_id": "",
+      "title": "Lean On",
+      "artists": "Major Lazer, MØ, DJ Snake"
+    },
+    {
+      "position": 36,
+      "spotify_id": "",
+      "title": "Light It Up - Remix",
+      "artists": "Major Lazer, Nyla, Fuse ODG"
+    },
+    {
+      "position": 37,
+      "spotify_id": "",
+      "title": "Cold Water",
+      "artists": "Major Lazer, Justin Bieber, MØ"
+    },
+    {
+      "position": 38,
+      "spotify_id": "",
+      "title": "Let Me Love You",
+      "artists": "DJ Snake, Justin Bieber"
+    },
+    {
+      "position": 39,
+      "spotify_id": "",
+      "title": "Middle",
+      "artists": "DJ Snake, Bipolar Sunshine"
+    },
+    {
+      "position": 40,
+      "spotify_id": "",
+      "title": "Turn Down for What",
+      "artists": "DJ Snake, Lil Jon"
+    },
+    {
+      "position": 41,
+      "spotify_id": "",
+      "title": "Titanium",
+      "artists": "David Guetta, Sia"
+    },
+    {
+      "position": 42,
+      "spotify_id": "",
+      "title": "Play Hard",
+      "artists": "David Guetta, Ne-Yo, Akon"
+    },
+    {
+      "position": 43,
+      "spotify_id": "",
+      "title": "Without You",
+      "artists": "David Guetta, Usher"
+    },
+    {
+      "position": 44,
+      "spotify_id": "",
+      "title": "Where Them Girls At",
+      "artists": "David Guetta, Flo Rida, Nicki Minaj"
+    },
+    {
+      "position": 45,
+      "spotify_id": "",
+      "title": "Turn Me On",
+      "artists": "David Guetta, Nicki Minaj"
+    },
+    {
+      "position": 46,
+      "spotify_id": "",
+      "title": "Hey Mama",
+      "artists": "David Guetta, Afrojack, Bebe Rexha, Nicki Minaj"
+    },
+    {
+      "position": 47,
+      "spotify_id": "",
+      "title": "Bad",
+      "artists": "David Guetta, Showtek, Vassy"
+    },
+    {
+      "position": 48,
+      "spotify_id": "",
+      "title": "Memories",
+      "artists": "David Guetta, Kid Cudi"
+    },
+    {
+      "position": 49,
+      "spotify_id": "",
+      "title": "Dangerous",
+      "artists": "David Guetta, Sam Martin"
+    },
+    {
+      "position": 50,
+      "spotify_id": "",
+      "title": "I Gotta Feeling",
+      "artists": "The Black Eyed Peas"
+    },
+    {
+      "position": 51,
+      "spotify_id": "",
+      "title": "Pump It",
+      "artists": "The Black Eyed Peas"
+    },
+    {
+      "position": 52,
+      "spotify_id": "",
+      "title": "Rock That Body",
+      "artists": "The Black Eyed Peas"
+    },
+    {
+      "position": 53,
+      "spotify_id": "",
+      "title": "Party Rock Anthem",
+      "artists": "LMFAO, Lauren Bennett, GoonRock"
+    },
+    {
+      "position": 54,
+      "spotify_id": "",
+      "title": "Sexy and I Know It",
+      "artists": "LMFAO"
+    },
+    {
+      "position": 55,
+      "spotify_id": "",
+      "title": "Timber",
+      "artists": "Pitbull, Kesha"
+    },
+    {
+      "position": 56,
+      "spotify_id": "",
+      "title": "Give Me Everything",
+      "artists": "Pitbull, Afrojack, Ne-Yo, Nayer"
+    },
+    {
+      "position": 57,
+      "spotify_id": "",
+      "title": "Time of Our Lives",
+      "artists": "Pitbull, Ne-Yo"
+    },
+    {
+      "position": 58,
+      "spotify_id": "",
+      "title": "Fireball",
+      "artists": "Pitbull, John Ryan"
+    },
+    {
+      "position": 59,
+      "spotify_id": "",
+      "title": "Rain Over Me",
+      "artists": "Pitbull, Marc Anthony"
+    },
+    {
+      "position": 60,
+      "spotify_id": "",
+      "title": "On The Floor",
+      "artists": "Jennifer Lopez, Pitbull"
+    },
+    {
+      "position": 61,
+      "spotify_id": "",
+      "title": "DJ Got Us Fallin' In Love",
+      "artists": "Usher, Pitbull"
+    },
+    {
+      "position": 62,
+      "spotify_id": "",
+      "title": "Good Feeling",
+      "artists": "Flo Rida"
+    },
+    {
+      "position": 63,
+      "spotify_id": "",
+      "title": "Club Can't Handle Me",
+      "artists": "Flo Rida, David Guetta"
+    },
+    {
+      "position": 64,
+      "spotify_id": "",
+      "title": "Wild Ones",
+      "artists": "Flo Rida, Sia"
+    },
+    {
+      "position": 65,
+      "spotify_id": "",
+      "title": "Dynamite",
+      "artists": "Taio Cruz"
+    },
+    {
+      "position": 66,
+      "spotify_id": "",
+      "title": "Higher",
+      "artists": "Taio Cruz, Kylie Minogue"
+    },
+    {
+      "position": 67,
+      "spotify_id": "",
+      "title": "Break Your Heart",
+      "artists": "Taio Cruz"
+    },
+    {
+      "position": 68,
+      "spotify_id": "",
+      "title": "Perfect Strangers",
+      "artists": "Jonas Blue, JP Cooper"
+    },
+    {
+      "position": 69,
+      "spotify_id": "",
+      "title": "Mama",
+      "artists": "Jonas Blue, William Singe"
+    },
+    {
+      "position": 70,
+      "spotify_id": "",
+      "title": "Fast Car",
+      "artists": "Jonas Blue, Dakota"
+    },
+    {
+      "position": 71,
+      "spotify_id": "",
+      "title": "Body",
+      "artists": "Loud Luxury, Brando"
+    },
+    {
+      "position": 72,
+      "spotify_id": "",
+      "title": "In My Mind",
+      "artists": "Dynoro, GIGI D'AGOSTINO"
+    },
+    {
+      "position": 73,
+      "spotify_id": "",
+      "title": "Tuesday",
+      "artists": "Burak Yeter, Danelle Sandoval"
+    },
+    {
+      "position": 74,
+      "spotify_id": "",
+      "title": "Hideaway",
+      "artists": "Kiesza"
+    },
+    {
+      "position": 75,
+      "spotify_id": "",
+      "title": "Ain't Nobody (Loves Me Better)",
+      "artists": "Felix Jaehn, Jasmine Thompson"
+    },
+    {
+      "position": 76,
+      "spotify_id": "",
+      "title": "This Girl (Kungs Vs. Cookin' On 3 Burners)",
+      "artists": "Kungs, Cookin' On 3 Burners"
+    },
+    {
+      "position": 77,
+      "spotify_id": "",
+      "title": "Never Going Home",
+      "artists": "Kungs"
+    },
+    {
+      "position": 78,
+      "spotify_id": "",
+      "title": "Easy Love",
+      "artists": "Sigala"
+    },
+    {
+      "position": 79,
+      "spotify_id": "",
+      "title": "Sweet Lovin'",
+      "artists": "Sigala, Bryn Christopher"
+    },
+    {
+      "position": 80,
+      "spotify_id": "",
+      "title": "Came Here for Love",
+      "artists": "Sigala, Ella Eyre"
+    },
+    {
+      "position": 81,
+      "spotify_id": "",
+      "title": "Are You With Me",
+      "artists": "Lost Frequencies"
+    },
+    {
+      "position": 82,
+      "spotify_id": "",
+      "title": "Reality",
+      "artists": "Lost Frequencies, Janieck Devy"
+    },
+    {
+      "position": 83,
+      "spotify_id": "",
+      "title": "Head & Heart",
+      "artists": "Joel Corry, MNEK"
+    },
+    {
+      "position": 84,
+      "spotify_id": "",
+      "title": "BED",
+      "artists": "Joel Corry, RAYE, David Guetta"
+    },
+    {
+      "position": 85,
+      "spotify_id": "",
+      "title": "I Got U",
+      "artists": "Duke Dumont, Jax Jones"
+    },
+    {
+      "position": 86,
+      "spotify_id": "",
+      "title": "Ocean Drive",
+      "artists": "Duke Dumont"
+    },
+    {
+      "position": 87,
+      "spotify_id": "",
+      "title": "You Don't Know Me",
+      "artists": "Jax Jones, RAYE"
+    },
+    {
+      "position": 88,
+      "spotify_id": "",
+      "title": "Breathe",
+      "artists": "Jax Jones, Ina Wroldsen"
+    },
+    {
+      "position": 89,
+      "spotify_id": "",
+      "title": "Prayer in C - Robin Schulz Radio Edit",
+      "artists": "Lilly Wood and The Prick, Robin Schulz"
+    },
+    {
+      "position": 90,
+      "spotify_id": "",
+      "title": "Sugar",
+      "artists": "Robin Schulz, Francesco Yates"
+    },
+    {
+      "position": 91,
+      "spotify_id": "",
+      "title": "Waves - Robin Schulz Radio Edit",
+      "artists": "Mr. Probz, Robin Schulz"
+    },
+    {
+      "position": 92,
+      "spotify_id": "",
+      "title": "Sun Goes Down - Radio Mix",
+      "artists": "Robin Schulz, Jasmine Thompson"
+    },
+    {
+      "position": 93,
+      "spotify_id": "",
+      "title": "Breaking Me",
+      "artists": "Topic, A7S"
+    },
+    {
+      "position": 94,
+      "spotify_id": "",
+      "title": "Piece Of Your Heart",
+      "artists": "MEDUZA, Goodboys"
+    },
+    {
+      "position": 95,
+      "spotify_id": "",
+      "title": "Lose Control",
+      "artists": "MEDUZA, Becky Hill, Goodboys"
+    },
+    {
+      "position": 96,
+      "spotify_id": "",
+      "title": "Five More Hours",
+      "artists": "Deorro, Chris Brown"
+    },
+    {
+      "position": 97,
+      "spotify_id": "",
+      "title": "Red Lights",
+      "artists": "Tiësto"
+    },
+    {
+      "position": 98,
+      "spotify_id": "",
+      "title": "Gecko (Overdrive) - Radio Edit",
+      "artists": "Oliver Heldens, Becky Hill"
+    },
+    {
+      "position": 99,
+      "spotify_id": "",
+      "title": "I Want You To Know",
+      "artists": "Zedd, Selena Gomez"
+    },
+    {
+      "position": 100,
+      "spotify_id": "",
+      "title": "Everytime We Touch",
+      "artists": "Cascada"
+    }
+  ]
+}
