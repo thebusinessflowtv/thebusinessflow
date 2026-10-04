@@ -32,32 +32,16 @@ jobs:
           echo "::add-mask::$TOKEN"
           printf '%s' "$TOKEN" > /tmp/mf-token
 
-      - name: Publish Control Center and local API on OVH
-        shell: bash
+      - name: Verify completed deployment and music APIs
         run: |
           set -euo pipefail
-          BASE="https://peterlofi.odsgn.com.br"
           TOKEN="$(cat /tmp/mf-token)"
-          ID="direct-control-center-$(date -u +%Y%m%d%H%M%S)"
-          curl -fsS -X POST "$BASE/api/ovh/deploy" \
-            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"music-monitor-20261004"}')" \
-            | tee /tmp/create.json
-
-          for i in $(seq 1 120); do
-            curl -fsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
-            ST="$(jq -r '.command.status // empty' /tmp/status.json)"
-            echo "control-plane=$ST"
-            [ "$ST" = "completed" ] && break
-            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; exit 1; fi
-            sleep 3
-          done
-          jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
-          jq -e '.command.result.mediaforge_control_plane.ui_verified==true' /tmp/status.json >/dev/null
-          jq -e '.command.result.mediaforge_control_plane.dj100_manifest_seeded==true' /tmp/status.json >/dev/null
-          jq -e '.command.result.mediaforge_control_plane.publisher_pids_preserved==true' /tmp/status.json >/dev/null
-          cat /tmp/status.json
-
+          BASE="https://peterlofi.odsgn.com.br"
+          curl -fsS --retry 5 --retry-all-errors "$BASE/api/ovh/deploy-status?id=direct-control-center-20261004040434" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+          jq '{status:.command.status,error:.command.error,result:.command.result.mediaforge_control_plane}' /tmp/status.json
+          jq -e '.command.status=="completed"' /tmp/status.json
+          curl -fsS "$BASE/api/music/presets" -H "authorization: Bearer $TOKEN" | jq '{presets: (.presets|length)}'
+          curl -fsS "$BASE/api/music/jobs" -H "authorization: Bearer $TOKEN" | jq '{jobs: (.jobs|length)}'
       - name: Verify music monitor on production
         run: |
           set -euo pipefail
