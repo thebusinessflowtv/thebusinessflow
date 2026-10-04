@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MediaForge · DJ Batch Import</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0e0e10;color:#efeff1;font:14px/1.5 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:860px;margin:48px auto;padding:0 18px}.card{background:#18181b;border:1px solid #3b2b52;border-radius:16px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.35)}h1{font-size:24px;margin:0 0 8px}.muted{color:#adadb8}.pill{display:inline-block;background:#2b1646;color:#d9b8ff;border:1px solid #64438f;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800}.drop{display:block;margin-top:20px;border:1px dashed #7956a8;border-radius:14px;padding:28px;text-align:center;cursor:pointer;background:#121216;transition:.15s}.drop:hover,.drop.drag{background:#1c1525;border-color:#a878e6}.bar{height:9px;background:#29292e;border-radius:999px;overflow:hidden;margin-top:14px}.bar span{display:block;height:100%;width:0;background:#9146ff;transition:width .15s}.status{margin-top:12px;white-space:pre-wrap}.good{color:#8ff2bb}.bad{color:#ff9ca6}.warn{color:#ffca7a}.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.btn{display:inline-block;border:1px solid #555;background:#26262c;color:#fff;border-radius:9px;padding:9px 12px;text-decoration:none;cursor:pointer}.btn:hover:not(:disabled){background:#33333a}.btn.primary{background:#9146ff;border-color:#a86cff}.btn:disabled{opacity:.45;cursor:not-allowed}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.stat{background:#111114;border:1px solid #2c2c31;border-radius:10px;padding:12px}.stat b{font-size:20px}.selected{margin-top:10px;padding:10px 12px;border:1px solid #33343a;background:#111114;border-radius:10px;display:none}.note{margin-top:14px;padding:11px 12px;background:#141219;border:1px solid #382a4a;border-radius:10px;color:#c8c8d0}@media(max-width:620px){.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="row"><div><h1>Twitch + Kick · Importar 2ª leva DJ</h1><div class="muted">Audita o ZIP, ignora duplicatas, adiciona as novas faixas e só então remove as 36 autorais.</div></div><span class="pill">SEM REINICIAR RTMP</span></div>
+    <div class="stats">
+      <div class="stat"><div class="muted">AUTORAIS ATUAIS</div><b id="statOriginal">—</b></div>
+      <div class="stat"><div class="muted">COMERCIAIS ATUAIS</div><b id="statCommercial">—</b></div>
+      <div class="stat"><div class="muted">TOTAL ATUAL</div><b id="statTotal">—</b></div>
+    </div>
+
+    <label id="drop" class="drop" for="zip">
+      <b>Selecionar 2ª LEVA.zip</b><br>
+      <span class="muted">Aceita ZIP grande. Você também pode arrastar o arquivo para esta área.</span>
+    </label>
+    <input id="zip" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+    <div id="selected" class="selected"></div>
+
+    <div class="bar"><span id="bar"></span></div>
+    <div id="status" class="status muted">Nenhum arquivo selecionado.</div>
+
+    <div class="row" style="margin-top:18px">
+      <div class="row">
+        <a class="btn" href="./lives.html?platform=twitch">← Voltar para Lives</a>
+        <button id="refresh" class="btn">Atualizar status</button>
+      </div>
+      <button id="upload" class="btn primary" disabled>Auditar e importar ZIP</button>
+    </div>
+
+    <div class="note">
+      Ordem de segurança: <b>1)</b> upload completo → <b>2)</b> auditoria SHA-256/MP3 → <b>3)</b> novas músicas entram na playlist da Twitch ainda com as autorais → <b>4)</b> validação → <b>5)</b> remoção das 36 autorais → <b>6)</b> cópia comercial independente para a Kick.
+    </div>
+  </div>
+</div>
+<script src="./mediaforge-config.js?v=20261004-djbatch2"></script>
+<script>
+(function(){
+  var API=(window.MEDIAFORGE_CONFIG&&window.MEDIAFORGE_CONFIG.API_URL||localStorage.getItem('mediaforge_api_url')||'').replace(/\/$/,'');
+  var TOKEN=localStorage.getItem('mediaforge_token')||'';
+  var status=document.getElementById('status');
+  var bar=document.getElementById('bar');
+  var input=document.getElementById('zip');
+  var drop=document.getElementById('drop');
+  var selected=document.getElementById('selected');
+  var uploadBtn=document.getElementById('upload');
+  var statOriginal=document.getElementById('statOriginal');
+  var statCommercial=document.getElementById('statCommercial');
+  var statTotal=document.getElementById('statTotal');
+  var selectedFile=null;
+  var busy=false;
+
+  function fmt(n){
+    n=Number(n||0);
+    if(n>=1024*1024*1024)return (n/1024/1024/1024).toFixed(2)+' GB';
+    if(n>=1024*1024)return (n/1024/1024).toFixed(1)+' MB';
+    if(n>=1024)return (n/1024).toFixed(1)+' KB';
+    return n+' B';
+  }
+  function setStatus(msg,cls){
+    status.className='status '+(cls||'muted');
+    status.textContent=msg;
+  }
+  async function api(path,opt){
+    opt=opt||{};
+    var headers=Object.assign({},opt.headers||{},{authorization:'Bearer '+TOKEN});
+    if(opt.body && !(opt.body instanceof Blob) && !headers['content-type'])headers['content-type']='application/json';
+    var r=await fetch(API+path,Object.assign({},opt,{headers:headers}));
+    var data=null,ct=r.headers.get('content-type')||'';
+    try{data=ct.indexOf('json')>=0?await r.json():await r.text()}catch(e){}
+    if(r.status===401){
+      localStorage.removeItem('mediaforge_token');
+      location.href='./secure.html';
+      throw new Error('Sessão expirada');
+    }
+    if(!r.ok)throw new Error(data&&data.message||data&&data.error||('HTTP '+r.status));
+    return data;
+  }
+  function choose(file){
+    if(!file){selectedFile=null;uploadBtn.disabled=true;selected.style.display='none';setStatus('Nenhum arquivo selecionado.');return;}
+    if(!/\.zip$/i.test(file.name)){
+      selectedFile=null;uploadBtn.disabled=true;selected.style.display='none';
+      setStatus('Arquivo não reconhecido. Selecione um arquivo com extensão .zip.','bad');
+      return;
+    }
+    selectedFile=file;
+    selected.style.display='block';
+    selected.textContent='✓ '+file.name+' · '+fmt(file.size);
+    uploadBtn.disabled=false;
+    setStatus('ZIP reconhecido. Clique em “Auditar e importar ZIP”.','good');
+  }
+  async function uploadPart(assetId,uploadId,n,blob){
+    var last;
+    for(var i=0;i<4;i++){
+      try{
+        return await api('/api/uploads/part?asset_id='+encodeURIComponent(assetId)+'&upload_id='+encodeURIComponent(uploadId)+'&part_number='+n,{
+          method:'PUT',body:blob,headers:{'content-type':'application/octet-stream'}
+        });
+      }catch(e){
+        last=e;
+        await new Promise(function(r){setTimeout(r,1200*(i+1))});
+      }
+    }
+    throw last;
+  }
+  async function refresh(silent){
+    try{
+      var x=await api('/api/twitch-dj/status');
+      var imp=x.dj_import||{};
+      var originals=Number(imp.original_tracks);
+      var commercial=Number(imp.commercial_tracks);
+      var total=Number(imp.track_count||x.playlist_track_count||0);
+      statOriginal.textContent=Number.isFinite(originals)?originals:'—';
+      statCommercial.textContent=Number.isFinite(commercial)?commercial:'—';
+      statTotal.textContent=total||'—';
+
+      if(imp.status==='ready'){
+        var msg='✓ Importação concluída. '+Number(imp.commercial_tracks||0)+' músicas comerciais na Twitch e '+Number(imp.kick_track_count||0)+' na Kick. '+Number(imp.originals_removed||0)+' autorais removidas. Duplicatas antigas: '+Number(imp.duplicates_existing||0)+' · duplicatas no ZIP: '+Number(imp.duplicates_in_batch||0)+' · rejeitadas: '+((imp.rejected_files||[]).length)+'. RTMP não reiniciado.';
+        setStatus(msg,'good');
+      }else if(imp.status==='staged'){
+        setStatus('✓ Novas músicas já foram adicionadas à Twitch. Validando antes de remover as autorais…','warn');
+      }else if(imp.status==='validating'){
+        setStatus('OVH auditando MP3s, SHA-256, duração e duplicatas…');
+      }else if(imp.status==='downloading'){
+        setStatus('OVH baixando o ZIP enviado para iniciar a auditoria…');
+      }else if(!silent){
+        setStatus('Twitch: '+String(x.status||'unknown')+' · hot-swap: '+(x.hot_swap?'ativo':'indisponível')+' · Kick hot-swap: '+(x.kick&&x.kick.hot_swap?'ativo':'indisponível')+'.');
+      }
+      return x;
+    }catch(e){
+      if(!silent)setStatus('Falha ao consultar: '+e.message,'bad');
+      return null;
+    }
+  }
+  async function upload(file){
+    if(busy)return;
+    if(!file||!/\.zip$/i.test(file.name)){choose(file);return;}
+    busy=true;uploadBtn.disabled=true;input.disabled=true;
+    var init=null;
+    try{
+      setStatus(file.name+' · preparando upload de '+fmt(file.size)+'…');
+      bar.style.width='0%';
+      init=await api('/api/uploads/init',{method:'POST',body:JSON.stringify({
+        name:file.name,title:'DJ Commercial Batch Archive',mime_type:file.type||'application/zip',
+        size_bytes:file.size,asset_type:'dj_archive'
+      })});
+      var chunk=Number(init.chunk_size||50*1024*1024);
+      var count=Math.ceil(file.size/chunk);
+      var parts=new Array(count),done=0,next=0;
+      async function worker(){
+        while(true){
+          var idx=next++;
+          if(idx>=count)return;
+          var start=idx*chunk,end=Math.min(file.size,start+chunk),blob=file.slice(start,end);
+          var p=await uploadPart(init.asset_id,init.upload_id,idx+1,blob);
+          parts[idx]=p;done+=blob.size;
+          var pct=Math.min(100,Math.round(done/file.size*100));
+          bar.style.width=pct+'%';
+          setStatus(file.name+' · upload '+pct+'% ('+(idx+1)+'/'+count+' partes concluídas)');
+        }
+      }
+      await Promise.all(Array.from({length:Math.min(3,count)},function(){return worker()}));
+      setStatus('Upload 100%. Finalizando arquivo…');
+      await api('/api/uploads/complete',{method:'POST',body:JSON.stringify({
+        asset_id:init.asset_id,upload_id:init.upload_id,parts:parts
+      })});
+      setStatus('ZIP recebido. Enviando para auditoria na OVH…');
+      await api('/api/twitch-dj/import-archive',{method:'POST',body:JSON.stringify({
+        asset_id:init.asset_id,mode:'shared_commercial_replace'
+      })});
+      var until=Date.now()+20*60*1000;
+      while(Date.now()<until){
+        await new Promise(function(r){setTimeout(r,3500)});
+        var x=await refresh(true);
+        if(x&&x.dj_import&&x.dj_import.status==='ready'){
+          await refresh(false);
+          bar.style.width='100%';
+          return;
+        }
+        if(x&&x.dj_import&&['downloading','validating','staged'].indexOf(x.dj_import.status)>=0){
+          await refresh(false);
+        }
+      }
+      setStatus('Importação continua na OVH. Clique em “Atualizar status” para acompanhar.','warn');
+    }catch(e){
+      if(init)try{await api('/api/uploads/abort',{method:'POST',body:JSON.stringify({asset_id:init.asset_id,upload_id:init.upload_id})})}catch(_){}
+      bar.style.width='0%';
+      setStatus('Falha: '+e.message,'bad');
+    }finally{
+      busy=false;input.disabled=false;uploadBtn.disabled=!selectedFile;
+    }
+  }
+
+  input.addEventListener('change',function(){choose(input.files&&input.files[0])});
+  uploadBtn.addEventListener('click',function(){upload(selectedFile)});
+  document.getElementById('refresh').addEventListener('click',function(){refresh(false)});
+  ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();drop.classList.add('drag')})});
+  ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();drop.classList.remove('drag')})});
+  drop.addEventListener('drop',function(e){var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];choose(f)});
+
+  if(!API){setStatus('Backend MediaForge não configurado.','bad');return}
+  if(!TOKEN){location.href='./secure.html';return}
+  refresh(false);
+})();
+</script>
+</body>
+</html>
