@@ -1,29 +1,29 @@
 {
-  "checked_at": "2026-10-04T23:56:42Z",
+  "checked_at": "2026-10-04T23:59:15Z",
   "import": {
-    "status": "failed",
-    "zip_mp3_files": 0,
-    "new_valid_tracks": 0,
-    "duplicates_existing": 0,
+    "status": "ready",
+    "zip_mp3_files": 74,
+    "new_valid_tracks": 73,
+    "duplicates_existing": 1,
     "duplicates_in_batch": 0,
     "rejected_files": 0,
-    "error": "DJ archive download failed after 0 bytes and 3 attempts: <urlopen error [Errno -2] Name or service not known>",
-    "original_tracks": 36,
-    "originals_removed": 0,
-    "commercial_tracks": 62,
-    "twitch_track_count": 98,
-    "kick_track_count": 98,
+    "error": "",
+    "original_tracks": 0,
+    "originals_removed": 36,
+    "commercial_tracks": 135,
+    "twitch_track_count": 135,
+    "kick_track_count": 135,
     "rtmp_restart": null,
     "container_restart": null
   },
   "twitch": {
     "status": "live",
-    "playlist_track_count": 98,
+    "playlist_track_count": 135,
     "restarts": 1
   },
   "kick": {
     "status": "live",
-    "playlist_track_count": 98,
+    "playlist_track_count": 135,
     "restarts": 0
   }
 }
