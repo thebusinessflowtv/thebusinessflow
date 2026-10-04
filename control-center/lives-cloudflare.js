@@ -96,8 +96,8 @@
       </div>
       <div style="height:7px;background:#29292e;border-radius:999px;overflow:hidden;margin-top:10px"><span style="display:block;height:100%;width:${pct}%;background:#9146ff"></span></div>
       <div class="row wrap" style="margin-top:12px">
-        <a class="btn" href="./twitch-dj-catalog-scanner.user.js?v=20261003-6" target="_blank" rel="noopener">1. Instalar scanner</a>
-        <button id="startDjCatalogScan" class="btn twitch">2. Iniciar verificação das 215</button>
+        <a class="btn" href="./twitch-dj-catalog-scanner.user.js?v=20261003-7" target="_blank" rel="noopener">1. Instalar scanner</a>
+        <button id="startDjCatalogScan" class="btn twitch">2. Verificar 100 novas</button><button id="startDjCatalogLegacy" class="btn">Lista anterior (215)</button>
         ${s?.id?'<button id="refreshDjCatalogScan" class="btn">↻ Atualizar resultado</button>':''}<a class="btn twitch" href="./twitch-dj-upload.html">3. Enviar ZIP MP3</a>
       </div>
       <div class="tiny muted" style="margin-top:9px">A sessão OAuth/cookies da Twitch não é enviada ao MediaForge. O script roda dentro de twitch.tv e envia apenas o resultado de cada faixa.</div>
@@ -138,7 +138,7 @@
     document.getElementById('thumbFile')?.addEventListener('change',e=>uploadAsset(e.target.files?.[0],'thumbnail'));
     document.getElementById('start').onclick=startLive;
     document.getElementById('refreshSessions').onclick=loadSessions;
-    document.getElementById('startDjCatalogScan')?.addEventListener('click',startDjCatalogScan);
+    document.getElementById('startDjCatalogScan')?.addEventListener('click',()=>startDjCatalogScan('dance100'));\n    document.getElementById('startDjCatalogLegacy')?.addEventListener('click',()=>startDjCatalogScan('gaming'));
     document.getElementById('refreshDjCatalogScan')?.addEventListener('click',loadDjScan);
     document.querySelectorAll('.stopLive').forEach(b=>b.onclick=e=>{e.stopPropagation();stopLive(b.dataset.id)});
     document.querySelectorAll('.viewLive').forEach(b=>b.onclick=e=>{e.stopPropagation();openLive(b.dataset.id)});
@@ -267,17 +267,21 @@
       if(activePlatform==='twitch')render();
     }catch(e){console.warn('DJ catalog scan status:',e)}
   }
-  async function startDjCatalogScan(){
-    const btn=document.getElementById('startDjCatalogScan');if(btn){btn.disabled=true;btn.textContent='Preparando scanner…';}
+  async function startDjCatalogScan(source='dance100'){
+    const isNew=source==='dance100',btn=document.getElementById(isNew?'startDjCatalogScan':'startDjCatalogLegacy');
+    if(btn){btn.disabled=true;btn.textContent='Preparando scanner…';}
     try{
-      const x=await api('/api/dj-catalog/scans',{method:'POST',body:'{}'});
+      const x=await api('/api/dj-catalog/scans',{method:'POST',body:JSON.stringify({source})});
       djScan=x.scan||null;render();
       const link=document.createElement('a');
       link.href=x.launch_url;link.target='_blank';link.rel='noopener noreferrer';link.style.display='none';
       document.body.appendChild(link);link.click();link.remove();
-      alert('Scanner criado. A Twitch foi aberta em uma nova aba. Faça uma busca qualquer no DJ Catalog uma única vez; depois as 215 faixas serão verificadas automaticamente. Se a nova aba não abrir, permita pop-ups para o MediaForge e clique novamente.');
+      alert('Scanner criado para '+Number(x.scan?.total||0)+' faixas. A Twitch abriu em uma nova aba e o Tampermonkey inicia a verificação automaticamente assim que o catálogo carregar. Se a aba não abrir, permita pop-ups para o MediaForge e clique novamente.');
     }catch(e){alert('Falha ao iniciar o scanner: '+e.message)}
-    finally{const b=document.getElementById('startDjCatalogScan');if(b){b.disabled=false;b.textContent='2. Iniciar verificação das 215';}}
+    finally{
+      const b=document.getElementById(isNew?'startDjCatalogScan':'startDjCatalogLegacy');
+      if(b){b.disabled=false;b.textContent=isNew?'2. Verificar 100 novas':'Lista anterior (215)';}
+    }
   }
 
   async function loadSessions(){try{captureDraft();const [x,o,ds]=await Promise.all([api('/api/live-sessions'),api('/api/ovh/status'),api('/api/dj-catalog/scans?limit=1').catch(()=>({scans:[]}))]);sessions=x.sessions||[];ovh=o;djScan=(ds.scans||[])[0]||djScan;render();}catch(e){console.error(e);}}
