@@ -462,11 +462,25 @@
   }
 
   async function musicLibraryPage(path){
-    const raw='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/music-library.json?ts='+Date.now();
-    const r=await fetch(raw,{cache:'no-store'});
-    if(!r.ok)throw new Error('Não foi possível carregar a biblioteca de músicas.');
-    const lib=await r.json();
-    const playlists=lib.playlists||[];
+    const gamingBatch=hashInfo().params.get('batch')==='gaming-twitch-dj-30';
+    let lib;
+    if(gamingBatch){
+      const token=localStorage.getItem('mediaforge_token')||'';
+      const headers=token?{authorization:'Bearer '+token}:{};
+      const r=await fetch('/api/music-library',{headers,cache:'no-store'});
+      if(!r.ok)throw new Error('Não foi possível carregar as 30 músicas novas.');
+      lib=await r.json();
+    }else{
+      const raw='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/music-library.json?ts='+Date.now();
+      const r=await fetch(raw,{cache:'no-store'});
+      if(!r.ok)throw new Error('Não foi possível carregar a biblioteca de músicas.');
+      lib=await r.json();
+    }
+    const playlists=gamingBatch?(lib.playlists||[]).filter(p=>p.key==='gaming-radio').map(p=>{
+      const tracks=(p.tracks||[]).filter(t=>t.source==='gaming-twitch-dj-30'&&/^gaming-twitch-dj-20261004-(0[1-9]|[12][0-9]|30)$/.test(t.id)&&t.asset_id)
+        .sort((a,b)=>a.id.localeCompare(b.id));
+      return {...p,name:'Gaming · 30 músicas novas',category:'Novas músicas',tracks,track_count:tracks.length,total_duration_seconds:tracks.reduce((n,t)=>n+Number(t.duration_seconds||300),0)};
+    }):(lib.playlists||[]);
     const totalTracks=playlists.reduce((n,p)=>n+Number(p.track_count||0),0);
     const liveKeys=new Set(['gaming-radio','deep-house-radio','rainy-radio']);
     const durationText=s=>{const m=Math.round(Number(s||0)/60);if(m<60)return m+' min';const h=Math.floor(m/60),mm=m%60;return h+'h'+(mm?' '+mm+'min':'')};
@@ -475,7 +489,7 @@
       const tracks=(p.tracks||[]).map((t,i)=>'<div class="music-track-row" data-search="'+esc((p.name+' '+p.genre+' '+t.title).toLowerCase())+'"><div class="music-track-num">'+String(i+1).padStart(2,'0')+'</div><div class="music-track-main"><b>'+esc(t.title)+'</b><small>'+esc(p.name)+' · '+esc(durationText(t.duration_seconds||300))+'</small></div><audio controls preload="none" src="'+esc(t.url)+'"></audio></div>').join('');
       return '<details class="card music-playlist-card" data-search="'+esc((p.name+' '+p.genre+' '+p.series+' '+(p.moods||[]).join(' ')).toLowerCase())+'" '+(live?'open':'')+'><summary><div><div class="row wrap"><b>'+esc(p.name)+'</b>'+(live?'<span class="pill p-success">LIVE PLAYLIST</span>':'')+'<span class="pill">'+esc(p.category||'Playlist')+'</span></div><div class="tiny muted" style="margin-top:6px">'+esc(p.genre||'Lofi')+' · '+esc(p.track_count||0)+' faixas · '+esc(durationText(p.total_duration_seconds||0))+'</div></div><i data-lucide="chevron-down"></i></summary><div class="music-track-list">'+tracks+'</div></details>';
     };
-    const html=pageHead('Músicas','Biblioteca canônica do PeterLofi · playlists, séries, gêneros e faixas individuais.')+
+    const html=pageHead(gamingBatch?'Gaming · 30 músicas novas':'Músicas',gamingBatch?'Somente as faixas novas deste lote · ouça cada música no player abaixo.':'Biblioteca canônica do PeterLofi · playlists, séries, gêneros e faixas individuais.')+
       '<div class="grid grid4" style="margin-bottom:18px"><div class="card kpi"><div class="label">PLAYLISTS</div><div class="num">'+playlists.length+'</div></div><div class="card kpi"><div class="label">FAIXAS CATALOGADAS</div><div class="num">'+totalTracks+'</div></div><div class="card kpi"><div class="label">LIVES</div><div class="num">3 PLAYLISTS</div></div><div class="card kpi"><div class="label">PLAYBACK</div><div class="num" style="font-size:18px">FAIXA A FAIXA</div></div></div>'+
       '<div class="card pad" style="margin-bottom:18px"><div class="row wrap"><div style="flex:1;min-width:240px"><input id="musicSearch" class="input" placeholder="Buscar música, playlist ou gênero…"></div><select id="musicCategory" class="input" style="max-width:220px"><option value="">Todas as categorias</option>'+[...new Set(playlists.map(p=>p.category).filter(Boolean))].map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></div><div class="tiny muted" style="margin-top:9px">Masters de 1h/3h continuam disponíveis para vídeos longos, mas as lives usam somente as faixas individuais.</div></div>'+
       '<div id="musicLibraryList" class="grid" style="gap:12px">'+playlists.map(playlistCard).join('')+'</div>';
