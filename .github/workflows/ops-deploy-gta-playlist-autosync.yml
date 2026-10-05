@@ -1,0 +1,68 @@
+name: MediaForge — Deploy GTA Playlist Auto Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-deploy-gta-playlist-autosync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Login to OVH-local MediaForge
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS --connect-timeout 8 --max-time 25 -X POST "$BASE/api/auth/login"             -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/token
+          echo "LOCAL_LOGIN_OK"
+
+      - name: Reload only OVH control agent from latest theofficemusic
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          ID="gta-playlist-autosync-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"reload_control_agent",target:"ovh-agent",request_id:$id,source:"gta-playlist-autosync"}')"             > /tmp/create.json
+          cat /tmp/create.json | jq .
+          for i in $(seq 1 80); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+            ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+            echo "reload_control_agent=$ST"
+            [ "$ST" = "completed" ] && break
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then
+              cat /tmp/status.json
+              exit 1
+            fi
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
+          jq -e '.command.result.media_publishers_touched==false' /tmp/status.json >/dev/null
+          echo "CONTROL_AGENT_RELOADED_WITHOUT_MEDIA_RESTART"
+
+      - name: Verify GTA auto-sync capability is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/token)"
+          sleep 5
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/health.json
+          jq '.agent | {reported_at,github_runtime_polling,gta_playlist_auto_sync,services}' /tmp/health.json
+          MODE="$(jq -r '.agent.github_runtime_polling // empty' /tmp/health.json)"
+          test "$MODE" = "catalog-fallback-only"
+          echo "GTA_PLAYLIST_AUTO_SYNC_ACTIVE"
