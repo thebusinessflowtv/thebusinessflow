@@ -1,4 +1,4 @@
-# monitor revision: 20261005-delivery3
+# monitor revision: 20261005-review-link1
 name: Gaming DJ30 — deploy local playlist publication
 on:
   push:
@@ -48,4 +48,24 @@ jobs:
               if pid:
                   assert b.get(key,{}).get('encoder_pid')==pid, f'{key}: encoder changed'
           print('GAMING_PUBLICATION_API_READY; live encoder PIDs preserved')
+          PY
+          curl -fsS --retry 3 --retry-all-errors "$BASE/app-core.html?verify=gaming-dj30-review-20261005" > /tmp/app-core.html
+          grep -q "params.get('batch')==='gaming-twitch-dj-30'" /tmp/app-core.html
+          curl -fsS "$BASE/api/music-library" -H "authorization: Bearer $TOKEN" > /tmp/library.json
+          python - <<'PY'
+          import json, re, urllib.request
+          lib=json.load(open('/tmp/library.json'))
+          playlist=next(p for p in lib['playlists'] if p['key']=='gaming-radio')
+          tracks=sorted([t for t in playlist['tracks'] if t.get('source')=='gaming-twitch-dj-30' and t.get('asset_id') and re.fullmatch(r'gaming-twitch-dj-20261004-(0[1-9]|[12][0-9]|30)',t['id'])],key=lambda t:t['id'])
+          assert len(tracks)==30
+          assert len({t['id'] for t in tracks})==30
+          assert sum(t['duration_seconds'] for t in tracks)==9000
+          for track in (tracks[0],tracks[-1]):
+              req=urllib.request.Request(track['url'],headers={'Range':'bytes=0-2047'})
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  assert response.status==206, f"Audio range HTTP {response.status}"
+                  assert len(response.read())==2048
+                  assert response.headers.get('Content-Type','').startswith('audio/')
+              print('GAMING_AUDIO_PLAYABLE',track['id'],track['title'])
+          print('GAMING_30_REVIEW_READY: 30 local tracks, 9000 seconds, audio seek verified')
           PY
