@@ -1,4 +1,4 @@
-name: Apply approved Gaming 30 to Twitch and Kick
+name: Verify approved Gaming 30 on Twitch and Kick
 on:
   push:
     branches: [main]
@@ -7,14 +7,14 @@ on:
 permissions:
   contents: read
 jobs:
-  reload-control-agent:
+  verify-live-mix:
     runs-on: macos-latest
     timeout-minutes: 12
     env:
       ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
     steps:
-      - name: Update only the command agent; preserve live publishers
+      - name: Verify playlists and publishers without live changes
         shell: bash
         run: |
           set -euo pipefail
@@ -29,24 +29,35 @@ jobs:
               with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
           token=api('/api/auth/login',{'email':os.environ['ADMIN_EMAIL'],'password':os.environ['ADMIN_PASSWORD']})['token']
           print('::add-mask::'+token,flush=True)
-          before=api('/api/ovh/status')['agent']['services']
-          cid='gaming30-mix-control-'+os.environ['GITHUB_RUN_ID']
-          api('/api/ovh/deploy',{'action':'reload_control_agent','target':'ovh-agent','request_id':cid,'source':'approved-gaming30-dj-mix'})
-          for _ in range(140):
-              result=api('/api/ovh/deploy-status?id='+cid)['command']
-              status=result['status']
-              print('control-agent='+status,flush=True)
-              if status=='completed': break
-              if status=='failed': raise RuntimeError(result.get('error','control-agent update failed'))
+          cid="approved-gaming30-dj-mix-20261005T221413995Z"
+          for _ in range(120):
+              state=api('/api/ovh/status')
+              agent=state['agent']
+              result=agent.get('gaming_dj30_mix') or {}
+              if result.get('command_id')==cid and result.get('status')=='ready': break
+              failed=next((c for c in state.get('recent_commands',[]) if c.get('id')==cid and c.get('status')=='failed'),None)
+              if failed: raise RuntimeError(failed.get('error','Gaming mix command failed'))
               time.sleep(3)
-          assert status=='completed'
-          for _ in range(20):
-              after=api('/api/ovh/status')['agent']
-              if after.get('gaming_dj30_mix_supported'): break
-              time.sleep(3)
-          assert after.get('gaming_dj30_mix_supported') is True
-          for slot in ('twitch','kick','youtube-deep-house','youtube-rainy'):
-              assert after['services'][slot].get('encoder_pid')==before[slot].get('encoder_pid'),slot+' encoder changed'
-          print('GAMING30_MIX_AGENT_READY; Twitch, Kick and YouTube publisher PIDs preserved',flush=True)
-          print(json.dumps({slot:{'status':after['services'][slot].get('status'),'encoder_pid':after['services'][slot].get('encoder_pid')} for slot in ('twitch','kick')},ensure_ascii=False),flush=True)
+          assert result.get('command_id')==cid and result.get('status')=='ready',json.dumps(result)
+          assert result['approved_new_tracks']==30
+          assert result['playlist_counts']=={'twitch':165,'kick':165}
+          assert result['rtmp_restart'] is False and result['container_restart'] is False
+          assert result['independent_players'] is True
+          library=api('/api/music-library')
+          proof={}
+          for slot,key in (('twitch','twitch-dj-mixed'),('kick','kick-dj-mixed-independent')):
+              service=agent['services'][slot]
+              assert service['status']=='live',slot
+              assert service['encoder_pid']==result['publisher_pids'][slot],slot+' publisher changed'
+              assert service['playlist_key']==key and service['playlist_track_count']==165,slot
+              playlist=next(p for p in library['playlists'] if p['key']==key)
+              tracks=playlist['tracks']
+              new=[t for t in tracks if t.get('generation_source')=='gaming-twitch-dj-30']
+              assert len(tracks)==165 and len(new)==30 and len({t['id'] for t in tracks})==165,slot
+              assert all(float(t['duration_seconds'])==300 for t in new),slot
+              proof[slot]={'status':service['status'],'playlist_key':key,'total_tracks':165,'approved_new_tracks':30,'encoder_pid':service['encoder_pid'],'first_new_song':result['started'][slot],'now_playing':service.get('now_playing')}
+          assert result['started']['twitch']['track_id'].startswith('gaming-twitch-dj-20261004-')
+          assert result['started']['kick']['track_id'].startswith('kick-copy-gaming-twitch-dj-20261004-')
+          print('VERIFIED_GAMING30_MIX_READY; independent players; RTMP publishers preserved',flush=True)
+          print(json.dumps({'result':result,'live_proof':proof},ensure_ascii=False),flush=True)
           PY
