@@ -84,9 +84,13 @@
       const list=(detail.jobs||[]).sort((a,b)=>Number(a.name.match(/Track (\d+)/)?.[1]||0)-Number(b.name.match(/Track (\d+)/)?.[1]||0));
       const done=list.filter(j=>j.conclusion==='success').length;
       const failed=list.filter(j=>j.conclusion==='failure').length;
-      box.innerHTML='<h3>Gaming · 30 músicas animadas</h3><p class="small muted">5 minutos por faixa · Referência: twitch-dj-mixed · '+done+'/30 trabalhos concluídos'+(failed?' · '+failed+' com erro':'')+'</p>'+
-        '<div class="list">'+list.map(j=>{const step=(j.steps||[]).find(s=>s.status==='in_progress')||(j.steps||[]).find(s=>s.conclusion==='failure');const state=j.conclusion==='failure'?'Falhou':j.conclusion==='cancelled'?'Aguardando correção':j.conclusion==='success'?'Processamento concluído':j.status==='in_progress'?'Em processamento':'Na fila';return '<div class="row between wrap"><b class="small">'+esc(j.name.replace(/ —.*/,''))+'</b><span class="small">'+esc(state)+'</span>'+(step?'<div class="tiny muted" style="width:100%">'+esc(step.name)+'</div>':'')+'</div>';}).join('')+'</div>'+
-        '<p class="tiny muted">Atualizado: '+esc(new Date().toLocaleTimeString('pt-BR'))+' · Atualização automática a cada 3 minutos. A conclusão do trabalho não confirma a entrega ao painel.</p><a class="btn" target="_blank" rel="noopener" href="'+esc(run.html_url)+'">Ver detalhes da execução</a>';
+      const library=await api('/api/music-library').catch(()=>null);
+      const gaming=(library?.playlists||[]).find(p=>p.key==='gaming-radio');
+      const localIds=new Set((gaming?.tracks||[]).filter(t=>t.source==='gaming-twitch-dj-30'&&t.asset_id).map(t=>t.id));
+      const delivered=library?localIds.size:null;
+      box.innerHTML='<h3>Gaming · 30 músicas animadas</h3><p class="small muted">5 minutos por faixa · Referência: twitch-dj-mixed · '+done+'/30 áudios aprovados'+(delivered!==null?' · '+delivered+'/30 disponíveis na Gaming':' · Entrega na OVH indisponível')+(failed?' · '+failed+' com erro':'')+'</p>'+
+        '<div class="list">'+list.map(j=>{const step=(j.steps||[]).find(s=>s.status==='in_progress')||(j.steps||[]).find(s=>s.conclusion==='failure');const number=Number(j.name.match(/Track (\d+)/)?.[1]||0);const id='gaming-twitch-dj-20261004-'+String(number).padStart(2,'0');const state=localIds.has(id)?'Disponível na Gaming':j.conclusion==='failure'?'Falhou':j.conclusion==='cancelled'?'Aguardando correção':j.conclusion==='success'?'Áudio aprovado · aguardando envio':j.status==='in_progress'?'Em processamento':'Na fila';return '<div class="row between wrap"><b class="small">'+esc(j.name.replace(/ —.*/,''))+'</b><span class="small">'+esc(state)+'</span>'+(step?'<div class="tiny muted" style="width:100%">'+esc(step.name)+'</div>':'')+'</div>';}).join('')+'</div>'+
+        '<p class="tiny muted">Atualizado: '+esc(new Date().toLocaleTimeString('pt-BR'))+' · Atualização automática a cada minuto. As faixas aprovadas são enviadas automaticamente à Gaming na OVH.</p><a class="btn" target="_blank" rel="noopener" href="'+esc(run.html_url)+'">Ver detalhes da execução</a>';
     }catch(e){box.innerHTML='<h3>Acompanhamento Gaming</h3><p>'+esc(e.message)+'</p><a class="btn" target="_blank" rel="noopener" href="https://github.com/thebusinessflowtv/theofficemusic/actions/workflows/generate-gaming-dj30.yml">Abrir acompanhamento</a>';}
   }
 
@@ -95,7 +99,7 @@
     ['view-live','view-library','view-assets'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));
     document.getElementById('view-generate')?.classList.remove('hidden');
     await Promise.all([load(),monitorGamingQueue()]);
-    setInterval(monitorGamingQueue,180000);
+    setInterval(monitorGamingQueue,60000);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
