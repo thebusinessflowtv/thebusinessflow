@@ -1,3 +1,4 @@
+import { appendGamingDj30Assets } from './gaming-dj30-library.js';
 const enc = new TextEncoder();
 
 function json(data, status = 200, extra = {}) {
@@ -725,6 +726,11 @@ async function handleApi(request,env,url){
     const state=await ovhState(env),stations=await getYoutubeStations(env);
     let recentCommands=[];try{const q=await env.DB.prepare(`SELECT id,runtime_slot,action,status,created_at,claimed_at,completed_at,error FROM ovh_commands ORDER BY created_at DESC LIMIT 20`).all();recentCommands=q.results||[]}catch(_){}
     return json({runtime:'ovh',agent:state,youtube_slots:stations.stations||[],slots:OVH_SLOTS,recent_commands:recentCommands},200,cors);
+  }
+  if(url.pathname==='/api/music-library/gaming-dj30'&&request.method==='POST'){
+    const b=await bodyJson(request);
+    try{return json(await appendGamingDj30Assets(env,request,b.tracks,assetPublicUrl),200,cors);}
+    catch(e){return json({error:e.message||'gaming_append_failed'},400,cors);}
   }
   if(url.pathname==='/api/music-library'&&request.method==='GET'){
     const library=await getMusicLibrary(env);
