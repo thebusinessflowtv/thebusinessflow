@@ -1,4 +1,5 @@
 name: MediaForge — Deploy GTA Playlist Auto Sync
+# trigger: 2026-10-05T23:45Z
 
 on:
   push:
