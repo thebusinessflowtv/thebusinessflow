@@ -1,0 +1,29 @@
+name: Gaming DJ30 — progressively publish approved tracks to OVH
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/sync-gaming-dj30-to-ovh.yml]
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: gaming-dj30-local-publication
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BASE: https://peterlofi.odsgn.com.br
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy and append only approved new tracks
+        run: |
+          command -v ffprobe >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y ffmpeg; }
+          python scripts/sync_gaming_dj30.py
