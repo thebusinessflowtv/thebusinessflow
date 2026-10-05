@@ -1,0 +1,39 @@
+name: Diagnose Gaming 30 mix preflight
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/ops-gaming30-dj-diagnostic.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-mix-state:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Read live agent and approved audio metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          base='https://peterlofi.odsgn.com.br'
+          token=''
+          def api(path, body=None):
+              headers={'content-type':'application/json'}
+              if token: headers['authorization']='Bearer '+token
+              req=urllib.request.Request(base+path,headers=headers,data=json.dumps(body).encode() if body is not None else None)
+              with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
+          token=api('/api/auth/login',{'email':os.environ['ADMIN_EMAIL'],'password':os.environ['ADMIN_PASSWORD']})['token']
+          print('::add-mask::'+token,flush=True)
+          state=api('/api/ovh/status')
+          agent=state['agent']
+          library=api('/api/music-library')
+          gaming=next((p for p in library.get('playlists',[]) if p.get('key')=='gaming-radio'),{})
+          rows=[t for t in gaming.get('tracks',[]) if t.get('source')=='gaming-twitch-dj-30']
+          from urllib.parse import urlsplit
+          print(json.dumps({'reported_at':agent.get('reported_at'),'supported':agent.get('gaming_dj30_mix_supported'),'mix_result':agent.get('gaming_dj30_mix'),'last_command':agent.get('last_command'),'processed':agent.get('processed_commands'),'new_rows':[{'id':t.get('id'),'asset_ready':bool(t.get('asset_id')),'duration':t.get('duration_seconds'),'url_origin':urlsplit(t.get('url') or '').netloc,'local_media':str(t.get('url') or '').startswith('https://peterlofi.odsgn.com.br/media/')} for t in rows],'gaming_sources':list({str(t.get('source')) for t in gaming.get('tracks',[])})},ensure_ascii=False),flush=True)
+          PY
