@@ -1,3 +1,4 @@
+# monitor revision: 20261005-delivery2
 name: Gaming DJ30 — deploy local playlist publication
 on:
   push:
