@@ -1,0 +1,52 @@
+name: Normalize and reload approved Gaming 30 mix agent
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/ops-gaming30-dj-mix-reload.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reload-control-agent:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Update only the command agent; preserve live publishers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          base='https://peterlofi.odsgn.com.br'
+          token=''
+          def api(path, body=None):
+              headers={'content-type':'application/json'}
+              if token: headers['authorization']='Bearer '+token
+              req=urllib.request.Request(base+path,headers=headers,data=json.dumps(body).encode() if body is not None else None)
+              with urllib.request.urlopen(req,timeout=45) as r: return json.load(r)
+          token=api('/api/auth/login',{'email':os.environ['ADMIN_EMAIL'],'password':os.environ['ADMIN_PASSWORD']})['token']
+          print('::add-mask::'+token,flush=True)
+          before=api('/api/ovh/status')['agent']['services']
+          cid='gaming30-mix-control-v2-'+os.environ['GITHUB_RUN_ID']
+          api('/api/ovh/deploy',{'action':'reload_control_agent','target':'ovh-agent','request_id':cid,'source':'approved-gaming30-dj-mix'})
+          for _ in range(140):
+              result=api('/api/ovh/deploy-status?id='+cid)['command']
+              status=result['status']
+              print('control-agent='+status,flush=True)
+              if status=='completed': break
+              if status=='failed': raise RuntimeError(result.get('error','control-agent update failed'))
+              time.sleep(3)
+          assert status=='completed'
+          for _ in range(20):
+              after=api('/api/ovh/status')['agent']
+              if after.get('gaming_dj30_mix_version')==2: break
+              time.sleep(3)
+          assert after.get('gaming_dj30_mix_version')==2
+          for slot in ('twitch','kick','youtube-deep-house','youtube-rainy'):
+              assert after['services'][slot].get('encoder_pid')==before[slot].get('encoder_pid'),slot+' encoder changed'
+          print('GAMING30_MIX_AGENT_READY; Twitch, Kick and YouTube publisher PIDs preserved',flush=True)
+          print(json.dumps({slot:{'status':after['services'][slot].get('status'),'encoder_pid':after['services'][slot].get('encoder_pid')} for slot in ('twitch','kick')},ensure_ascii=False),flush=True)
+          PY
