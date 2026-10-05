@@ -1,5 +1,5 @@
 name: One-off — Probe OVH Deploy Queue
-# trigger: 2026-10-03T05:30Z final-visual-proof-baseline
+# trigger: 2026-10-05T23:47Z gta-autosync
 
 on:
   push:
@@ -19,6 +19,30 @@ jobs:
       API: https://mediaforge-api.guilhermeodsgn.workers.dev
     steps:
       - uses: actions/checkout@v4
+      - name: Reload control agent for GTA playlist auto-sync
+        run: |
+          set -euo pipefail
+          API="https://mediaforge-api.guilhermeodsgn.workers.dev"
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          ID="gta-autosync-reload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -fsS -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            -d "$(jq -nc --arg id "$ID" '{action:"reload_control_agent",target:"ovh-agent",request_id:$id,source:"gta-playlist-autosync"}')" \
+            "$API/api/ovh/deploy" > /tmp/gta-reload-create.json
+          for N in $(seq 1 120); do
+            curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/deploy-status?id=$ID" > /tmp/gta-reload-status.json
+            STATUS="$(jq -r '.command.status // empty' /tmp/gta-reload-status.json)"
+            echo "gta_autosync_reload=$STATUS"
+            [ "$STATUS" = "completed" ] && break
+            [ "$STATUS" = "failed" ] && { cat /tmp/gta-reload-status.json; exit 1; }
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/gta-reload-status.json >/dev/null
+          jq -e '.command.result.media_publishers_touched==false' /tmp/gta-reload-status.json >/dev/null
+          echo "GTA_AUTOSYNC_AGENT_DEPLOYED"
+
+      # GTA playlist autosync control-agent deploy
       - name: Probe queue
         run: |
           set -euo pipefail
