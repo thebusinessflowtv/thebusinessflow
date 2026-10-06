@@ -1,0 +1,67 @@
+name: Ops — Restart GTA Agent After Stutter Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-restart-gta-agent-after-stutter-fix.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Recreate only OVH agent and verify GTA VI health
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          ID="gta-agent-restart-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"ovh-agent",request_id:$id,source:"gta-stutter-final-fix"}')" > /tmp/create.json
+
+          for I in $(seq 1 120); do
+            if curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json 2>/dev/null; then
+              ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+              echo "$ID -> $ST"
+              [ "$ST" = "completed" ] && break
+              if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; exit 1; fi
+            fi
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
+
+          GOOD=0
+          PREV_UPDATED=""
+          PREV_PID=""
+          for I in $(seq 1 24); do
+            curl -kfsS "$BASE/api/ovh/public-health" > /tmp/public.json
+            ST="$(jq -r '.services["youtube-gta-vi"].status // ""' /tmp/public.json)"
+            PID="$(jq -r '.services["youtube-gta-vi"].encoder_pid // ""' /tmp/public.json)"
+            VS="$(jq -r '.services["youtube-gta-vi"].visual_status // ""' /tmp/public.json)"
+            AS="$(jq -r '.services["youtube-gta-vi"].audio_status // ""' /tmp/public.json)"
+            FPS="$(jq -r '.services["youtube-gta-vi"].fps // ""' /tmp/public.json)"
+            BR="$(jq -r '.services["youtube-gta-vi"].video_bitrate_kbps // ""' /tmp/public.json)"
+            UP="$(jq -r '.services["youtube-gta-vi"].updated_at // ""' /tmp/public.json)"
+            SONG="$(jq -r '.services["youtube-gta-vi"].now_playing.title // ""' /tmp/public.json)"
+            echo "sample[$I] status=$ST pid=$PID visual=$VS audio=$AS fps=$FPS bitrate=$BR updated=$UP now_playing=$SONG"
+            if [ "$ST" = "live" ] && [ -n "$PID" ] && [ "$VS" = "streaming" ] && [ "$AS" = "running" ] && [ "$FPS" = "30" ] && [ "$BR" = "4500" ]; then
+              if [ -n "$PREV_UPDATED" ] && [ "$UP" != "$PREV_UPDATED" ] && { [ -z "$PREV_PID" ] || [ "$PID" = "$PREV_PID" ]; }; then
+                GOOD=$((GOOD+1))
+              fi
+              PREV_PID="$PID"
+            fi
+            PREV_UPDATED="$UP"
+            sleep 5
+          done
+          test "$GOOD" -ge 3
