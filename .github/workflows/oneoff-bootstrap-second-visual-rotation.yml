@@ -1,0 +1,118 @@
+name: One-off — Bootstrap Second Visual Rotation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/oneoff-bootstrap-second-visual-rotation.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      API: https://146.59.156.224:8443
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve private second-visual URL
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s control/private-import/second-visual.enc
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=second-visual-import-key&per_page=100" > /tmp/artifacts.json
+          ARTIFACT_ID="$(jq -r '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | last | .id // empty' /tmp/artifacts.json)"
+          test -n "$ARTIFACT_ID"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/key.zip
+          unzip -q /tmp/key.zip -d /tmp/key
+          openssl enc -d -aes-256-cbc -pbkdf2 -a -A \
+            -pass file:/tmp/key/second-visual-import.key \
+            -in control/private-import/second-visual.enc \
+            -out /tmp/second.json
+          SECOND_URL="$(jq -r '.source_url // empty' /tmp/second.json)"
+          test -n "$SECOND_URL"
+          echo "::add-mask::$SECOND_URL"
+          printf '%s' "$SECOND_URL" > /tmp/second-url
+
+      - name: Login and snapshot Twitch + Kick
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -kfsS --retry 8 --retry-all-errors --retry-delay 2 -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/token
+          curl -kfsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/status" > /tmp/before.json
+          jq -e '.agent.visual_rotation.status=="waiting_second_visual"' /tmp/before.json >/dev/null
+          for SLOT in twitch kick; do
+            jq -e --arg s "$SLOT" '.agent.services[$s].status=="live" and .agent.services[$s].hot_swap==true and (.agent.services[$s].encoder_pid != null)' /tmp/before.json >/dev/null
+          done
+
+      - name: Hot-swap only the visual on both publishers
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          SECOND_URL="$(cat /tmp/second-url)"
+          : > /tmp/commands.ndjson
+          for SLOT in twitch kick; do
+            BODY="$(jq -nc --arg slot "$SLOT" --arg url "$SECOND_URL" '{runtime_slot:$slot,loop_url:$url}')"
+            OUT="$(curl -kfsS -X POST -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$BODY" "$API/api/ovh/visual")"
+            ID="$(printf '%s' "$OUT" | jq -r '.command.id // empty')"
+            test -n "$ID"
+            jq -nc --arg slot "$SLOT" --arg id "$ID" '{slot:$slot,id:$id}' >> /tmp/commands.ndjson
+          done
+          while read -r ROW; do
+            ID="$(printf '%s' "$ROW" | jq -r '.id')"
+            SLOT="$(printf '%s' "$ROW" | jq -r '.slot')"
+            for I in $(seq 1 90); do
+              OUT="$(curl -kfsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/control/$ID")"
+              ST="$(printf '%s' "$OUT" | jq -r '.command.status // empty')"
+              echo "$SLOT=$ST"
+              [ "$ST" = "completed" ] && break
+              if [ "$ST" = "failed" ]; then exit 1; fi
+              sleep 2
+            done
+            [ "$ST" = "completed" ]
+          done < /tmp/commands.ndjson
+
+      - name: Verify zero-drop and local rotation armed
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          SECOND_URL="$(cat /tmp/second-url)"
+          TW_PID="$(jq -r '.agent.services.twitch.encoder_pid' /tmp/before.json)"
+          KI_PID="$(jq -r '.agent.services.kick.encoder_pid' /tmp/before.json)"
+          TW_R="$(jq -r '.agent.services.twitch.restarts // 0' /tmp/before.json)"
+          KI_R="$(jq -r '.agent.services.kick.restarts // 0' /tmp/before.json)"
+          OK=0
+          for I in $(seq 1 120); do
+            curl -kfsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/status" > /tmp/after.json
+            jq -e --arg u "$SECOND_URL" '
+              .agent.services.twitch.status=="live"
+              and .agent.services.kick.status=="live"
+              and .agent.services.twitch.visual_status=="streaming"
+              and .agent.services.kick.visual_status=="streaming"
+              and .agent.services.twitch.loop_url==$u
+              and .agent.services.kick.loop_url==$u
+              and .agent.visual_rotation.status=="armed"
+            ' /tmp/after.json >/dev/null && { OK=1; break; }
+            sleep 2
+          done
+          [ "$OK" = "1" ]
+          test "$(jq -r '.agent.services.twitch.encoder_pid' /tmp/after.json)" = "$TW_PID"
+          test "$(jq -r '.agent.services.kick.encoder_pid' /tmp/after.json)" = "$KI_PID"
+          test "$(jq -r '.agent.services.twitch.restarts // 0' /tmp/after.json)" = "$TW_R"
+          test "$(jq -r '.agent.services.kick.restarts // 0' /tmp/after.json)" = "$KI_R"
+          jq '{visual_rotation:.agent.visual_rotation,twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision,visual_status:.agent.services.twitch.visual_status},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision,visual_status:.agent.services.kick.visual_status}}' /tmp/after.json
