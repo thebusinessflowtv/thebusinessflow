@@ -1,0 +1,247 @@
+name: MediaForge — GTA VI Secure YouTube Orchestrator
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'control/gta-youtube-secure-start/*.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gta-youtube-secure-orchestrator
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MEDIAFORGE_ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      MEDIAFORGE_ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      MEDIAFORGE_GITHUB_TOKEN: ${{ secrets.MEDIAFORGE_GITHUB_TOKEN }}
+      OFFICE_REPO: thebusinessflowtv/theofficemusic
+      BASE: https://146.59.156.224:8443
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve GTA secure start request
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$MEDIAFORGE_ADMIN_EMAIL"
+          test -n "$MEDIAFORGE_ADMIN_PASSWORD"
+          test -n "$MEDIAFORGE_GITHUB_TOKEN"
+
+          if git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            CHANGED="$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")"
+          else
+            CHANGED="$(git diff-tree --no-commit-id --name-only -r "$AFTER_SHA")"
+          fi
+          FILE="$(printf '%s\n' "$CHANGED" | grep -E '^control/gta-youtube-secure-start/[^/]+\.json$' | tail -1)"
+          test -s "$FILE"
+          jq -e '.session_id and .title and .description and .loop_url and .thumbnail_url' "$FILE" >/dev/null
+
+          echo "START_FILE=$FILE" >> "$GITHUB_ENV"
+          echo "SESSION_ID=$(jq -r '.session_id' "$FILE")" >> "$GITHUB_ENV"
+          echo "REQUEST_ID=gta-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Install crypto runtime
+        run: python -m pip install --quiet cryptography
+
+      - name: Generate ephemeral RSA key and request Peter Lofi YouTube ingest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,json,os,pathlib
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          from cryptography.hazmat.primitives import serialization
+
+          start=json.loads(pathlib.Path(os.environ["START_FILE"]).read_text(encoding="utf-8"))
+          private_key=rsa.generate_private_key(public_exponent=65537,key_size=3072)
+          priv=private_key.private_bytes(
+              encoding=serialization.Encoding.PEM,
+              format=serialization.PrivateFormat.PKCS8,
+              encryption_algorithm=serialization.NoEncryption(),
+          )
+          pub=private_key.public_key().public_bytes(
+              encoding=serialization.Encoding.PEM,
+              format=serialization.PublicFormat.SubjectPublicKeyInfo,
+          )
+          pathlib.Path("/tmp/gta-bridge-private.pem").write_bytes(priv)
+          pathlib.Path("/tmp/gta-bridge-private.pem").chmod(0o600)
+
+          request={
+              "request_id":os.environ["REQUEST_ID"],
+              "session_id":str(start["session_id"]),
+              "public_key_pem_b64":base64.b64encode(pub).decode(),
+              "title":str(start["title"]),
+              "description":str(start["description"]),
+              "loop_url":str(start["loop_url"]),
+              "thumbnail_url":str(start["thumbnail_url"]),
+              "requested_at":start.get("requested_at"),
+              "source":"thebusinessflow-secure-orchestrator",
+          }
+          pathlib.Path("/tmp/gta-secure-request.json").write_text(
+              json.dumps(request,ensure_ascii=False,indent=2)+"\n",encoding="utf-8"
+          )
+          PY
+
+          CONTENT="$(base64 -w0 /tmp/gta-secure-request.json)"
+          PATH_REMOTE="control/gta-youtube-secure-request/$REQUEST_ID.json"
+          BODY="$(jq -nc --arg msg "youtube: secure GTA VI ingest request $REQUEST_ID" --arg content "$CONTENT" '{message:$msg,content:$content,branch:"main"}')"
+
+          curl -fsS -X PUT "https://api.github.com/repos/$OFFICE_REPO/contents/$PATH_REMOTE"             -H "Authorization: Bearer $MEDIAFORGE_GITHUB_TOKEN"             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             -H "Content-Type: application/json"             --data "$BODY" > /tmp/request-create.json
+
+          jq -e '.content.sha' /tmp/request-create.json >/dev/null
+          echo "SECURE_INGEST_REQUEST_CREATED"
+
+      - name: Wait for encrypted Peter Lofi response
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATH_REMOTE="control/gta-youtube-secure-response/$REQUEST_ID.json"
+          READY=0
+          for I in $(seq 1 90); do
+            CODE="$(curl -sS -o /tmp/response-api.json -w '%{http_code}'               "https://api.github.com/repos/$OFFICE_REPO/contents/$PATH_REMOTE?ref=main"               -H "Authorization: Bearer $MEDIAFORGE_GITHUB_TOKEN"               -H "Accept: application/vnd.github+json"               -H "X-GitHub-Api-Version: 2022-11-28")"
+            echo "encrypted_response_poll=$I http=$CODE"
+            if [ "$CODE" = "200" ]; then
+              jq -r '.content' /tmp/response-api.json | tr -d '\n' | base64 -d > /tmp/gta-secure-response.json
+              jq -e --arg id "$REQUEST_ID" '.request_id==$id and .status=="prepared" and .encrypted_key_b64 and .nonce_b64 and .ciphertext_b64' /tmp/gta-secure-response.json >/dev/null
+              READY=1
+              break
+            fi
+            sleep 4
+          done
+          test "$READY" = "1"
+          jq '{request_id,session_id,status,youtube_url,youtube_broadcast_id,youtube_stream_id,channel_title,custom_thumbnail_applied}' /tmp/gta-secure-response.json
+
+      - name: Decrypt transient ingest locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,json,os,pathlib
+          from cryptography.hazmat.primitives import hashes,serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+          response=json.loads(pathlib.Path("/tmp/gta-secure-response.json").read_text(encoding="utf-8"))
+          private_key=serialization.load_pem_private_key(
+              pathlib.Path("/tmp/gta-bridge-private.pem").read_bytes(),password=None
+          )
+          aes_key=private_key.decrypt(
+              base64.b64decode(response["encrypted_key_b64"]),
+              padding.OAEP(
+                  mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                  algorithm=hashes.SHA256(),
+                  label=None,
+              ),
+          )
+          plain=AESGCM(aes_key).decrypt(
+              base64.b64decode(response["nonce_b64"]),
+              base64.b64decode(response["ciphertext_b64"]),
+              os.environ["REQUEST_ID"].encode(),
+          )
+          secret=json.loads(plain)
+          if not secret.get("stream_url") or not secret.get("stream_key"):
+              raise SystemExit("Decrypted YouTube ingest is incomplete")
+          p=pathlib.Path("/tmp/gta-bootstrap-secret.json")
+          p.write_text(json.dumps(secret,separators=(",",":")),encoding="utf-8")
+          p.chmod(0o600)
+          print("ENCRYPTED_INGEST_DECRYPTED_LOCALLY")
+          PY
+
+      - name: Bootstrap GTA encoder on OVH
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOGIN="$(curl -kfsS --connect-timeout 8 --max-time 25 -X POST "$BASE/api/auth/login"             -H 'content-type: application/json'             --data "$(jq -nc --arg e "$MEDIAFORGE_ADMIN_EMAIL" --arg p "$MEDIAFORGE_ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          STREAM_URL="$(jq -r '.stream_url' /tmp/gta-bootstrap-secret.json)"
+          STREAM_KEY="$(jq -r '.stream_key' /tmp/gta-bootstrap-secret.json)"
+          echo "::add-mask::$STREAM_URL"
+          echo "::add-mask::$STREAM_KEY"
+
+          BODY="$(jq -nc             --slurpfile start "$START_FILE"             --arg stream_url "$STREAM_URL"             --arg stream_key "$STREAM_KEY"             '{
+              runtime_slot:"youtube-gta-vi",
+              session_id:($start[0].session_id|tostring),
+              title:($start[0].title|tostring),
+              description:($start[0].description|tostring),
+              loop_url:($start[0].loop_url|tostring),
+              stream_url:$stream_url,
+              stream_key:$stream_key
+            }')"
+
+          CODE="$(curl -ksS -o /tmp/bootstrap.json -w '%{http_code}' -X POST "$BASE/api/ovh/youtube-bootstrap"             -H "authorization: Bearer $TOKEN"             -H 'content-type: application/json'             --data "$BODY")"
+          echo "OVH_BOOTSTRAP_HTTP=$CODE"
+          jq '{ok,runtime_slot,playlist_key,playlist_track_count,command}' /tmp/bootstrap.json
+          test "$CODE" = "202"
+          jq -e '.ok==true and .runtime_slot=="youtube-gta-vi" and .playlist_key=="gta-vi-vice-city"' /tmp/bootstrap.json >/dev/null
+
+          rm -f /tmp/gta-bootstrap-secret.json /tmp/gta-bridge-private.pem /tmp/gta-secure-request.json
+          echo "GTA_ENCODER_BOOTSTRAPPED"
+
+      - name: Wait for GTA VI runtime live
+        shell: bash
+        run: |
+          set -euo pipefail
+          READY=0
+          for I in $(seq 1 120); do
+            if curl -kfsS "$BASE/api/ovh/public-health" >/tmp/gta-health.json 2>/dev/null; then
+              STATUS="$(jq -r '.services["youtube-gta-vi"].status // empty' /tmp/gta-health.json)"
+              SONG="$(jq -r '.services["youtube-gta-vi"].now_playing.title // empty' /tmp/gta-health.json)"
+              COUNT="$(jq -r '.services["youtube-gta-vi"].playlist_track_count // 0' /tmp/gta-health.json)"
+              echo "gta_runtime=$STATUS tracks=$COUNT now_playing=$SONG"
+              if [ "$STATUS" = "live" ] && [ -n "$SONG" ]; then
+                READY=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$READY" = "1"
+          echo "GTA_YOUTUBE_RUNTIME_LIVE"
+
+      - name: Persist sanitized launch result
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p control/gta-youtube-secure-result
+          jq -n             --arg request_id "$REQUEST_ID"             --arg session_id "$SESSION_ID"             --arg youtube_url "$(jq -r '.youtube_url' /tmp/gta-secure-response.json)"             --arg youtube_broadcast_id "$(jq -r '.youtube_broadcast_id' /tmp/gta-secure-response.json)"             --arg youtube_stream_id "$(jq -r '.youtube_stream_id' /tmp/gta-secure-response.json)"             --arg channel_title "$(jq -r '.channel_title' /tmp/gta-secure-response.json)"             --arg now_playing "$(jq -r '.services["youtube-gta-vi"].now_playing.title // ""' /tmp/gta-health.json)"             --argjson track_count "$(jq -r '.services["youtube-gta-vi"].playlist_track_count // 0' /tmp/gta-health.json)"             '{
+              request_id:$request_id,
+              session_id:$session_id,
+              status:"live",
+              runtime:"ovh",
+              runtime_slot:"youtube-gta-vi",
+              playlist_key:"gta-vi-vice-city",
+              playlist_track_count:$track_count,
+              youtube_url:$youtube_url,
+              youtube_broadcast_id:$youtube_broadcast_id,
+              youtube_stream_id:$youtube_stream_id,
+              channel_title:$channel_title,
+              now_playing:$now_playing,
+              completed_at:(now|todateiso8601)
+            }' > "control/gta-youtube-secure-result/$REQUEST_ID.json"
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "control/gta-youtube-secure-result/$REQUEST_ID.json"
+          git commit -m "youtube: GTA VI secure OVH live confirmed $REQUEST_ID"
+          for N in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((N*2))
+          done
+          exit 1
