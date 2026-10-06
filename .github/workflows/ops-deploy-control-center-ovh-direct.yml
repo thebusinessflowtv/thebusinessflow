@@ -1,5 +1,5 @@
 name: MediaForge — Deploy Visual Rotation Agent OVH
-# visual-rotation-v1: 2026-10-06-gta-final-reencode-redeploy
+# visual-rotation-v1: 2026-10-06-gta-fluid-60fps-redeploy
 
 on:
   push:
