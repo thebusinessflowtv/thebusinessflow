@@ -200,3 +200,52 @@ CREATE INDEX IF NOT EXISTS idx_local_config_updated
 ON local_config(updated_at DESC);
 
 
+
+
+-- Video factory control-plane. Intentionally independent from live_sessions/ovh runtime.
+CREATE TABLE IF NOT EXISTS video_productions (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  channel_slug TEXT NOT NULL,
+  channel_name TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  requested_topic TEXT,
+  selected_topic TEXT,
+  generation_mode TEXT NOT NULL,
+  objective TEXT NOT NULL,
+  notes TEXT,
+  upload_requested INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft',
+  progress INTEGER NOT NULL DEFAULT 0,
+  dispatch_kind TEXT,
+  dispatch_commit_sha TEXT,
+  github_run_id TEXT,
+  github_run_url TEXT,
+  suggestions_json TEXT,
+  error_message TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_productions_created
+ON video_productions(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_video_productions_channel
+ON video_productions(channel_slug, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_video_productions_status
+ON video_productions(status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS video_production_events (
+  id TEXT PRIMARY KEY,
+  production_id TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  status TEXT NOT NULL,
+  message TEXT NOT NULL,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_events_prod
+ON video_production_events(production_id, created_at);
