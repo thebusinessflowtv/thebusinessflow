@@ -1,5 +1,5 @@
 name: MediaForge — Deploy GTA Playlist Auto Sync
-# trigger: 2026-10-05T23:45Z
+# trigger: 2026-10-05T20:57:30-03:00 repair-local-library
 
 on:
   push:
@@ -55,15 +55,22 @@ jobs:
           jq -e '.command.result.media_publishers_touched==false' /tmp/status.json >/dev/null
           echo "CONTROL_AGENT_RELOADED_WITHOUT_MEDIA_RESTART"
 
-      - name: Verify GTA auto-sync capability is live
+      - name: Verify GTA playlist and YouTube launch prerequisites
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/token)"
-          sleep 5
+          sleep 8
           curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/health.json
-          jq '.agent | {reported_at,github_runtime_polling,gta_playlist_auto_sync,services}' /tmp/health.json
+          curl -kfsS "$BASE/api/music-library" -H "authorization: Bearer $TOKEN" > /tmp/library.json
+          jq '.agent | {reported_at,github_runtime_polling,gta_playlist_auto_sync}' /tmp/health.json
+          echo "YOUTUBE_SLOTS:"
+          jq '.youtube_slots | map({name,ovh_slot,status,current_session_id,youtube_stream_id})' /tmp/health.json
+          echo "GTA_PLAYLIST:"
+          jq '.playlists[] | select(.key=="gta-vi-vice-city") | {key,name,track_count,total_duration_seconds,allowed_platforms}' /tmp/library.json
           MODE="$(jq -r '.agent.github_runtime_polling // empty' /tmp/health.json)"
+          GTA_COUNT="$(jq -r '[.playlists[]? | select(.key=="gta-vi-vice-city")] | length' /tmp/library.json)"
           test "$MODE" = "catalog-fallback-only"
-          echo "GTA_PLAYLIST_AUTO_SYNC_ACTIVE"
+          test "$GTA_COUNT" -eq 1
+          echo "GTA_PLAYLIST_UI_VISIBLE"
