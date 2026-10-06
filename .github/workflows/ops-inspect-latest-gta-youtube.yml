@@ -1,0 +1,32 @@
+name: MediaForge — Inspect Latest GTA YouTube Attempt
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ops-inspect-latest-gta-youtube.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Read latest GTA YouTube session from OVH
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          curl -kfsS "$BASE/api/live-sessions" -H "authorization: Bearer $TOKEN" > /tmp/sessions.json
+          SID="$(jq -r '[.sessions[]? | select(.platform=="youtube" and .runtime_slot=="youtube-gta-vi")] | sort_by(.created_at) | last | .id // empty' /tmp/sessions.json)"
+          test -n "$SID"
+          curl -kfsS "$BASE/api/live/$SID" -H "authorization: Bearer $TOKEN" > /tmp/detail.json
+          jq '{
+            session: (.session | {id,platform,status,title,description,duration_minutes,runtime,runtime_slot,created_at}),
+            tracks: (.tracks | map({id,title,url,duration_seconds})),
+            assets: .assets
+          }' /tmp/detail.json
