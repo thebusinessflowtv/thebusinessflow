@@ -1,5 +1,5 @@
 name: MediaForge — Inspect Latest GTA YouTube Attempt
-# bridge-probe-trigger: 2026-10-05T21:55:00-03:00-oidc
+# bridge-probe-trigger: 2026-10-05T22:17:00-03:00-post-secure-deploy
 
 on:
   push:
