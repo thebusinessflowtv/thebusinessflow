@@ -1,0 +1,182 @@
+name: Ops — Import GTA VI 4K Visual to OVH
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-import-gta-youtube-visual-4k-20261006.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  import-and-swap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      API: 'https://146.59.156.224:8443'
+      TOKEN_ARTIFACT_ID: '11387603407'
+      EXPECTED_SIZE: '73674717'
+      EXPECTED_SHA256: '59b98d8829f2cd10a03ef56bb17cdd3a177f8f09cfed94e36e7b5519573acc0b'
+      CIPHERTEXT: 'control/private-import/gta-youtube-visual-4k-20261006.enc'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Recover private session and source URL
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/$TOKEN_ARTIFACT_ID/zip" > /tmp/session.zip
+          unzip -q /tmp/session.zip -d /tmp/session
+          TOKEN_FILE="/tmp/session/mediaforge-session-token"
+          test -s "$TOKEN_FILE"
+          TOKEN="$(cat "$TOKEN_FILE")"
+          echo "::add-mask::$TOKEN"
+
+          openssl enc -d -aes-256-cbc -pbkdf2 -a -A             -pass file:"$TOKEN_FILE"             -in "$CIPHERTEXT"             -out /tmp/source-url.txt
+          SOURCE_URL="$(tr -d '\r\n' < /tmp/source-url.txt)"
+          test -n "$SOURCE_URL"
+          echo "::add-mask::$SOURCE_URL"
+          printf '%s' "$TOKEN" > /tmp/token
+          printf '%s' "$SOURCE_URL" > /tmp/source-url
+
+      - name: Download and validate exact original 4K MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_URL="$(cat /tmp/source-url)"
+          curl -fL --retry 8 --retry-all-errors --retry-delay 2 "$SOURCE_URL" -o /tmp/gta-visual-4k.mp4
+          SIZE="$(wc -c < /tmp/gta-visual-4k.mp4 | tr -d ' ')"
+          SHA="$(sha256sum /tmp/gta-visual-4k.mp4 | awk '{print $1}')"
+          echo "size=$SIZE sha256=$SHA"
+          test "$SIZE" = "$EXPECTED_SIZE"
+          test "$SHA" = "$EXPECTED_SHA256"
+          ffprobe -v error -select_streams v:0             -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,bit_rate,pix_fmt             -of json /tmp/gta-visual-4k.mp4 | tee /tmp/probe.json
+          jq -e '.streams[0].width==3840 and .streams[0].height==2160 and .streams[0].r_frame_rate=="30/1"' /tmp/probe.json >/dev/null
+
+      - name: Upload original MP4 persistently to MediaForge
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          INIT_BODY="$(jq -nc             --arg name 'VIDEO-YOUTUBE-GTA-VI-4K-20261006.mp4'             --arg title 'GTA VI Radio Visual — Original 4K'             --argjson size "$EXPECTED_SIZE"             '{name:$name,title:$title,mime_type:"video/mp4",size_bytes:$size,asset_type:"loop"}')"
+          INIT="$(curl -kfsS -X POST "$API/api/uploads/init"             -H "authorization: Bearer $TOKEN"             -H 'content-type: application/json'             --data "$INIT_BODY")"
+          ASSET_ID="$(printf '%s' "$INIT" | jq -r '.asset_id // empty')"
+          UPLOAD_ID="$(printf '%s' "$INIT" | jq -r '.upload_id // empty')"
+          CHUNK="$(printf '%s' "$INIT" | jq -r '.chunk_size // 0')"
+          test -n "$ASSET_ID" && test -n "$UPLOAD_ID" && test "$CHUNK" -gt 0
+          printf '%s' "$ASSET_ID" > /tmp/asset-id
+
+          : > /tmp/parts.ndjson
+          PART=1
+          OFFSET=0
+          while [ "$OFFSET" -lt "$EXPECTED_SIZE" ]; do
+            REMAIN=$((EXPECTED_SIZE-OFFSET))
+            COUNT="$CHUNK"
+            [ "$REMAIN" -lt "$CHUNK" ] && COUNT="$REMAIN"
+            dd if=/tmp/gta-visual-4k.mp4 of=/tmp/part.bin bs=1 skip="$OFFSET" count="$COUNT" status=none
+            RESP="$(curl -kfsS -X PUT               -H "authorization: Bearer $TOKEN"               -H 'content-type: video/mp4'               --data-binary @/tmp/part.bin               "$API/api/uploads/part?asset_id=$ASSET_ID&upload_id=$UPLOAD_ID&part_number=$PART")"
+            printf '%s' "$RESP" | jq -c '{partNumber,etag}' >> /tmp/parts.ndjson
+            OFFSET=$((OFFSET+COUNT))
+            PART=$((PART+1))
+          done
+
+          PARTS="$(jq -s '.' /tmp/parts.ndjson)"
+          COMPLETE_BODY="$(jq -nc --arg aid "$ASSET_ID" --arg uid "$UPLOAD_ID" --argjson parts "$PARTS" '{asset_id:$aid,upload_id:$uid,parts:$parts}')"
+          COMPLETE="$(curl -kfsS -X POST "$API/api/uploads/complete"             -H "authorization: Bearer $TOKEN"             -H 'content-type: application/json'             --data "$COMPLETE_BODY")"
+          printf '%s' "$COMPLETE" | jq '{ok,asset:{id:.asset.id,title:.asset.title,size_bytes:.asset.size_bytes,mime_type:.asset.mime_type,asset_type:.asset.asset_type}}'
+          printf '%s' "$COMPLETE" | jq -e --argjson sz "$EXPECTED_SIZE" '.ok==true and .asset.size_bytes==$sz and .asset.asset_type=="loop"' >/dev/null
+
+      - name: Hot-swap GTA VI YouTube visual without RTMP restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(cat /tmp/token)"
+          ASSET_ID="$(cat /tmp/asset-id)"
+
+          curl -kfsS "$API/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/before.json
+          BEFORE_REV="$(jq -r '.agent.services["youtube-gta-vi"].visual_revision // 0' /tmp/before.json)"
+          BEFORE_RESTARTS="$(jq -r '.agent.services["youtube-gta-vi"].restarts // 0' /tmp/before.json)"
+          BEFORE_ENCODER="$(jq -r '.agent.services["youtube-gta-vi"].encoder_pid // empty' /tmp/before.json)"
+          BEFORE_AUDIO="$(jq -r '.agent.services["youtube-gta-vi"].audio_pid // empty' /tmp/before.json)"
+          test -n "$BEFORE_ENCODER" && test -n "$BEFORE_AUDIO"
+
+          OUT="$(curl -kfsS -X POST "$API/api/ovh/visual"             -H "authorization: Bearer $TOKEN"             -H 'content-type: application/json'             --data "$(jq -nc --arg a "$ASSET_ID" '{runtime_slot:"youtube-gta-vi",asset_id:$a}')")"
+          printf '%s' "$OUT" | jq '{ok,visual:{asset_id:.visual.asset_id,title:.visual.title},command:{id:.command.id,action:.command.action,runtime_slot:.command.runtime_slot}}'
+          CMD_ID="$(printf '%s' "$OUT" | jq -r '.command.id // empty')"
+          test -n "$CMD_ID"
+
+          CMD_STATUS=""
+          for I in $(seq 1 120); do
+            C="$(curl -kfsS "$API/api/ovh/control/$CMD_ID" -H "authorization: Bearer $TOKEN")"
+            CMD_STATUS="$(printf '%s' "$C" | jq -r '.command.status // empty')"
+            echo "command[$I]=$CMD_STATUS"
+            [ "$CMD_STATUS" = "completed" ] && break
+            [ "$CMD_STATUS" = "failed" ] && { printf '%s\n' "$C"; exit 3; }
+            sleep 2
+          done
+          [ "$CMD_STATUS" = "completed" ]
+
+          OK=0
+          for I in $(seq 1 180); do
+            curl -kfsS "$API/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/after.json
+            ST="$(jq -r '.agent.services["youtube-gta-vi"].status // empty' /tmp/after.json)"
+            VS="$(jq -r '.agent.services["youtube-gta-vi"].visual_status // empty' /tmp/after.json)"
+            REV="$(jq -r '.agent.services["youtube-gta-vi"].visual_revision // 0' /tmp/after.json)"
+            REST="$(jq -r '.agent.services["youtube-gta-vi"].restarts // 0' /tmp/after.json)"
+            ENC="$(jq -r '.agent.services["youtube-gta-vi"].encoder_pid // empty' /tmp/after.json)"
+            AUD="$(jq -r '.agent.services["youtube-gta-vi"].audio_pid // empty' /tmp/after.json)"
+            echo "health[$I] status=$ST visual=$VS rev=$REV restarts=$REST encoder=$ENC audio=$AUD"
+
+            [ "$ENC" = "$BEFORE_ENCODER" ] || { echo "encoder_pid_changed"; exit 4; }
+            [ "$REST" = "$BEFORE_RESTARTS" ] || { echo "restart_counter_changed"; exit 5; }
+            [ "$AUD" = "$BEFORE_AUDIO" ] || { echo "audio_pid_changed"; exit 6; }
+
+            if [ "$ST" = "live" ] && [ "$VS" = "streaming" ] && [ "$REV" -gt "$BEFORE_REV" ]; then
+              OK=1
+              break
+            fi
+            sleep 3
+          done
+          [ "$OK" = "1" ]
+
+          jq '{gta:{
+            status:.agent.services["youtube-gta-vi"].status,
+            visual_status:.agent.services["youtube-gta-vi"].visual_status,
+            visual_revision:.agent.services["youtube-gta-vi"].visual_revision,
+            fps:.agent.services["youtube-gta-vi"].fps,
+            video_bitrate_kbps:.agent.services["youtube-gta-vi"].video_bitrate_kbps,
+            restarts:.agent.services["youtube-gta-vi"].restarts,
+            encoder_pid:.agent.services["youtube-gta-vi"].encoder_pid,
+            audio_pid:.agent.services["youtube-gta-vi"].audio_pid,
+            visual_pid:.agent.services["youtube-gta-vi"].visual_pid,
+            now_playing:.agent.services["youtube-gta-vi"].now_playing.title,
+            loop_url:.agent.services["youtube-gta-vi"].loop_url
+          }}' /tmp/after.json
+
+      - name: Remove temporary encrypted source and session artifact
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -f "$CIPHERTEXT"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A "$CIPHERTEXT"
+          git commit -m "ops: clear encrypted GTA visual transport" || true
+          if git diff --quiet HEAD origin/main; then
+            :
+          fi
+          for N in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin HEAD:main && break
+            git rebase --abort 2>/dev/null || true
+            sleep $((N*2))
+          done
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/$TOKEN_ARTIFACT_ID" || true
