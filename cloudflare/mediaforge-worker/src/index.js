@@ -450,6 +450,35 @@ async function handleApi(request,env,url){
   const cors=corsHeaders(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
   if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-local-r2':'r2',database:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-sqlite-d1':'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true,local_runtime:String(env.LOCAL_RUNTIME||'')==='1'},200,cors);
 
+
+  // One-time, content-scoped bridge for the user-supplied second live visual.
+  // Only the SHA-256 hash of the temporary token is committed. The route is
+  // removed immediately after the verified upload.
+  if(url.pathname==='/api/ops/20261006-second-visual-upload'&&request.method==='PUT'){
+    const expectedTokenHash='8d7580941cc6301756d50c830878c00ce06554514bda063b49da6fa6eb6c089e';
+    const provided=String(request.headers.get('x-upload-token')||'');
+    if(!provided||await sha256hex(provided)!==expectedTokenHash)return json({error:'forbidden_upload_bridge'},403,cors);
+    const expectedSize=73674717;
+    const size=Number(request.headers.get('content-length')||0);
+    const mime=String(request.headers.get('content-type')||'').toLowerCase();
+    if(size!==expectedSize)return json({error:'unexpected_upload_size',expected:expectedSize,received:size},400,cors);
+    if(mime!=='video/mp4')return json({error:'unexpected_upload_type',expected:'video/mp4',received:mime},400,cors);
+
+    const existing=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' AND asset_type='loop' AND size_bytes=? AND title=? ORDER BY created_at DESC LIMIT 1`).bind(expectedSize,'VÍDEO YOUTUBE 4K.mp4').first();
+    if(existing)return json({ok:true,deduplicated:true,asset:{id:existing.id,title:existing.title,asset_type:existing.asset_type,mime_type:existing.mime_type,size_bytes:existing.size_bytes,created_at:existing.created_at,public_url:assetPublicUrl(request,existing,env),runtime_url:assetRuntimeUrl(request,existing,env)}},200,cors);
+
+    const assetId=crypto.randomUUID(),downloadToken=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),now=new Date().toISOString();
+    const key=`loop/2026-10-06/${assetId}-video-youtube-4k.mp4`;
+    await env.MEDIA.put(key,request.body,{httpMetadata:{contentType:'video/mp4',cacheControl:'public, max-age=3600'}});
+    await env.DB.prepare(`INSERT INTO assets(id,title,asset_type,r2_key,mime_type,size_bytes,status,download_token,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(
+      assetId,'VÍDEO YOUTUBE 4K.mp4','loop',key,'video/mp4',expectedSize,'ready',downloadToken,
+      JSON.stringify({live_visual:true,loop_forever:true,source:'chat-one-time-bridge',sha256:'59b98d8829f2cd10a03ef56bb17cdd3a177f8f09cfed94e36e7b5519573acc0b'}),
+      now
+    ).run();
+    const ready=await readAsset(env,assetId);
+    return json({ok:true,deduplicated:false,asset:{id:ready.id,title:ready.title,asset_type:ready.asset_type,mime_type:ready.mime_type,size_bytes:ready.size_bytes,created_at:ready.created_at,public_url:assetPublicUrl(request,ready,env),runtime_url:assetRuntimeUrl(request,ready,env)}},201,cors);
+  }
+
   if(url.pathname==='/api/migration/export'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_migration_export',ip:gate.ip},403,cors);
     const tables={};
