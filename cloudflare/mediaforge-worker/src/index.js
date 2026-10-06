@@ -479,6 +479,44 @@ async function handleApi(request,env,url){
     return json({ok:true,deduplicated:false,asset:{id:ready.id,title:ready.title,asset_type:ready.asset_type,mime_type:ready.mime_type,size_bytes:ready.size_bytes,created_at:ready.created_at,public_url:assetPublicUrl(request,ready,env),runtime_url:assetRuntimeUrl(request,ready,env)}},201,cors);
   }
 
+
+  if(url.pathname==='/api/ops/20261006-import-second-visual'&&request.method==='GET'){
+    const expectedTokenHash='8d7580941cc6301756d50c830878c00ce06554514bda063b49da6fa6eb6c089e';
+    const provided=String(url.searchParams.get('token')||'');
+    if(!provided||await sha256hex(provided)!==expectedTokenHash)return json({error:'forbidden_import_bridge'},403,cors);
+    const source=String(url.searchParams.get('source')||'');
+    let sourceUrl;
+    try{sourceUrl=new URL(source);}catch(_){return json({error:'invalid_source_url'},400,cors);}
+    if(sourceUrl.protocol!=='https:'||sourceUrl.hostname!=='d2jqrm6oza8nb6.cloudfront.net'||sourceUrl.pathname!=='/datasets/741dc69e-1f32-4f51-b117-73cba0afd6eb.mp4'){
+      return json({error:'source_not_allowed'},403,cors);
+    }
+    const expectedSize=73674717;
+    const existing=await env.DB.prepare(`SELECT * FROM assets WHERE status='ready' AND asset_type='loop' AND size_bytes=? AND title=? ORDER BY created_at DESC LIMIT 1`).bind(expectedSize,'VÍDEO YOUTUBE 4K.mp4').first();
+    if(existing)return json({ok:true,deduplicated:true,asset:{id:existing.id,title:existing.title,asset_type:existing.asset_type,mime_type:existing.mime_type,size_bytes:existing.size_bytes,created_at:existing.created_at,public_url:assetPublicUrl(request,existing,env),runtime_url:assetRuntimeUrl(request,existing,env)}},200,cors);
+
+    const upstream=await fetch(sourceUrl.toString(),{redirect:'follow'});
+    if(!upstream.ok||!upstream.body)return json({error:'source_fetch_failed',status:upstream.status},502,cors);
+    const upstreamLength=Number(upstream.headers.get('content-length')||0);
+    if(upstreamLength&&upstreamLength!==expectedSize)return json({error:'source_size_mismatch',expected:expectedSize,received:upstreamLength},409,cors);
+
+    const assetId=crypto.randomUUID(),downloadToken=crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,''),now=new Date().toISOString();
+    const key=`loop/2026-10-06/${assetId}-video-youtube-4k.mp4`;
+    await env.MEDIA.put(key,upstream.body,{httpMetadata:{contentType:'video/mp4',cacheControl:'public, max-age=3600'}});
+    const stored=await env.MEDIA.head(key);
+    const storedSize=Number(stored?.size||0);
+    if(storedSize&&storedSize!==expectedSize){
+      try{await env.MEDIA.delete(key);}catch(_){}
+      return json({error:'stored_size_mismatch',expected:expectedSize,received:storedSize},500,cors);
+    }
+    await env.DB.prepare(`INSERT INTO assets(id,title,asset_type,r2_key,mime_type,size_bytes,status,download_token,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(
+      assetId,'VÍDEO YOUTUBE 4K.mp4','loop',key,'video/mp4',expectedSize,'ready',downloadToken,
+      JSON.stringify({live_visual:true,loop_forever:true,source:'chat-private-server-copy',sha256:'59b98d8829f2cd10a03ef56bb17cdd3a177f8f09cfed94e36e7b5519573acc0b'}),
+      now
+    ).run();
+    const ready=await readAsset(env,assetId);
+    return json({ok:true,deduplicated:false,asset:{id:ready.id,title:ready.title,asset_type:ready.asset_type,mime_type:ready.mime_type,size_bytes:ready.size_bytes,created_at:ready.created_at,public_url:assetPublicUrl(request,ready,env),runtime_url:assetRuntimeUrl(request,ready,env)}},201,cors);
+  }
+
   if(url.pathname==='/api/migration/export'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_migration_export',ip:gate.ip},403,cors);
     const tables={};
