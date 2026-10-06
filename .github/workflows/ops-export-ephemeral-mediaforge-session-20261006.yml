@@ -1,0 +1,37 @@
+name: Ops — Export Ephemeral MediaForge Session
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-export-ephemeral-mediaforge-session-20261006.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Create short-lived MediaForge session
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/mediaforge-session-token
+          chmod 600 /tmp/mediaforge-session-token
+      - name: Store session privately
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediaforge-ephemeral-session-20261006
+          path: /tmp/mediaforge-session-token
+          retention-days: 1
+          if-no-files-found: error
