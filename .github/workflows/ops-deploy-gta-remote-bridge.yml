@@ -1,0 +1,73 @@
+name: Ops — Deploy GTA Remote GitHub Bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-deploy-gta-remote-bridge.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cloudflare/mediaforge-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      MEDIAFORGE_GITHUB_TOKEN: ${{ secrets.MEDIAFORGE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate bridge secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$MEDIAFORGE_GITHUB_TOKEN"
+
+      - name: Install Wrangler
+        run: npm install
+
+      - name: Resolve D1 binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json > /tmp/d1.json
+          DB_ID="$(node - <<'NODE'
+          const fs=require('fs');
+          const list=JSON.parse(fs.readFileSync('/tmp/d1.json','utf8'));
+          const row=(Array.isArray(list)?list:(list.result||[])).find(x=>x.name==='mediaforge-control');
+          process.stdout.write(row?.uuid||row?.id||'');
+          NODE
+          )"
+          test -n "$DB_ID"
+          DB_ID="$DB_ID" node - <<'NODE'
+          const fs=require('fs');
+          const p='wrangler.jsonc';
+          const cfg=JSON.parse(fs.readFileSync(p,'utf8'));
+          cfg.d1_databases=[{binding:'DB',database_name:'mediaforge-control',database_id:process.env.DB_ID}];
+          fs.writeFileSync(p,JSON.stringify(cfg,null,2)+'\n');
+          NODE
+
+      - name: Deploy remote bridge worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy
+          printf '%s' "$MEDIAFORGE_GITHUB_TOKEN" | npx wrangler secret put GITHUB_WORKFLOW_TOKEN
+
+      - name: Verify remote worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 2 \
+            "https://mediaforge-api.guilhermeodsgn.workers.dev/api/health" | jq .
