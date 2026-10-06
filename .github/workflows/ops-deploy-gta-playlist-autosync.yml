@@ -1,5 +1,5 @@
 name: MediaForge — Deploy GTA Playlist Auto Sync
-# trigger: 2026-10-05T20:57:30-03:00 repair-local-library
+# trigger: 2026-10-05T21:05:00-03:00 gta-third-youtube-slot
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     env:
       ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
@@ -31,46 +31,74 @@ jobs:
           printf '%s' "$TOKEN" > /tmp/token
           echo "LOCAL_LOGIN_OK"
 
-      - name: Reload only OVH control agent from latest theofficemusic
+      - name: Refresh host deploy agent code
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://146.59.156.224:8443"
-          TOKEN="$(cat /tmp/token)"
-          ID="gta-playlist-autosync-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"reload_control_agent",target:"ovh-agent",request_id:$id,source:"gta-playlist-autosync"}')"             > /tmp/create.json
-          cat /tmp/create.json | jq .
+          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"
+          ID="gta-host-refresh-${GITHUB_RUN_ID}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"gta-third-slot"}')" >/tmp/host1-create.json
           for i in $(seq 1 80); do
-            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
-            ST="$(jq -r '.command.status // empty' /tmp/status.json)"
-            echo "reload_control_agent=$ST"
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" >/tmp/host1.json
+            ST="$(jq -r '.command.status // empty' /tmp/host1.json)"; echo "host_refresh=$ST"
             [ "$ST" = "completed" ] && break
-            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then
-              cat /tmp/status.json
-              exit 1
-            fi
+            [ "$ST" = "failed" ] && { cat /tmp/host1.json; exit 1; }
             sleep 3
           done
-          jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
-          jq -e '.command.result.media_publishers_touched==false' /tmp/status.json >/dev/null
-          echo "CONTROL_AGENT_RELOADED_WITHOUT_MEDIA_RESTART"
+          jq -e '.command.status=="completed"' /tmp/host1.json >/dev/null
+          sleep 8
 
-      - name: Verify GTA playlist and YouTube launch prerequisites
+      - name: Publish updated local MediaForge API and UI
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://146.59.156.224:8443"
-          TOKEN="$(cat /tmp/token)"
+          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"
+          ID="gta-control-plane-${GITHUB_RUN_ID}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"gta-third-slot-control-plane"}')" >/tmp/host2-create.json
+          for i in $(seq 1 180); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" >/tmp/host2.json
+            ST="$(jq -r '.command.status // empty' /tmp/host2.json)"; echo "control_plane=$ST"
+            [ "$ST" = "completed" ] && break
+            [ "$ST" = "failed" ] && { cat /tmp/host2.json; exit 1; }
+            sleep 5
+          done
+          jq -e '.command.status=="completed"' /tmp/host2.json >/dev/null
+          jq '.command.result.control_plane_publish // {}' /tmp/host2.json
           sleep 8
-          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/health.json
-          curl -kfsS "$BASE/api/music-library" -H "authorization: Bearer $TOKEN" > /tmp/library.json
-          jq '.agent | {reported_at,github_runtime_polling,gta_playlist_auto_sync}' /tmp/health.json
+
+      - name: Deploy GTA runtime engines into control agent
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"
+          ID="gta-runtime-${GITHUB_RUN_ID}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"reload_control_agent",target:"ovh-agent",request_id:$id,source:"gta-third-slot-runtime"}')" >/tmp/runtime-create.json
+          for i in $(seq 1 100); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" >/tmp/runtime.json
+            ST="$(jq -r '.command.status // empty' /tmp/runtime.json)"; echo "runtime_reload=$ST"
+            [ "$ST" = "completed" ] && break
+            [ "$ST" = "failed" ] && { cat /tmp/runtime.json; exit 1; }
+            sleep 3
+          done
+          jq -e '.command.status=="completed"' /tmp/runtime.json >/dev/null
+          jq -e '.command.result.media_publishers_touched==false' /tmp/runtime.json >/dev/null
+
+      - name: Verify GTA playlist and third YouTube slot
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"
+          sleep 10
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/health.json
+          curl -kfsS "$BASE/api/music-library" -H "authorization: Bearer $TOKEN" >/tmp/library.json
           echo "YOUTUBE_SLOTS:"
           jq '.youtube_slots | map({name,ovh_slot,status,current_session_id,youtube_stream_id})' /tmp/health.json
           echo "GTA_PLAYLIST:"
-          jq '.playlists[] | select(.key=="gta-vi-vice-city") | {key,name,track_count,total_duration_seconds,allowed_platforms}' /tmp/library.json
-          MODE="$(jq -r '.agent.github_runtime_polling // empty' /tmp/health.json)"
+          jq '.playlists[] | select(.key=="gta-vi-vice-city") | {key,name,track_count,total_duration_seconds}' /tmp/library.json
           GTA_COUNT="$(jq -r '[.playlists[]? | select(.key=="gta-vi-vice-city")] | length' /tmp/library.json)"
-          test "$MODE" = "catalog-fallback-only"
+          GTA_SLOT="$(jq -r '[.youtube_slots[]? | select(.ovh_slot=="youtube-gta-vi")] | length' /tmp/health.json)"
+          GTA_STATUS="$(jq -r '.youtube_slots[]? | select(.ovh_slot=="youtube-gta-vi") | .status' /tmp/health.json)"
           test "$GTA_COUNT" -eq 1
-          echo "GTA_PLAYLIST_UI_VISIBLE"
+          test "$GTA_SLOT" -eq 1
+          test "$GTA_STATUS" = "stopped"
+          echo "GTA_YOUTUBE_SLOT_READY"
