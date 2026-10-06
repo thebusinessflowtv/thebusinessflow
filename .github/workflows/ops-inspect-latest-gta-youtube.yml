@@ -1,5 +1,5 @@
 name: MediaForge — Inspect Latest GTA YouTube Attempt
-# bridge-probe-trigger: 2026-10-05T22:20:00-03:00-gta-public-health
+# bridge-probe-trigger: 2026-10-05T22:22:00-03:00-wait-gta-stable
 
 on:
   push:
@@ -33,7 +33,17 @@ jobs:
           }' /tmp/detail.json
 
           echo "GTA_PUBLIC_HEALTH:"
-          curl -kfsS "$BASE/api/ovh/public-health" | jq '.services["youtube-gta-vi"]'
+          READY=0
+          for I in $(seq 1 24); do
+            curl -kfsS "$BASE/api/ovh/public-health" > /tmp/gta-public-health.json
+            GTA_STATUS="$(jq -r '.services["youtube-gta-vi"].status // "unknown"' /tmp/gta-public-health.json)"
+            GTA_SONG="$(jq -r '.services["youtube-gta-vi"].now_playing.title // ""' /tmp/gta-public-health.json)"
+            echo "gta_health[$I] status=$GTA_STATUS now_playing=$GTA_SONG"
+            if [ "$GTA_STATUS" = "live" ]; then READY=1; break; fi
+            sleep 5
+          done
+          jq '.services["youtube-gta-vi"]' /tmp/gta-public-health.json
+          test "$READY" = "1"
 
           echo "BRIDGE_ROUTE_PROBE:"
           CODE="$(curl -ksS -o /tmp/bridge-probe.json -w '%{http_code}' -X POST "$BASE/api/ovh/agent/commands" -H 'content-type: application/json' --data '{"action":"start","runtime_slot":"youtube-gta-vi"}' || true)"
