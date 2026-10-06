@@ -1,5 +1,5 @@
 name: MediaForge — Inspect Latest GTA YouTube Attempt
-# bridge-probe-trigger: 2026-10-05T21:47:00-03:00-bootstrap
+# bridge-probe-trigger: 2026-10-05T21:55:00-03:00-oidc
 
 on:
   push:
@@ -43,6 +43,11 @@ jobs:
             --data '{"runtime_slot":"youtube-gta-vi"}' || true)"
           echo "BOOTSTRAP_HTTP=$BCODE"
           cat /tmp/bootstrap-probe.json || true
+
+          echo "OIDC_ROUTE_PROBE:"
+          OCODE="$(curl -ksS -o /tmp/oidc-probe.json -w '%{http_code}' -X POST "$BASE/api/ovh/github-youtube-bootstrap" -H 'content-type: application/json' --data '{"runtime_slot":"youtube-gta-vi"}' || true)"
+          echo "OIDC_HTTP=$OCODE"
+          cat /tmp/oidc-probe.json || true
 
           echo "DEPLOY_STATUS:"
           curl -kfsS "$BASE/api/ovh/deploy-status?id=direct-control-center-20261006003202" -H "authorization: Bearer $TOKEN" | jq '{command:{id:.command.id,status:.command.status,error:.command.error,result:.command.result}}'
