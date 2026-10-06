@@ -378,8 +378,17 @@
     location.replace('./secure.html?return='+encodeURIComponent(ret));
   }
   function renderDenied(){renderLogin()}
-  async function loadChannels(){const q=await sb.from('mfcc_channels').select('*').order('name');if(q.error)throw q.error;state.channels=q.data||[];return state.channels}
-  async function loadProductions(limit){const q=await sb.from('mfcc_productions').select('*, mfcc_channels(*)').order('created_at',{ascending:false}).limit(limit||500);if(q.error)throw q.error;return q.data||[]}
+  /* VIDEO_FACTORY_API_V2: video control-plane uses MediaForge API/D1, not browser Supabase. */
+  async function loadChannels(){
+    const r=await mfApi('/api/video/channels');
+    state.channels=(r.channels||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    return state.channels;
+  }
+  async function loadProductions(limit){
+    if(!state.channels.length)await loadChannels();
+    const r=await mfApi('/api/video/productions');
+    return (r.productions||[]).slice(0,limit||500).map(p=>({...p,mfcc_channels:state.channels.find(c=>c.slug===p.channel_slug||c.id===p.channel_id)||{name:p.channel_name||p.channel_slug}}));
+  }
 
   function enhanceTimeline(){
     const cards=[...document.querySelectorAll('.detailgrid>.card.pad')];
@@ -526,78 +535,115 @@
     app.innerHTML=shell(html,path);wireShell();
   }
 
-  async function createPage(path,params){const channels=await loadChannels();let selected=params.get('channel')||channels[0]?.id||'';let mode='manual',objective='viral_ctr',upload=false,formDraft={topic:'',notes:''};function render(){const c=channels.find(x=>x.id===selected),up=canUpload(c);let html=pageHead('Criar vídeo','Configure e envie uma nova produção para a fábrica.')+'<div class="create-layout"><div class="grid"><div class="card step"><div class="steptitle"><span class="stepnum">1</span>Canal</div><div class="grid grid2" id="channelChoices">'+channels.map(x=>'<button class="choice '+(x.id===selected?'on':'')+'" data-channel="'+x.id+'"><strong>'+esc(x.name)+'</strong><small>'+esc(x.niche)+'</small></button>').join('')+'</div></div><div class="card step"><div class="steptitle"><span class="stepnum">2</span>Modo de geração</div><div class="grid" style="grid-template-columns:repeat(3,1fr)" id="modeChoices">'+[['manual','✎','Tema manual','Você define o tema.'],['suggest','✦','IA sugere 5 ideias','Escolha entre 5 ideias.'],['auto','◇','Automático','IA escolhe e produz.']].map(m=>'<button class="choice '+(mode===m[0]?'on':'')+'" data-mode="'+m[0]+'"><span style="color:#b7a6ff">'+m[1]+'</span><strong>'+m[2]+'</strong><small>'+m[3]+'</small></button>').join('')+'</div><div class="field '+(mode==='manual'?'':'hidden')+'" id="topicWrap" style="margin-top:14px"><label>Tema *</label><input class="input" id="topicInput" value="'+esc(formDraft.topic)+'" placeholder="Ex.: What Really Happened to Derrick Rose?"></div></div><div class="card step"><div class="steptitle"><span class="stepnum">3</span>Objetivo</div><div class="objectives" id="objectives">'+Object.entries(objLabels).map(o=>'<button class="objective '+(objective===o[0]?'on':'')+'" data-objective="'+o[0]+'">'+o[1]+'</button>').join('')+'</div></div><div class="card step"><div class="steptitle"><span class="stepnum">4</span>Observações (opcional)</div><textarea class="textarea" id="notes" placeholder="Tom, recorte, referências ou observações adicionais…">'+esc(formDraft.notes)+'</textarea></div><div class="card step"><div class="steptitle"><span class="stepnum">5</span>YouTube</div><div class="row between '+(!up?'muted':'')+'"><div><b class="small">Enviar ao YouTube quando terminar</b><div class="tiny muted">'+(up?'Sempre como PRIVADO':'YouTube ainda não conectado')+'</div></div><button class="toggle '+(upload&&up?'on':'')+'" id="uploadToggle" '+(!up?'disabled':'')+'></button></div></div></div><div class="card pad summary sticky"><h3 class="small">Resumo</h3><dl style="margin-top:12px"><div class="sum"><dt>Canal</dt><dd>'+esc(c?.name||'—')+'</dd></div><div class="sum"><dt>Modo</dt><dd>'+esc(modeLabels[mode])+'</dd></div><div class="sum"><dt>Objetivo</dt><dd>'+esc(objLabels[objective])+'</dd></div><div class="sum"><dt>YouTube</dt><dd>'+(upload&&up?'Enviar (privado)':'Não enviar')+'</dd></div></dl><button class="btn primary block" id="launch" style="margin-top:16px">▶ Iniciar produção</button></div></div>';app.innerHTML=shell(html,path);wireShell();const saveDraft=()=>{formDraft.topic=document.getElementById('topicInput')?.value||formDraft.topic;formDraft.notes=document.getElementById('notes')?.value||formDraft.notes};document.querySelectorAll('[data-channel]').forEach(b=>b.onclick=()=>{saveDraft();selected=b.dataset.channel;upload=false;render()});document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{saveDraft();mode=b.dataset.mode;render()});document.querySelectorAll('[data-objective]').forEach(b=>b.onclick=()=>{saveDraft();objective=b.dataset.objective;render()});const ut=document.getElementById('uploadToggle');if(ut&&!ut.disabled)ut.onclick=()=>{saveDraft();upload=!upload;render()};document.getElementById('launch').onclick=()=>{const topicVal=(document.getElementById('topicInput')?.value||'').trim(),notesVal=(document.getElementById('notes')?.value||'').trim();if(mode==='manual'&&topicVal.length<3){toast('Informe um tema','O modo manual precisa de um tema.','error');return}const desc='<b>'+esc(c.name)+'</b><br>'+esc(modeLabels[mode])+' · '+esc(objLabels[objective])+(topicVal?'<br><br>Tema: '+esc(topicVal):'')+(upload&&up?'<br><br>O vídeo será enviado ao YouTube como <b>PRIVADO</b>.':'');modal('Iniciar produção?',desc,'Confirmar',async()=>launchProduction(c,mode,objective,topicVal,notesVal,upload&&up))}}render()}
-  async function launchProduction(c,mode,objective,topicVal,notesVal,upload){const ins=await sb.from('mfcc_productions').insert({channel_id:c.id,requested_topic:mode==='manual'?topicVal:null,generation_mode:mode,objective:objective,notes:notesVal||null,upload_requested:!!upload,status:'draft',progress:0}).select('id').single();if(ins.error)throw ins.error;const id=ins.data.id;try{await invoke('mfcc-dispatch',{production_id:id})}catch(e){toast('Produção criada, mas a fábrica precisa de configuração',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error');go('/production/'+id);return}toast('Produção iniciada',c.name,'success');if(mode==='suggest'){await suggestionsView(id)}else go('/production/'+id)}
-  async function suggestionsView(id){
+  async function createPage(path,params){
+    const channels=await loadChannels(),ctx=channelContext(path);
+    let selected=params.get('channel')||(ctx&&ctx.slug)||channels[0]?.id||'',mode='manual',objective='viral_ctr',upload=false,formDraft={topic:'',notes:''};
+    function render(){
+      const c=channels.find(x=>x.id===selected||x.slug===selected),up=canUpload(c);
+      if(!c){
+        app.innerHTML=shell(pageHead('Gerar vídeo','Este canal ainda não possui fábrica de vídeo configurada no novo backend.')+empty('Fábrica ainda não configurada','No momento, The Business Flow e NBA Stars já estão disponíveis.'),path);wireShell();return;
+      }
+      let html=pageHead('Criar vídeo','Configure e envie uma nova produção para a fábrica. O fluxo agora usa MediaForge + GitHub, sem depender do Supabase.')+
+        '<div class="create-layout"><div class="grid"><div class="card step"><div class="steptitle"><span class="stepnum">1</span>Canal</div><div class="grid grid2" id="channelChoices">'+
+        channels.map(x=>'<button class="choice '+((x.id===selected||x.slug===selected)?'on':'')+'" data-channel="'+esc(x.slug||x.id)+'"><strong>'+esc(x.name)+'</strong><small>'+esc(x.niche)+'</small></button>').join('')+
+        '</div></div><div class="card step"><div class="steptitle"><span class="stepnum">2</span>Modo de geração</div><div class="grid" style="grid-template-columns:repeat(3,1fr)" id="modeChoices">'+
+        [['manual','✎','Tema manual','Você define o tema.'],['suggest','✦','IA sugere 5 ideias','Escolha entre 5 ideias.'],['auto','◇','Automático','IA escolhe e produz.']].map(m=>'<button class="choice '+(mode===m[0]?'on':'')+'" data-mode="'+m[0]+'"><span style="color:#b7a6ff">'+m[1]+'</span><strong>'+m[2]+'</strong><small>'+m[3]+'</small></button>').join('')+
+        '</div><div class="field '+(mode==='manual'?'':'hidden')+'" id="topicWrap" style="margin-top:14px"><label>Tema *</label><input class="input" id="topicInput" value="'+esc(formDraft.topic)+'" placeholder="Ex.: What Really Happened to Derrick Rose?"></div></div>'+
+        '<div class="card step"><div class="steptitle"><span class="stepnum">3</span>Objetivo</div><div class="objectives" id="objectives">'+Object.entries(objLabels).map(o=>'<button class="objective '+(objective===o[0]?'on':'')+'" data-objective="'+o[0]+'">'+o[1]+'</button>').join('')+'</div></div>'+
+        '<div class="card step"><div class="steptitle"><span class="stepnum">4</span>Observações (opcional)</div><textarea class="textarea" id="notes" placeholder="Tom, recorte, referências ou observações adicionais…">'+esc(formDraft.notes)+'</textarea></div>'+
+        '<div class="card step"><div class="steptitle"><span class="stepnum">5</span>YouTube</div><div class="row between '+(!up?'muted':'')+'"><div><b class="small">Enviar ao YouTube quando terminar</b><div class="tiny muted">'+(up?'Sempre como PRIVADO':'YouTube ainda não conectado')+'</div></div><button class="toggle '+(upload&&up?'on':'')+'" id="uploadToggle" '+(!up?'disabled':'')+'></button></div></div></div>'+
+        '<div class="card pad summary sticky"><div class="pill p-success" style="margin-bottom:12px">MediaForge API · ativo</div><h3 class="small">Resumo</h3><dl style="margin-top:12px"><div class="sum"><dt>Canal</dt><dd>'+esc(c.name||'—')+'</dd></div><div class="sum"><dt>Modo</dt><dd>'+esc(modeLabels[mode])+'</dd></div><div class="sum"><dt>Objetivo</dt><dd>'+esc(objLabels[objective])+'</dd></div><div class="sum"><dt>YouTube</dt><dd>'+(upload&&up?'Enviar (privado)':'Não enviar')+'</dd></div></dl><button class="btn primary block" id="launch" style="margin-top:16px">▶ Iniciar produção</button></div></div>';
+      app.innerHTML=shell(html,path);wireShell();
+      const saveDraft=()=>{formDraft.topic=document.getElementById('topicInput')?.value||formDraft.topic;formDraft.notes=document.getElementById('notes')?.value||formDraft.notes};
+      document.querySelectorAll('[data-channel]').forEach(b=>b.onclick=()=>{saveDraft();selected=b.dataset.channel;upload=false;render()});
+      document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{saveDraft();mode=b.dataset.mode;render()});
+      document.querySelectorAll('[data-objective]').forEach(b=>b.onclick=()=>{saveDraft();objective=b.dataset.objective;render()});
+      const ut=document.getElementById('uploadToggle');if(ut&&!ut.disabled)ut.onclick=()=>{saveDraft();upload=!upload;render()};
+      document.getElementById('launch').onclick=()=>{
+        const topicVal=(document.getElementById('topicInput')?.value||'').trim(),notesVal=(document.getElementById('notes')?.value||'').trim();
+        if(mode==='manual'&&topicVal.length<3){toast('Informe um tema','O modo manual precisa de um tema.','error');return}
+        const desc='<b>'+esc(c.name)+'</b><br>'+esc(modeLabels[mode])+' · '+esc(objLabels[objective])+(topicVal?'<br><br>Tema: '+esc(topicVal):'')+(upload&&up?'<br><br>O vídeo será enviado ao YouTube como <b>PRIVADO</b>.':'');
+        modal('Iniciar produção?',desc,'Confirmar',async()=>launchProduction(c,mode,objective,topicVal,notesVal,upload&&up));
+      };
+    }
+    render();
+  }
+  async function launchProduction(c,mode,objective,topicVal,notesVal,upload){
+    const r=await mfApi('/api/video/productions',{method:'POST',body:JSON.stringify({channel_slug:c.slug||c.id,generation_mode:mode,objective,topic:topicVal,notes:notesVal,upload_requested:!!upload})});
+    const p=r.production;if(!p||!p.id)throw new Error('O MediaForge não retornou o ID da produção.');
+    toast('Produção iniciada',c.name,'success');
+    if(mode==='suggest')await suggestionsView(p.id,'/'+(c.slug||c.id)+'/create');else go('/production/'+p.id);
+  }
+  async function suggestionsView(id,returnPath){
     clearPoll();
-    app.innerHTML=shell(pageHead('IA buscando ideias…','A Anthropic está preparando 5 temas para você escolher.')+'<div class="card empty"><div class="loader" style="margin:0 auto 14px"></div><h3>Buscando oportunidades</h3><p>Isso pode levar alguns minutos. A página atualiza automaticamente.</p></div>','/create');
+    const shellPath=returnPath||'/nba-stars/create';
+    app.innerHTML=shell(pageHead('IA buscando ideias…','A fábrica está preparando exatamente 5 temas para você escolher.')+'<div class="card empty"><div class="loader" style="margin:0 auto 14px"></div><h3>Buscando oportunidades</h3><p>O pedido já está no GitHub. Esta tela atualiza automaticamente sem usar o Supabase.</p></div>',shellPath);
     wireShell();
     let stopped=false;
     const attempt=async()=>{
       if(stopped)return;
       try{
-        const r=await invoke('mfcc-suggestions',{production_id:id});
+        const r=await mfApi('/api/video/productions/'+encodeURIComponent(id)+'/suggestions');
         if(r&&r.ready){stopped=true;clearPoll();go('/ideas/'+id);return}
-      }catch(e){toast('Não foi possível buscar as sugestões',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error');stopped=true;return}
-      if(!stopped)state.pollTimer=setTimeout(attempt,5000)
+      }catch(e){toast('Não foi possível buscar as sugestões',errMsg(e),'error')}
+      if(!stopped)state.pollTimer=setTimeout(attempt,7000);
     };
-    attempt()
+    attempt();
   }
 
-  function renderSuggestions(id,items){go('/ideas/'+id)}
+  function renderSuggestions  function renderSuggestions(id,items){go('/ideas/'+id)}
 
-  async function launchIdea(source,s){
-    if(s.launched_production_id){go('/production/'+s.launched_production_id);return s.launched_production_id}
-    const used=await sb.from('mfcc_topic_suggestions').select('id,launched_production_id').eq('production_id',source.id).eq('selected',true).not('launched_production_id','is',null);
-    if(used.error)throw used.error;
-    let pid=null;
-    if(!(used.data||[]).length&&source.generation_mode==='suggest'&&!source.selected_topic){
-      const meta={...(source.metadata||{}),idea_source_production_id:source.id,idea_suggestion_id:s.id};
-      const p1=await sb.from('mfcc_productions').update({requested_topic:s.topic,selected_topic:s.topic,generation_mode:'manual',status:'draft',progress:0,metadata:meta}).eq('id',source.id);
-      if(p1.error)throw p1.error;
-      pid=source.id;
-    }else{
-      const ins=await sb.from('mfcc_productions').insert({channel_id:source.channel_id,requested_topic:s.topic,selected_topic:s.topic,generation_mode:'manual',objective:source.objective,notes:source.notes||null,upload_requested:!!source.upload_requested,status:'draft',progress:0,metadata:{idea_source_production_id:source.id,idea_suggestion_id:s.id}}).select('id').single();
-      if(ins.error)throw ins.error;
-      pid=ins.data.id;
-    }
-    await invoke('mfcc-dispatch',{production_id:pid});
-    const u=await sb.from('mfcc_topic_suggestions').update({selected:true,excluded:false,launched_production_id:pid}).eq('id',s.id);
-    if(u.error)throw u.error;
-    return pid
+  async function launchIdea(source,s,index){
+    const r=await mfApi('/api/video/productions/'+encodeURIComponent(source.id)+'/select-suggestion',{method:'POST',body:JSON.stringify({index:index})});
+    const p=r.production;if(!p)throw new Error('Não foi possível iniciar a ideia selecionada.');
+    go('/production/'+p.id);return p.id;
   }
-
   async function ideasPage(path,batchId){
-    await loadChannels();
-    let q=sb.from('mfcc_topic_suggestions').select('*').eq('excluded',false).order('created_at',{ascending:false});
-    if(batchId)q=q.eq('production_id',batchId);
-    const r=await q;if(r.error)throw r.error;
-    const items=r.data||[];
-    const sourceIds=[...new Set(items.map(x=>x.production_id).filter(Boolean))];
-    let sources=[];
-    if(sourceIds.length){const pr=await sb.from('mfcc_productions').select('*').in('id',sourceIds);if(pr.error)throw pr.error;sources=pr.data||[]}
-    const sourceMap=Object.fromEntries(sources.map(x=>[x.id,x]));
-    const channelMap=Object.fromEntries((state.channels||[]).map(x=>[x.id,x]));
-    const drafts=items.filter(x=>!x.selected).length, selected=items.filter(x=>x.selected).length;
-    const cards=items.map(s=>{
-      const src=sourceMap[s.production_id]||{},ch=channelMap[src.channel_id]||{};
-      const badge=s.selected?'<span class="pill p-success">Selecionada</span>':'<span class="pill p-warning">Rascunho</span>';
-      const actions=s.selected&&s.launched_production_id
-        ? '<button class="btn primary openIdeaProduction" data-id="'+esc(s.id)+'">▶ Acompanhar produção</button>'
-        : '<div class="row"><button class="btn primary chooseIdea" style="flex:1" data-id="'+esc(s.id)+'">▶ Produzir esta ideia</button><button class="btn danger excludeIdea" data-id="'+esc(s.id)+'">✕ Excluir</button></div>';
-      return '<div class="card suggestion"><div class="row between" style="align-items:flex-start;gap:10px"><div>'+badge+'</div>'+(s.score!=null?'<span class="pill p-violet">'+esc(s.score)+'</span>':'')+'</div><h3 style="margin-top:12px">'+esc(s.title_idea||s.topic)+'</h3><p><b style="color:#d5d8e0">Tema:</b> '+esc(s.topic)+'</p>'+(s.hook?'<p><b style="color:#d5d8e0">Gancho:</b> '+esc(s.hook)+'</p>':'')+(s.reason?'<p>'+esc(s.reason)+'</p>':'')+'<div class="tiny muted" style="margin:4px 0 12px">'+esc(ch.name||'Canal')+' · '+fmt(s.created_at)+'</div>'+actions+'</div>'
-    }).join('');
-    const action=batchId?'<a class="btn" href="#/ideas">Ver todas as ideias</a>':'';
-    let html=pageHead(batchId?'Ideias desta pesquisa':'Banco de ideias',items.length?(drafts+' rascunho'+(drafts===1?'':'s')+' · '+selected+' selecionada'+(selected===1?'':'s')+'. Produza quantas quiser; as demais ficam salvas como rascunho.'):'Nenhuma ideia salva ainda.',action);
-    html+=items.length?'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">'+cards+'</div>':empty('Nenhuma ideia disponível','As ideias geradas pela IA aparecerão aqui e permanecerão como rascunho até você produzir ou excluir.','<a class="btn primary" href="#/create">Criar novas ideias</a>');
-    app.innerHTML=shell(html,path);wireShell();
-    const byId=Object.fromEntries(items.map(x=>[x.id,x]));
-    document.querySelectorAll('.openIdeaProduction').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id];if(s&&s.launched_production_id)go('/production/'+s.launched_production_id)});
-    document.querySelectorAll('.chooseIdea').forEach(b=>b.onclick=async()=>{const s=byId[b.dataset.id],source=s&&sourceMap[s.production_id];if(!s||!source)return;b.disabled=true;b.textContent='Iniciando…';try{await launchIdea(source,s);toast('Ideia selecionada','A produção foi iniciada e as demais continuam salvas como rascunho.','success');await ideasPage(path,batchId)}catch(e){toast('Não foi possível iniciar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error');b.disabled=false;b.textContent='▶ Produzir esta ideia'}});
-    document.querySelectorAll('.excludeIdea').forEach(b=>b.onclick=()=>{const s=byId[b.dataset.id];if(!s)return;modal('Excluir ideia?','<b>'+esc(s.title_idea||s.topic)+'</b><br><br>Ela sairá do banco de ideias. As outras continuarão salvas como rascunho.','Excluir',async()=>{const u=await sb.from('mfcc_topic_suggestions').update({excluded:true}).eq('id',s.id);if(u.error)throw u.error;toast('Ideia excluída','','success');await ideasPage(path,batchId)})})
+    if(!batchId){
+      const ctx=channelContext(path);
+      const all=await loadProductions(100),rows=all.filter(p=>(!ctx||p.channel_slug===ctx.slug)&&p.generation_mode==='suggest');
+      let html=pageHead('Ideias','As sugestões de IA ficam vinculadas a cada produção.');
+      html+=rows.length?'<div class="grid">'+rows.map(p=>'<a class="card pad" href="#/production/'+p.id+'"><div class="row between"><div><b>'+esc(topic(p))+'</b><div class="tiny muted" style="margin-top:5px">'+fmt(p.created_at)+'</div></div>'+statusPill(p.status)+'</div></a>').join('')+'</div>':empty('Nenhuma rodada de ideias ainda','Abra Gerar vídeo e selecione “IA sugere 5 ideias”.');
+      app.innerHTML=shell(html,path);wireShell();return;
+    }
+    const d=await mfApi('/api/video/productions/'+encodeURIComponent(batchId));
+    const source=d.production;if(!source)throw new Error('Produção não encontrada.');
+    const sr=await mfApi('/api/video/productions/'+encodeURIComponent(batchId)+'/suggestions');
+    if(!sr.ready){await suggestionsView(batchId,'/'+source.channel_slug+'/create');return}
+    const items=(sr.suggestions||[]).slice(0,5);
+    const shellPath='/'+source.channel_slug+'/ideas';
+    let html=pageHead('Escolha uma ideia','A IA encontrou 5 opções. Selecione uma para enviar imediatamente à fábrica.')+
+      '<div class="grid grid2">'+items.map((s,i)=>'<div class="card pad"><div class="row between"><span class="pill p-violet">#'+(i+1)+'</span>'+(s.score!=null?'<span class="pill">'+esc(s.score)+'/100</span>':'')+'</div><h3 style="margin:12px 0 8px">'+esc(s.title_idea||s.topic)+'</h3><p class="small muted">'+esc(s.topic||'')+'</p>'+(s.hook?'<div class="small" style="margin-top:12px"><b>Gancho:</b> '+esc(s.hook)+'</div>':'')+(s.reason?'<div class="tiny muted" style="margin-top:10px">'+esc(s.reason)+'</div>':'')+'<button class="btn primary block chooseIdea" data-index="'+i+'" style="margin-top:16px">▶ Produzir esta ideia</button></div>').join('')+
+      '</div>';
+    app.innerHTML=shell(html,shellPath);wireShell();
+    document.querySelectorAll('.chooseIdea').forEach(b=>b.onclick=()=>modal('Produzir esta ideia?','Ela será enviada para a fábrica de '+esc(source.channel_name||source.channel_slug)+'.','Confirmar',async()=>{b.disabled=true;b.textContent='Enviando…';try{await launchIdea(source,items[Number(b.dataset.index)],Number(b.dataset.index));toast('Ideia selecionada','A produção foi enviada para a fila.','success')}catch(e){b.disabled=false;b.textContent='▶ Produzir esta ideia';throw e}}));
   }
-  async function productions(path,params){await loadChannels();let q=sb.from('mfcc_productions').select('*, mfcc_channels(*)').order('created_at',{ascending:false}).limit(300);if(params.get('channel'))q=q.eq('channel_id',params.get('channel'));if(params.get('status'))q=q.eq('status',params.get('status'));const r=await q;if(r.error)throw r.error;const rows=r.data||[];let html=pageHead('Produções','Seus vídeos ficam organizados aqui. Quando concluídos, você pode assistir e baixar os arquivos diretamente pela produção.')+'<div class="filters"><input class="input" id="searchProd" placeholder="Buscar por tema…"><select class="select" id="channelFilter"><option value="">Todos os canais</option>'+state.channels.map(c=>'<option value="'+c.id+'" '+(params.get('channel')===c.id?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select><select class="select" id="statusFilter"><option value="">Todos os status</option>'+Object.keys(labels).map(s=>'<option value="'+s+'" '+(params.get('status')===s?'selected':'')+'>'+labels[s]+'</option>').join('')+'</select></div>';html+=rows.length?'<div class="card tablewrap"><table class="table"><thead><tr><th>Canal</th><th>Tema</th><th>Modo</th><th>Objetivo</th><th>Status</th><th>Progresso</th><th>Criado</th></tr></thead><tbody id="prodBody">'+rows.map(p=>prodRow(p)).join('')+'</tbody></table></div>':empty('Nenhuma produção ainda','Comece criando seu primeiro vídeo.','<a class="btn primary" href="#/create">Criar primeiro vídeo</a>');app.innerHTML=shell(html,path);wireShell();const apply=()=>{let h='/productions',qs=[];const c=document.getElementById('channelFilter').value,s=document.getElementById('statusFilter').value;if(c)qs.push('channel='+encodeURIComponent(c));if(s)qs.push('status='+encodeURIComponent(s));go(h+(qs.length?'?'+qs.join('&'):''))};document.getElementById('channelFilter').onchange=apply;document.getElementById('statusFilter').onchange=apply;document.getElementById('searchProd').oninput=e=>{const v=e.target.value.toLowerCase();document.querySelectorAll('#prodBody tr').forEach(tr=>tr.classList.toggle('hidden',!tr.dataset.topic.includes(v)))}}
-  function prodRow(p){return'<tr data-topic="'+esc(topic(p).toLowerCase())+'" onclick="location.hash=\'/production/'+p.id+'\'" style="cursor:pointer"><td class="muted">'+esc(p.mfcc_channels?.name||'—')+'</td><td><b>'+esc(topic(p))+'</b></td><td class="muted">'+esc(modeLabels[p.generation_mode]||p.generation_mode)+'</td><td class="muted">'+esc(objLabels[p.objective]||p.objective)+'</td><td>'+statusPill(p.status)+'</td><td><div class="row">'+progress(p.progress)+'<span class="tiny muted" style="width:35px;text-align:right">'+(p.progress||0)+'%</span></div></td><td class="tiny muted">'+fmt(p.created_at)+'</td></tr>'}
+
+  async function productions(path,params){
+    const channels=await loadChannels(),ctx=channelContext(path);
+    const qs=new URLSearchParams();
+    const requestedChannel=params.get('channel')||(ctx&&ctx.slug)||'';
+    if(requestedChannel)qs.set('channel',requestedChannel);
+    if(params.get('status'))qs.set('status',params.get('status'));
+    const r=await mfApi('/api/video/productions'+(qs.toString()?'?'+qs.toString():''));
+    const rows=(r.productions||[]).map(p=>({...p,mfcc_channels:channels.find(c=>c.slug===p.channel_slug)||{name:p.channel_name||p.channel_slug}}));
+    let html=pageHead('Produções','Produções novas agora são registradas no MediaForge, independentemente do Supabase.')+
+      '<div class="filters"><input class="input" id="searchProd" placeholder="Buscar por tema…"><select class="select" id="channelFilter"><option value="">Todos os canais</option>'+
+      channels.map(c=>'<option value="'+esc(c.slug)+'" '+(requestedChannel===c.slug?'selected':'')+'>'+esc(c.name)+'</option>').join('')+
+      '</select><select class="select" id="statusFilter"><option value="">Todos os status</option>'+Object.keys(labels).map(s=>'<option value="'+s+'" '+(params.get('status')===s?'selected':'')+'>'+labels[s]+'</option>').join('')+'</select></div>';
+    html+=rows.length?'<div class="card tablewrap"><table class="table"><thead><tr><th>Canal</th><th>Tema</th><th>Modo</th><th>Objetivo</th><th>Status</th><th>Progresso</th><th>Criado</th></tr></thead><tbody id="prodBody">'+rows.map(p=>prodRow(p)).join('')+'</tbody></table></div>':empty('Nenhuma produção nova ainda','Crie o primeiro vídeo no backend MediaForge.','<a class="btn primary" href="#/'+((ctx&&ctx.slug)||'nba-stars')+'/create">Criar primeiro vídeo</a>');
+    app.innerHTML=shell(html,path);wireShell();
+    const apply=()=>{
+      const cp=channelContext(path),base=cp?('/'+cp.slug+'/productions'):'/productions',args=[];
+      const ch=document.getElementById('channelFilter').value,st=document.getElementById('statusFilter').value;
+      if(ch&&(!cp||ch!==cp.slug))args.push('channel='+encodeURIComponent(ch));
+      if(st)args.push('status='+encodeURIComponent(st));
+      go(base+(args.length?'?'+args.join('&'):''));
+    };
+    document.getElementById('channelFilter').onchange=apply;document.getElementById('statusFilter').onchange=apply;
+    document.getElementById('searchProd').oninput=e=>{const v=e.target.value.toLowerCase();document.querySelectorAll('#prodBody tr').forEach(tr=>tr.classList.toggle('hidden',!tr.dataset.topic.includes(v)))};
+  }
+  function prodRow(p){  function prodRow(p){return'<tr data-topic="'+esc(topic(p).toLowerCase())+'" onclick="location.hash=\'/production/'+p.id+'\'" style="cursor:pointer"><td class="muted">'+esc(p.mfcc_channels?.name||'—')+'</td><td><b>'+esc(topic(p))+'</b></td><td class="muted">'+esc(modeLabels[p.generation_mode]||p.generation_mode)+'</td><td class="muted">'+esc(objLabels[p.objective]||p.objective)+'</td><td>'+statusPill(p.status)+'</td><td><div class="row">'+progress(p.progress)+'<span class="tiny muted" style="width:35px;text-align:right">'+(p.progress||0)+'%</span></div></td><td class="tiny muted">'+fmt(p.created_at)+'</td></tr>'}
 
   async function responseBlobWithProgress(res,onProgress){
     const total=Number(res.headers.get('content-length')||0);
@@ -653,8 +699,28 @@
   }
 }
 
-  async function productionDetail(path,id){const[pR,eR]=await Promise.all([sb.from('mfcc_productions').select('*, mfcc_channels(*)').eq('id',id).single(),sb.from('mfcc_production_events').select('*').eq('production_id',id).order('created_at',{ascending:true})]);if(pR.error)throw pR.error;if(eR.error)throw eR.error;const p=pR.data,events=eR.data||[];const ideaSourceId=p.metadata&&p.metadata.idea_source_production_id||null;const allPhases=[['Pedido',['draft','queued']],['Pesquisa',['researching']],['Roteiro',['scripting']],['Mídias',['collecting_media']],['Narração',['narrating']],['Render',['rendering']],['Validação',['validating']]];if(p.upload_requested||['upload_pending','uploaded_private'].includes(p.status))allPhases.push(['YouTube',['upload_pending','uploaded_private']]);let idx=allPhases.findIndex(x=>x[1].includes(p.status));if(['completed','uploaded_private'].includes(p.status))idx=allPhases.length;const stepper=allPhases.map((ph,i)=>'<div class="phase '+(i<idx?'done':i===idx?(p.status==='failed'?'fail':'cur'):'')+'"><div class="dot">'+(i<idx?'✓':i+1)+'</div>'+ph[0]+'</div>').join('');const done=['completed','uploaded_private'].includes(p.status);let right='';if(done)right='<div class="card pad watch-card"><div class="row between"><div><div class="eyebrow">PREVIEW</div><h3 class="small">Assistir vídeo</h3></div><span class="glass-icon"><i data-lucide="play"></i></span></div><p class="small muted">Reproduza o vídeo final diretamente no Control Center antes de baixar ou publicar.</p><button class="btn primary block" id="watchVideo"><i data-lucide="play"></i> Reproduzir vídeo</button></div><div class="card pad"><h3 class="small">Arquivos gerados</h3><div class="tiny muted" style="margin:5px 0 12px">Vídeo, thumbnail e roteiro salvos nesta produção · disponíveis para download</div><div class="grid">'+[['video','Baixar vídeo'],['thumbnail','Baixar thumbnail'],['script','Baixar roteiro'],['package','Baixar pacote completo']].map(k=>'<button class="btn '+(k[0]==='package'?'primary':'')+' downloadBtn" data-kind="'+k[0]+'">↓ '+k[1]+'</button>').join('')+'</div></div>';if(p.youtube_url)right+='<div class="card pad"><div class="row between"><h3 class="small">YouTube</h3><span class="pill p-warning">PRIVADO</span></div><a class="btn block" style="margin-top:12px" target="_blank" rel="noopener" href="'+esc(p.youtube_url)+'">▶ Abrir no YouTube</a></div>';if(p.notes)right+='<div class="card pad"><h3 class="small">Observações</h3><p class="small muted">'+esc(p.notes)+'</p></div>';let html='<a class="small muted" href="#/productions">← Produções</a><div class="card detail-head" style="margin-top:12px"><div class="row between wrap"><div><div class="tiny muted">'+esc(p.mfcc_channels?.name||'')+' · '+esc(modeLabels[p.generation_mode]||p.generation_mode)+' · '+esc(objLabels[p.objective]||p.objective)+'</div><h1>'+esc(topic(p))+'</h1><div class="tiny muted">'+fmt(p.created_at)+'</div></div><div class="row">'+(ideaSourceId?'<a class="btn" href="#/ideas/'+esc(ideaSourceId)+'">✦ Ideias</a>':'')+statusPill(p.status)+(!terminal.includes(p.status)?'<span class="pill p-success" id="autoRefreshIndicator">● Auto · 5s</span>':'')+'<button class="btn" id="refreshStatus">↻ Atualizar agora</button>'+(!terminal.includes(p.status)?'<button class="btn danger" id="deleteProduction">✕ Excluir execução</button>':'')+'</div></div><div class="bigprogress '+(!terminal.includes(p.status)?'live':'')+'">'+progress(p.progress)+'<div class="percent">'+(p.progress||0)+'%</div></div><div class="stepper">'+stepper+'</div>'+(p.status==='failed'?'<div class="alert danger" style="margin-top:16px"><b>A produção falhou</b><div style="margin-top:4px">'+esc(p.error_message||'Sem detalhes do erro.')+'</div></div>':'')+(p.github_run_url?'<a class="tiny muted" target="_blank" rel="noopener" style="display:inline-block;margin-top:12px" href="'+esc(p.github_run_url)+'">⌘ Abrir execução no GitHub ↗</a>':'')+'</div><div class="detailgrid"><div class="card pad"><h3 class="small" style="margin-bottom:16px">Linha do tempo</h3>'+(events.length?'<div class="timeline">'+events.map(e=>'<div class="event"><p>'+esc(e.message||e.stage||'Evento')+'</p><small>'+esc(e.stage)+' · '+fmt(e.created_at)+'</small></div>').join('')+'</div>':'<div class="small muted">Nenhum evento registrado ainda.</div>')+'</div><div class="grid">'+right+'</div></div>';app.innerHTML=shell(html,path);wireShell();const watchVideo=document.getElementById('watchVideo');if(watchVideo)watchVideo.onclick=()=>openVideoPlayer(id,topic(p));document.getElementById('refreshStatus').onclick=async()=>{const b=document.getElementById('refreshStatus');b.disabled=true;b.textContent='Atualizando…';try{if(p.generation_mode==='suggest'&&!p.selected_topic){const sr=await invoke('mfcc-suggestions',{production_id:id});if(sr&&sr.ready){clearPoll();go('/ideas/'+id);return}}else{await invoke('mfcc-status',{production_id:id})}toast('Status atualizado','','success')}catch(e){toast('Falha ao atualizar',e.setup?('Configuração necessária: '+e.setup):errMsg(e),'error')}route()};const deleteBtn=document.getElementById('deleteProduction');if(deleteBtn)deleteBtn.onclick=()=>modal('Excluir execução?','A produção <b>'+esc(topic(p))+'</b> será removida do painel. Se houver uma execução ativa no GitHub, o sistema tentará cancelá-la antes.<br><br><b>Esta ação não pode ser desfeita.</b>','Excluir execução',async()=>{clearPoll();const r=await invoke('mfcc-delete-production',{production_id:id});toast('Execução excluída',r&&r.cancelled?'A execução do GitHub também foi cancelada.':'A produção foi removida do painel.','success');go('/productions')});document.querySelectorAll('.downloadBtn').forEach(b=>b.onclick=async()=>{b.disabled=true;const old=b.textContent;b.textContent='Preparando…';try{const r=await invoke('mfcc-artifact-link',{production_id:id,kind:b.dataset.kind});if(r.fallback_package)toast('Arquivo individual ainda sendo preparado','Baixando o pacote completo.');window.open(r.download_url,'_blank','noopener')}catch(e){toast('Download indisponível',errMsg(e),'error')}finally{b.disabled=false;b.textContent=old}});clearPoll();if(!terminal.includes(p.status))state.pollTimer=setInterval(async()=>{try{if(p.generation_mode==='suggest'&&!p.selected_topic){const sr=await invoke('mfcc-suggestions',{production_id:id});if(sr&&sr.ready){clearPoll();go('/ideas/'+id);return}}else{await invoke('mfcc-status',{production_id:id})}if(location.hash.startsWith('#/production/'+id))await productionDetail(path,id)}catch(e){console.warn(e)}},5000)}
-  async function channelsPage(path){const channels=await loadChannels();let html=pageHead('Canais','Configuração dos canais lida diretamente do banco.')+'<div class="grid grid2">'+channels.map(c=>'<div class="card pad"><div class="row between"><div><h3>'+esc(c.name)+'</h3><div class="small muted" style="margin-top:4px">'+esc(c.niche)+'</div></div><span class="pill '+(c.active?'p-success':'')+'">'+(c.active?'Ativo':'Inativo')+'</span></div><div class="grid" style="margin-top:18px;gap:10px"><div class="row between small"><span class="muted">Repositório</span><code class="tiny">'+esc(c.repo_full_name)+'</code></div><div class="row between small"><span class="muted">Idioma / locale</span><span>'+esc(c.locale)+'</span></div><div class="row between small"><span class="muted">YouTube</span><span class="pill '+(ytConnected(c)?'p-success':'')+'">'+(ytConnected(c)?'Conectado':'Não conectado')+'</span></div></div><div style="margin-top:16px"><div class="tiny muted" style="margin-bottom:7px">CAPACIDADES</div><div class="row wrap"><span class="pill p-violet">Criar vídeo</span><span class="pill">Downloads</span>'+(canUpload(c)?'<span class="pill p-success">Upload privado</span>':'<span class="pill">Upload desativado</span>')+'</div></div></div>').join('')+'</div>';app.innerHTML=shell(html,path);wireShell()}
+  async function productionDetail(path,id){
+    const d=await mfApi('/api/video/productions/'+encodeURIComponent(id)+'?refresh=1');
+    const p=d.production,events=d.events||[];if(!p)throw new Error('Produção não encontrada.');
+    const shellPath='/'+p.channel_slug+'/productions';
+    const allPhases=[['Pedido',['draft','queued']],['Pesquisa',['researching']],['Roteiro',['scripting']],['Mídias',['collecting_media']],['Narração',['narrating']],['Render',['rendering']],['Validação',['validating']]];
+    if(p.upload_requested||['upload_pending','uploaded_private'].includes(p.status))allPhases.push(['YouTube',['upload_pending','uploaded_private']]);
+    let idx=allPhases.findIndex(x=>x[1].includes(p.status));if(['completed','uploaded_private'].includes(p.status))idx=allPhases.length;
+    const stepper=allPhases.map((ph,i)=>'<div class="phase '+(i<idx?'done':i===idx?(p.status==='failed'?'fail':'cur'):'')+'"><div class="dot">'+(i<idx?'✓':i+1)+'</div>'+ph[0]+'</div>').join('');
+    const done=['completed','uploaded_private'].includes(p.status);
+    let right='';
+    if(done)right='<div class="card pad"><h3 class="small">Produção concluída</h3><p class="small muted">O render foi concluído no GitHub. O download direto será conectado ao novo backend em uma etapa separada; a geração já não depende do Supabase.</p>'+(p.github_run_url?'<a class="btn primary block" target="_blank" rel="noopener" href="'+esc(p.github_run_url)+'">⌘ Abrir execução no GitHub</a>':'')+'</div>';
+    if(p.notes)right+='<div class="card pad"><h3 class="small">Observações</h3><p class="small muted">'+esc(p.notes)+'</p></div>';
+    let html='<a class="small muted" href="#/'+esc(p.channel_slug)+'/productions">← Produções</a><div class="card detail-head" style="margin-top:12px"><div class="row between wrap"><div><div class="tiny muted">'+esc(p.channel_name||'')+' · '+esc(modeLabels[p.generation_mode]||p.generation_mode)+' · '+esc(objLabels[p.objective]||p.objective)+'</div><h1>'+esc(topic(p))+'</h1><div class="tiny muted">'+fmt(p.created_at)+'</div></div><div class="row">'+statusPill(p.status)+(!terminal.includes(p.status)?'<span class="pill p-success">● MediaForge · Auto</span>':'')+'<button class="btn" id="refreshStatus">↻ Atualizar agora</button></div></div><div class="bigprogress '+(!terminal.includes(p.status)?'live':'')+'">'+progress(p.progress)+'<div class="percent">'+(p.progress||0)+'%</div></div><div class="stepper">'+stepper+'</div>'+(p.status==='failed'?'<div class="alert danger" style="margin-top:16px"><b>A produção falhou</b><div style="margin-top:4px">'+esc(p.error_message||'Sem detalhes do erro.')+'</div></div>':'')+(p.github_run_url?'<a class="tiny muted" target="_blank" rel="noopener" style="display:inline-block;margin-top:12px" href="'+esc(p.github_run_url)+'">⌘ Abrir execução no GitHub ↗</a>':'')+'</div><div class="detailgrid"><div class="card pad"><h3 class="small" style="margin-bottom:16px">Linha do tempo</h3>'+(events.length?'<div class="timeline">'+events.map(e=>'<div class="event"><p>'+esc(e.message||e.stage||'Evento')+'</p><small>'+esc(e.stage)+' · '+fmt(e.created_at)+'</small></div>').join('')+'</div>':'<div class="small muted">Nenhum evento registrado ainda.</div>')+'</div><div class="grid">'+right+'</div></div>';
+    app.innerHTML=shell(html,shellPath);wireShell();
+    const refresh=document.getElementById('refreshStatus');if(refresh)refresh.onclick=async()=>{refresh.disabled=true;refresh.textContent='Atualizando…';try{await mfApi('/api/video/productions/'+encodeURIComponent(id)+'/refresh',{method:'POST'});toast('Status atualizado','','success')}catch(e){toast('Falha ao atualizar',errMsg(e),'error')}route()};
+    if(p.generation_mode==='suggest'&&!p.selected_topic&&!terminal.includes(p.status)){
+      try{const sr=await mfApi('/api/video/productions/'+encodeURIComponent(id)+'/suggestions');if(sr.ready){clearPoll();go('/ideas/'+id);return}}catch(_){}
+    }
+    if(!terminal.includes(p.status))state.pollTimer=setTimeout(()=>{if(location.hash.includes('/production/'+id))route()},8000);
+  }
+
+  async function channelsPage(path){  async function channelsPage(path){const channels=await loadChannels();let html=pageHead('Canais','Configuração dos canais lida diretamente do banco.')+'<div class="grid grid2">'+channels.map(c=>'<div class="card pad"><div class="row between"><div><h3>'+esc(c.name)+'</h3><div class="small muted" style="margin-top:4px">'+esc(c.niche)+'</div></div><span class="pill '+(c.active?'p-success':'')+'">'+(c.active?'Ativo':'Inativo')+'</span></div><div class="grid" style="margin-top:18px;gap:10px"><div class="row between small"><span class="muted">Repositório</span><code class="tiny">'+esc(c.repo_full_name)+'</code></div><div class="row between small"><span class="muted">Idioma / locale</span><span>'+esc(c.locale)+'</span></div><div class="row between small"><span class="muted">YouTube</span><span class="pill '+(ytConnected(c)?'p-success':'')+'">'+(ytConnected(c)?'Conectado':'Não conectado')+'</span></div></div><div style="margin-top:16px"><div class="tiny muted" style="margin-bottom:7px">CAPACIDADES</div><div class="row wrap"><span class="pill p-violet">Criar vídeo</span><span class="pill">Downloads</span>'+(canUpload(c)?'<span class="pill p-success">Upload privado</span>':'<span class="pill">Upload desativado</span>')+'</div></div></div>').join('')+'</div>';app.innerHTML=shell(html,path);wireShell()}
 
   async function autohealPage(path){
     const [channels,sR,eR]=await Promise.all([loadChannels(),sb.from('mfcc_autoheal_settings').select('*'),sb.from('mfcc_autoheal_events').select('*, mfcc_channels(name), mfcc_productions(requested_topic,selected_topic)').order('created_at',{ascending:false}).limit(80)]);
@@ -683,18 +749,9 @@
       else if(path==='/peter-lofi/lives')await modulePage(path,'Lives','Abrir e gerenciar Kick, Twitch e YouTube pela OVH.','./lives.html?platform='+(params.get('platform')||'kick')+'&v=20261004-resume1',true);
       else if(path==='/peter-lofi/ovh')await modulePage(path,'OVH VPS','Saúde dos encoders e controles do servidor.','./ovh.html',true);
       else if(['/the-business-flow','/nba-stars','/leonidanos'].includes(path))await videoChannelHome(path);
-      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/create$/.test(path)){
-        if(!(await legacyReady())){legacyUnavailable(path);return}
-        await createPage(path,params);
-      }
-      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/productions$/.test(path)){
-        if(!(await legacyReady())){legacyUnavailable(path);return}
-        await productions(path,params);
-      }
-      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/ideas$/.test(path)){
-        if(!(await legacyReady())){legacyUnavailable(path);return}
-        await ideasPage(path,null);
-      }
+      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/create$/.test(path))await createPage(path,params);
+      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/productions$/.test(path))await productions(path,params);
+      else if(/^\/(the-business-flow|nba-stars|leonidanos)\/ideas$/.test(path))await ideasPage(path,null);
       else if(path==='/peter-lofi-series')go('/peter-lofi/series');
       else if(path==='/lives')go('/peter-lofi/lives');
       else if(path==='/ovh')go('/peter-lofi/ovh');
