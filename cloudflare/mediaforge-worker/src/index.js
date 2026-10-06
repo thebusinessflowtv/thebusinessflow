@@ -15,6 +15,38 @@ function corsHeaders(request,env){const origin=request.headers.get('origin')||''
 async function bodyJson(request){try{return await request.json();}catch(_){return {};}}
 function bearer(request){const h=request.headers.get('authorization')||'';return h.toLowerCase().startsWith('bearer ')?h.slice(7).trim():'';}
 async function requireAuth(request,env){const t=bearer(request);return t?verifySession(t,env.SESSION_SECRET||''):null;}
+function b64urlBytesRaw(s){
+  const p=String(s||'').replace(/-/g,'+').replace(/_/g,'/');
+  const padded=p+'='.repeat((4-p.length%4)%4);
+  return Uint8Array.from(atob(padded),ch=>ch.charCodeAt(0));
+}
+function b64urlJsonRaw(s){
+  return JSON.parse(new TextDecoder().decode(b64urlBytesRaw(s)));
+}
+async function verifyGithubActionsOidc(token){
+  const parts=String(token||'').split('.');
+  if(parts.length!==3)throw new Error('invalid_oidc_token');
+  const [h,p,s]=parts,header=b64urlJsonRaw(h),claims=b64urlJsonRaw(p);
+  if(header.alg!=='RS256'||!header.kid)throw new Error('invalid_oidc_header');
+  const now=Math.floor(Date.now()/1000),aud=claims.aud;
+  const audOk=Array.isArray(aud)?aud.includes('mediaforge-ovh'):String(aud||'')==='mediaforge-ovh';
+  if(claims.iss!=='https://token.actions.githubusercontent.com'||!audOk)throw new Error('invalid_oidc_issuer_or_audience');
+  if(Number(claims.exp||0)<now-30||Number(claims.nbf||0)>now+30)throw new Error('expired_or_early_oidc_token');
+  if(String(claims.repository||'')!=='thebusinessflowtv/theofficemusic')throw new Error('invalid_oidc_repository');
+  if(String(claims.ref||'')!=='refs/heads/main')throw new Error('invalid_oidc_ref');
+  if(!String(claims.workflow_ref||'').includes('thebusinessflowtv/theofficemusic/.github/workflows/gta-youtube-oauth-bridge.yml@refs/heads/main'))throw new Error('invalid_oidc_workflow');
+
+  const jwksRes=await fetch('https://token.actions.githubusercontent.com/.well-known/jwks');
+  if(!jwksRes.ok)throw new Error('github_oidc_jwks_unavailable');
+  const jwks=await jwksRes.json();
+  const jwk=(jwks.keys||[]).find(k=>k.kid===header.kid);
+  if(!jwk)throw new Error('github_oidc_key_not_found');
+  const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+  const ok=await crypto.subtle.verify({name:'RSASSA-PKCS1-v1_5'},key,b64urlBytesRaw(s),enc.encode(h+'.'+p));
+  if(!ok)throw new Error('invalid_oidc_signature');
+  return claims;
+}
+
 
 function githubHeaders(env){return {'authorization':`Bearer ${env.GITHUB_WORKFLOW_TOKEN}`,'accept':'application/vnd.github+json','x-github-api-version':'2022-11-28','user-agent':'MediaForge-Cloudflare-Worker','content-type':'application/json'};}
 async function githubQueueFile(env,path,payload,message){
@@ -642,6 +674,54 @@ async function handleApi(request,env,url){
     const asset=await readAsset(env,assetId);
     return json({ok:true,asset:{id:asset.id,title:asset.title,asset_type:asset.asset_type,mime_type:asset.mime_type,size_bytes:asset.size_bytes,public_url:assetPublicUrl(request,asset,env),runtime_url:assetRuntimeUrl(request,asset,env)}},201,cors);
   }
+  if(url.pathname==='/api/ovh/github-youtube-bootstrap'&&request.method==='POST'){
+    let claims;
+    try{claims=await verifyGithubActionsOidc(bearer(request));}
+    catch(e){return json({error:'invalid_github_oidc',message:e?.message||String(e)},403,cors);}
+    const b=await bodyJson(request);
+    const slot=String(b.runtime_slot||'');
+    if(slot!=='youtube-gta-vi')return json({error:'invalid_youtube_bootstrap_slot'},400,cors);
+    const streamUrl=String(b.stream_url||'').trim(),streamKey=String(b.stream_key||'').trim();
+    if(!streamUrl||!streamKey)return json({error:'youtube_ingest_required'},400,cors);
+    const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)==='gta-vi-vice-city');
+    if(!playlist)return json({error:'playlist_not_found'},404,cors);
+    const tracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({
+      id:String(t.id||`gta-vi-vice-city-${i+1}`),
+      title:String(t.title||'Track'),
+      url:String(t.url),
+      duration_seconds:Number(t.duration_seconds||300),
+      position:t.position??null,
+      target_bpm:t.target_bpm??null
+    }));
+    if(!tracks.length)return json({error:'playlist_empty'},400,cors);
+    const cmd=await issueOvhCommand(env,{
+      action:'start',
+      platform:'youtube',
+      runtime_slot:'youtube-gta-vi',
+      session_id:String(b.session_id||''),
+      title:String(b.title||'GTA VI - Vice City'),
+      description:String(b.description||''),
+      duration_minutes:0,
+      loop_url:String(b.loop_url||''),
+      playlist_key:'gta-vi-vice-city',
+      tracks,
+      shuffle:true,
+      repeat:true,
+      stream_url:streamUrl,
+      stream_key:streamKey,
+      source:'github-actions-oidc-youtube-bridge',
+      github_run_id:String(claims.run_id||'')
+    });
+    return json({
+      ok:true,
+      authenticated_repository:claims.repository,
+      runtime_slot:'youtube-gta-vi',
+      playlist_key:'gta-vi-vice-city',
+      playlist_track_count:tracks.length,
+      command:{id:cmd.id,action:cmd.action,requested_at:cmd.requested_at}
+    },202,cors);
+  }
+
   if(url.pathname==='/api/ovh/agent/runtime-config'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
     const path=String(url.searchParams.get('path')||'').trim();
