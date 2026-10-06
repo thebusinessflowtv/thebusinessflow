@@ -1,7 +1,11 @@
 name: The Business Flow YouTube Auth Check
+# gta-auth-check: 2026-10-05T21:45:30-03:00
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/youtube-auth-check.yml'
 
 permissions:
   contents: read
