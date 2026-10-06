@@ -1,5 +1,5 @@
 name: MediaForge — Deploy Control Center to OVH
-# second-visual-upload-bridge: 2026-10-06T01:05Z
+# video-control-plane-v2: 2026-10-06T15:06Z
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   deploy:
@@ -29,6 +29,7 @@ jobs:
           TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token')"
           test -n "$TOKEN" && test "$TOKEN" != "null"
           echo "::add-mask::$TOKEN"
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/status" > /tmp/live-before.json
 
           ID="deploy-control-center-$(date -u +%Y%m%d%H%M%S)"
           BODY="$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"control-center-dj100"}')"
@@ -49,6 +50,23 @@ jobs:
           cat /tmp/status.json
           jq -r '.command.result.git_head // .command.result_json // empty' /tmp/status.json
 
+          curl -fsS -H "authorization: Bearer $TOKEN" "$API/api/ovh/status" > /tmp/live-after.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const before=JSON.parse(fs.readFileSync('/tmp/live-before.json','utf8'));
+          const after=JSON.parse(fs.readFileSync('/tmp/live-after.json','utf8'));
+          const a=before?.agent?.services||{}, b=after?.agent?.services||{};
+          const keys=['twitch','kick','youtube-deep-house','youtube-rainy','youtube-gta-vi'];
+          for(const k of keys){
+            if(!a[k]) continue;
+            if(!b[k]) throw new Error(k+' disappeared after control-api deploy');
+            if(String(a[k].encoder_pid||'')!==String(b[k].encoder_pid||'')) throw new Error(k+' encoder PID changed');
+            if(Number(a[k].restarts||0)!==Number(b[k].restarts||0)) throw new Error(k+' restart counter changed');
+            if(String(a[k].status||'')!==String(b[k].status||'')) throw new Error(k+' live status changed');
+          }
+          console.log('LIVE_ENCODERS_UNCHANGED');
+          NODE
+
       - name: Verify public Control Center has DJ 100 UI
         shell: bash
         run: |
@@ -67,3 +85,30 @@ jobs:
           echo '::error::Public production UI still serves the old Twitch DJ scanner.'
           head -c 500 /tmp/lives.js 2>/dev/null || true
           exit 1
+
+
+      - name: Publish OVH video control deploy result
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p control
+          node - <<'NODE'
+          const fs=require('fs');
+          const out={
+            kind:'video-control-ovh',
+            status:process.env.JOB_STATUS||'unknown',
+            commit:process.env.GITHUB_SHA||'',
+            run_id:process.env.GITHUB_RUN_ID||'',
+            updated_at:new Date().toISOString()
+          };
+          fs.writeFileSync('control/video-control-ovh-deploy-result.json',JSON.stringify(out,null,2)+'\n');
+          NODE
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/video-control-ovh-deploy-result.json
+          git commit -m "mediaforge: record OVH video control deploy result" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
