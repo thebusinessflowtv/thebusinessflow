@@ -1,5 +1,5 @@
-name: MediaForge — Direct Deploy Control API OVH
-# gta-secure-bridge-control-api: 2026-10-06-v3
+name: MediaForge — Deploy Visual Rotation Agent OVH
+# visual-rotation-v1: 2026-10-06
 
 on:
   push:
@@ -20,45 +20,72 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy ONLY Control API on OVH
+      - name: Login and snapshot publisher identities
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
-          LOGIN="$(curl -kfsS --connect-timeout 8 --max-time 25 -X POST "$BASE/api/auth/login" \
+          LOGIN="$(curl -kfsS --retry 8 --retry-all-errors --retry-delay 2 -X POST "$BASE/api/auth/login" \
             -H 'content-type: application/json' \
             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
           TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
           test -n "$TOKEN"
           echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" > /tmp/mf-token
+          curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/before.json
+          for SLOT in twitch kick; do
+            jq -e --arg s "$SLOT" '.agent.services[$s].status=="live" and .agent.services[$s].hot_swap==true and (.agent.services[$s].encoder_pid != null)' /tmp/before.json >/dev/null
+          done
+          jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-          ID="direct-control-api-$(date -u +%Y%m%d%H%M%S)"
-          CREATE="$(curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+      - name: Deploy only OVH control agent
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/mf-token)"
+          ID="visual-rotation-agent-$(date -u +%Y%m%d%H%M%S)"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"second-visual-private-import"}')")"
-          echo "$CREATE" | jq '{ok,command:{id:.command.id,action:.command.action,target:.command.target,status:(.command.status//"pending")}}'
-
-          for i in $(seq 1 120); do
-            if ! curl -kfsS --retry 6 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json; then
-              echo "control-api endpoint temporarily unavailable during self-restart"
-              sleep 3
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"ovh-agent",request_id:$id,source:"visual-rotation-v1"}')" \
+            > /tmp/create.json
+          for I in $(seq 1 120); do
+            if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" \
+              -H "authorization: Bearer $TOKEN" > /tmp/status.json; then
+              sleep 2
               continue
             fi
             ST="$(jq -r '.command.status // empty' /tmp/status.json)"
-            echo "control-api=$ST"
+            echo "ovh-agent=$ST"
             [ "$ST" = "completed" ] && break
             if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then
-              jq '{command:{id:.command.id,status:.command.status,error:.command.error,result:.command.result}}' /tmp/status.json
+              cat /tmp/status.json
               exit 1
             fi
             sleep 3
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
-          jq -e '.command.result.mediaforge_control_plane.publisher_pids_preserved==true' /tmp/status.json >/dev/null
-          jq '{command:{id:.command.id,status:.command.status,result:{git_head:.command.result.git_head,publisher_pids_preserved:.command.result.mediaforge_control_plane.publisher_pids_preserved,ui_verified:.command.result.mediaforge_control_plane.ui_verified}}}' /tmp/status.json
 
-      - name: Verify direct API is healthy
+      - name: Verify publishers were not restarted and rotation is waiting for B
         shell: bash
         run: |
           set -euo pipefail
-          curl -kfsS --retry 10 --retry-all-errors --retry-delay 2 "https://146.59.156.224:8443/api/health" | jq .
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/mf-token)"
+          sleep 8
+          curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/after.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const b=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
+          const a=JSON.parse(fs.readFileSync('/tmp/after.json','utf8'));
+          for(const s of ['twitch','kick']){
+            const x=b.agent.services[s], y=a.agent.services[s];
+            if(String(x.encoder_pid)!==String(y.encoder_pid)) throw new Error(s+' encoder PID changed');
+            if(Number(x.restarts||0)!==Number(y.restarts||0)) throw new Error(s+' restart counter changed');
+            if(y.status!=='live'||y.hot_swap!==true) throw new Error(s+' is not live/hot-swap after agent deploy');
+          }
+          const r=a.agent.visual_rotation||{};
+          console.log('VISUAL_ROTATION',JSON.stringify(r));
+          if(r.status!=='waiting_second_visual') throw new Error('rotation did not capture current visual A');
+          NODE
+          jq '{visual_rotation:.agent.visual_rotation,twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts}}' /tmp/after.json
