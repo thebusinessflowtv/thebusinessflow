@@ -1,5 +1,5 @@
 name: MediaForge — Inspect Latest GTA YouTube Attempt
-# bridge-probe-trigger: 2026-10-05T22:17:00-03:00-post-secure-deploy
+# bridge-probe-trigger: 2026-10-05T22:20:00-03:00-gta-public-health
 
 on:
   push:
@@ -31,6 +31,9 @@ jobs:
             tracks: (.tracks | map({id,title,url,duration_seconds})),
             assets: .assets
           }' /tmp/detail.json
+
+          echo "GTA_PUBLIC_HEALTH:"
+          curl -kfsS "$BASE/api/ovh/public-health" | jq '.services["youtube-gta-vi"]'
 
           echo "BRIDGE_ROUTE_PROBE:"
           CODE="$(curl -ksS -o /tmp/bridge-probe.json -w '%{http_code}' -X POST "$BASE/api/ovh/agent/commands" -H 'content-type: application/json' --data '{"action":"start","runtime_slot":"youtube-gta-vi"}' || true)"
