@@ -1,55 +1,151 @@
-name: One-off — Verify Live Visual Hot Swap
-# second visual probe: 2026-10-06
+name: One-off — Secure Second Visual Import
 
 on:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/oneoff-verify-live-visual-hot-swap.yml'
+      - 'control/private-import/second-visual.enc'
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
-  verify:
+  secure-import:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     env:
       ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
       API: https://146.59.156.224:8443
-      EXPECTED_SIZE: "73674717"
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Find exact second visual in MediaForge
+      - name: Prepare key or decrypt private payload
+        id: mode
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p control/private-import
+          if [ ! -s control/private-import/second-visual.enc ]; then
+            openssl rand -hex 32 > /tmp/second-visual-import.key
+            chmod 600 /tmp/second-visual-import.key
+            echo "mode=key" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "mode=import" >> "$GITHUB_OUTPUT"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=second-visual-import-key&per_page=100" > /tmp/artifacts.json
+          ARTIFACT_ID="$(jq -r '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | last | .id // empty' /tmp/artifacts.json)"
+          test -n "$ARTIFACT_ID"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/key.zip
+          unzip -q /tmp/key.zip -d /tmp/key-artifact
+          test -s /tmp/key-artifact/second-visual-import.key
+          cp /tmp/key-artifact/second-visual-import.key /tmp/second-visual-import.key
+          chmod 600 /tmp/second-visual-import.key
+
+          openssl enc -d -aes-256-cbc -pbkdf2 -a -A             -pass file:/tmp/second-visual-import.key             -in control/private-import/second-visual.enc             -out /tmp/second-visual.json
+          jq -e '.source_url and .expected_size and .expected_sha256' /tmp/second-visual.json >/dev/null
+
+      - name: Store ephemeral key privately
+        if: steps.mode.outputs.mode == 'key'
+        uses: actions/upload-artifact@v4
+        with:
+          name: second-visual-import-key
+          path: /tmp/second-visual-import.key
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Record key readiness
+        if: steps.mode.outputs.mode == 'key'
         shell: bash
         run: |
           set -euo pipefail
-          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
-          TOKEN="$(curl -kfsS -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token // empty')"
-          test -n "$TOKEN"
-          echo "::add-mask::$TOKEN"
-          curl -kfsS -H "authorization: Bearer $TOKEN" "$API/api/assets" > /tmp/assets.json
-
-          MATCH="$(jq -c --argjson sz "$EXPECTED_SIZE" '[.assets[] | select(.asset_type=="loop") | select((.mime_type // "") | startswith("video/")) | select((.size_bytes // 0)==$sz)] | sort_by(.created_at) | last // empty' /tmp/assets.json)"
-          mkdir -p control
-          if [ -n "$MATCH" ] && [ "$MATCH" != "null" ]; then
-            printf '%s' "$MATCH" | jq '{found:true,asset:{id,title,asset_type,mime_type,size_bytes,created_at,public_url}}' > control/second-4k-visual-probe.json
-          else
-            jq -n --argjson sz "$EXPECTED_SIZE" '{found:false,expected_size_bytes:$sz}' > control/second-4k-visual-probe.json
-          fi
-          cat control/second-4k-visual-probe.json
-
-      - name: Commit sanitized result
-        run: |
-          set -euo pipefail
+          jq -n --arg run_id "${GITHUB_RUN_ID}" --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             '{status:"key_ready",workflow_run_id:$run_id,created_at:$created_at}'             > control/private-import/key-ready.json
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add control/second-4k-visual-probe.json
-          git commit -m "ops: record second 4K visual probe" || exit 0
+          git add control/private-import/key-ready.json
+          git commit -m "ops: prepare private second-visual import key" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Download and verify original video
+        if: steps.mode.outputs.mode == 'import'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_URL="$(jq -r '.source_url' /tmp/second-visual.json)"
+          EXPECTED_SIZE="$(jq -r '.expected_size' /tmp/second-visual.json)"
+          EXPECTED_SHA256="$(jq -r '.expected_sha256' /tmp/second-visual.json)"
+          echo "::add-mask::$SOURCE_URL"
+          curl -fL --retry 5 --retry-all-errors --retry-delay 2 "$SOURCE_URL" -o /tmp/second-visual.mp4
+          SIZE="$(wc -c < /tmp/second-visual.mp4 | tr -d ' ')"
+          SHA="$(sha256sum /tmp/second-visual.mp4 | awk '{print $1}')"
+          test "$SIZE" = "$EXPECTED_SIZE"
+          test "$SHA" = "$EXPECTED_SHA256"
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json /tmp/second-visual.mp4
+
+      - name: Import original MP4 into OVH MediaForge
+        if: steps.mode.outputs.mode == 'import'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_SIZE="$(jq -r '.expected_size' /tmp/second-visual.json)"
+          LOGIN="$(jq -nc --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -kfsS --retry 8 --retry-all-errors --retry-delay 2 -H 'content-type: application/json' -d "$LOGIN" "$API/api/auth/login" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          curl -kfsS -H "authorization: Bearer $TOKEN" "$API/api/assets" > /tmp/assets.json
+          EXISTING="$(jq -c --argjson sz "$EXPECTED_SIZE" '[.assets[] | select(.asset_type=="loop") | select((.size_bytes // 0)==$sz)] | sort_by(.created_at) | last // empty' /tmp/assets.json)"
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            printf '%s' "$EXISTING" > /tmp/final-asset.json
+          else
+            INIT_BODY="$(jq -nc --arg name 'VÍDEO YOUTUBE 4K.mp4' --arg title 'VÍDEO YOUTUBE 4K.mp4' --argjson size "$EXPECTED_SIZE" '{name:$name,title:$title,mime_type:"video/mp4",size_bytes:$size,asset_type:"loop"}')"
+            INIT="$(curl -kfsS -X POST -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$INIT_BODY" "$API/api/uploads/init")"
+            ASSET_ID="$(printf '%s' "$INIT" | jq -r '.asset_id')"
+            UPLOAD_ID="$(printf '%s' "$INIT" | jq -r '.upload_id')"
+            CHUNK="$(printf '%s' "$INIT" | jq -r '.chunk_size')"
+            test -n "$ASSET_ID" && test -n "$UPLOAD_ID" && test "$CHUNK" -gt 0
+
+            : > /tmp/parts.ndjson
+            PART=1
+            OFFSET=0
+            while [ "$OFFSET" -lt "$EXPECTED_SIZE" ]; do
+              REMAIN=$((EXPECTED_SIZE-OFFSET))
+              COUNT="$CHUNK"
+              [ "$REMAIN" -lt "$CHUNK" ] && COUNT="$REMAIN"
+              dd if=/tmp/second-visual.mp4 of=/tmp/part.bin bs=1 skip="$OFFSET" count="$COUNT" status=none
+              RESP="$(curl -kfsS -X PUT                 -H "authorization: Bearer $TOKEN" -H 'content-type: video/mp4'                 --data-binary @/tmp/part.bin                 "$API/api/uploads/part?asset_id=$ASSET_ID&upload_id=$UPLOAD_ID&part_number=$PART")"
+              printf '%s' "$RESP" | jq -c '{partNumber,etag}' >> /tmp/parts.ndjson
+              OFFSET=$((OFFSET+COUNT))
+              PART=$((PART+1))
+            done
+
+            PARTS="$(jq -s '.' /tmp/parts.ndjson)"
+            COMPLETE_BODY="$(jq -nc --arg aid "$ASSET_ID" --arg uid "$UPLOAD_ID" --argjson parts "$PARTS" '{asset_id:$aid,upload_id:$uid,parts:$parts}')"
+            COMPLETE="$(curl -kfsS -X POST -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d "$COMPLETE_BODY" "$API/api/uploads/complete")"
+            printf '%s' "$COMPLETE" | jq '.asset' > /tmp/final-asset.json
+          fi
+          jq -e --argjson sz "$EXPECTED_SIZE" '.size_bytes==$sz and .asset_type=="loop" and .mime_type=="video/mp4"' /tmp/final-asset.json >/dev/null
+
+      - name: Persist result and remove ciphertext
+        if: steps.mode.outputs.mode == 'import'
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq '{status:"ready",asset:{id,title,asset_type,mime_type,size_bytes,created_at}}' /tmp/final-asset.json > control/second-4k-visual-import.json
+          rm -f control/private-import/second-visual.enc
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A control/private-import/second-visual.enc control/second-4k-visual-import.json
+          git commit -m "ops: import second 4K visual privately"
           git pull --rebase origin main
           git push origin HEAD:main
