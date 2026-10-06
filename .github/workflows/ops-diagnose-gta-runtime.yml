@@ -1,0 +1,56 @@
+name: Ops — Diagnose GTA VI Runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-diagnose-gta-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Refresh host agent and diagnose GTA runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          wait_cmd() {
+            local id="$1"
+            for i in $(seq 1 100); do
+              curl -kfsS "$BASE/api/ovh/deploy-status?id=$id" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+              ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+              echo "$id -> $ST"
+              [ "$ST" = "completed" ] && return 0
+              if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; return 1; fi
+              sleep 3
+            done
+            return 1
+          }
+
+          HOST_ID="gta-diag-host-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$HOST_ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"gta-runtime-diagnostic"}')" > /tmp/host-create.json
+          wait_cmd "$HOST_ID"
+
+          DIAG_ID="gta-diag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$DIAG_ID" '{action:"diagnose_service",target:"youtube-gta-vi",request_id:$id,source:"gta-runtime-diagnostic"}')" > /tmp/diag-create.json
+          wait_cmd "$DIAG_ID"
+
+          jq '{command:{id:.command.id,status:.command.status,error:.command.error,result:.command.result}}' /tmp/status.json
