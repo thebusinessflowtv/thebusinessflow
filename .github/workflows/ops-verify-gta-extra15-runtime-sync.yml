@@ -1,0 +1,45 @@
+name: MediaForge — Verify GTA Extra 15 Runtime Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-verify-gta-extra15-runtime-sync.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Verify GTA playlist in OVH runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          curl -kfsS "$BASE/api/music-library" -H "authorization: Bearer $TOKEN" > /tmp/library.json
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+
+          echo "GTA_LIBRARY:"
+          jq '.playlists[] | select(.key=="gta-vi-vice-city") | {
+            key,name,track_count,total_duration_seconds,status,
+            generated_target_count,owner_library_track_count,planned_track_count,
+            extra_count:([.tracks[] | select(.source=="gta-vi-extra-15")]|length),
+            last_tracks:(.tracks[-6:] | map({position,title,source}))
+          }' /tmp/library.json
+
+          echo "GTA_RUNTIME:"
+          jq '.agent.services["youtube-gta-vi"] | {
+            status,playlist_key,playlist_track_count,track_count,
+            now_playing,restarts,audio_pid,encoder_pid
+          }' /tmp/status.json
