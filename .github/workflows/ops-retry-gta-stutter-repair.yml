@@ -1,0 +1,75 @@
+name: Ops — Retry GTA VI Stutter Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-retry-gta-stutter-repair.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Reload host agent and restart only GTA VI runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          wait_cmd() {
+            local id="$1"
+            for I in $(seq 1 100); do
+              curl -kfsS "$BASE/api/ovh/deploy-status?id=$id" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+              ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+              echo "$id -> $ST"
+              [ "$ST" = "completed" ] && return 0
+              if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; return 1; fi
+              sleep 2
+            done
+            return 1
+          }
+
+          HOST_ID="gta-stutter-host-retry-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$HOST_ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"gta-stutter-retry"}')" >/tmp/create.json
+          wait_cmd "$HOST_ID"
+          sleep 4
+
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          REPAIR_ID="gta-stutter-runtime-retry-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$REPAIR_ID" '{action:"repair_gta_runtime",target:"youtube-gta-vi",request_id:$id,source:"gta-stutter-retry"}')" >/tmp/create.json
+          wait_cmd "$REPAIR_ID"
+          jq '.command.result | {service,old_encoder_pid,new_encoder_pid,status,visual_status,audio_status}' /tmp/status.json
+
+          OK=0
+          for I in $(seq 1 12); do
+            curl -kfsS "$BASE/api/ovh/public-health" >/tmp/public.json
+            jq -c '.services["youtube-gta-vi"] | {status,encoder_pid,visual_status,audio_status,audio_stalls,updated_at,now_playing}' /tmp/public.json
+            ST="$(jq -r '.services["youtube-gta-vi"].status // ""' /tmp/public.json)"
+            PID="$(jq -r '.services["youtube-gta-vi"].encoder_pid // ""' /tmp/public.json)"
+            VS="$(jq -r '.services["youtube-gta-vi"].visual_status // ""' /tmp/public.json)"
+            AS="$(jq -r '.services["youtube-gta-vi"].audio_status // ""' /tmp/public.json)"
+            if [ "$ST" = "live" ] && [ -n "$PID" ] && [ "$VS" = "streaming" ] && [ "$AS" = "running" ]; then OK=1; fi
+            sleep 5
+          done
+          test "$OK" = "1"
+
+          DIAG_ID="gta-stutter-postdiag-retry-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$DIAG_ID" '{action:"diagnose_service",target:"youtube-gta-vi",request_id:$id,source:"gta-stutter-retry"}')" >/tmp/create.json
+          wait_cmd "$DIAG_ID"
+          jq '.command.result | {health,audio_health,visual_health,docker_stats,ffmpeg_log_tail,controller_log_tail}' /tmp/status.json
