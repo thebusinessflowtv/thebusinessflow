@@ -1,7 +1,11 @@
 name: MediaForge — Deploy Cloudflare Backend
+# video-control-plane-v2: 2026-10-06
 
 on:
-  # Cloudflare backend is retained only as an explicit rollback path.
+  # Video-control-plane API is served here; live encoders remain on OVH and are not restarted by this deploy.
+  push:
+    paths:
+      - '.github/workflows/deploy-mediaforge-cloudflare.yml'
   workflow_dispatch:
 
 permissions:
