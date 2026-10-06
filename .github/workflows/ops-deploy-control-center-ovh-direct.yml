@@ -1,5 +1,5 @@
 name: MediaForge — Direct Deploy Control Center OVH
-# gta-oauth-bridge-trigger: 2026-10-05T21:33:00-03:00
+# gta-oauth-bridge-trigger: 2026-10-05T21:36:30-03:00-v2
 
 on:
   push:
