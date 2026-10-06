@@ -1,5 +1,5 @@
 name: MediaForge — Deploy GTA Playlist Auto Sync
-# trigger: 2026-10-05T21:05:00-03:00 gta-third-youtube-slot
+# trigger: 2026-10-05T21:12:00-03:00 recover-after-api-rebuild
 
 on:
   push:
@@ -19,52 +19,54 @@ jobs:
       ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
     steps:
-      - name: Login to OVH-local MediaForge
+      - name: Wait for OVH-local API and login
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
-          LOGIN="$(curl -kfsS --connect-timeout 8 --max-time 25 -X POST "$BASE/api/auth/login"             -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
-          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
-          test -n "$TOKEN"
-          echo "::add-mask::$TOKEN"
-          printf '%s' "$TOKEN" > /tmp/token
-          echo "LOCAL_LOGIN_OK"
-
-      - name: Refresh host deploy agent code
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"
-          ID="gta-host-refresh-${GITHUB_RUN_ID}"
-          curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"gta-third-slot"}')" >/tmp/host1-create.json
-          for i in $(seq 1 80); do
-            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" >/tmp/host1.json
-            ST="$(jq -r '.command.status // empty' /tmp/host1.json)"; echo "host_refresh=$ST"
-            [ "$ST" = "completed" ] && break
-            [ "$ST" = "failed" ] && { cat /tmp/host1.json; exit 1; }
+          TOKEN=""
+          for i in $(seq 1 60); do
+            LOGIN="$(curl -ksS --connect-timeout 5 --max-time 15 -X POST "$BASE/api/auth/login"               -H 'content-type: application/json'               --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')" 2>/dev/null || true)"
+            TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty' 2>/dev/null || true)"
+            [ -n "$TOKEN" ] && break
+            echo "api_login_retry=$i"
             sleep 3
           done
-          jq -e '.command.status=="completed"' /tmp/host1.json >/dev/null
-          sleep 8
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" >/tmp/token
+          echo "LOCAL_API_BACK"
 
-      - name: Publish updated local MediaForge API and UI
+      - name: Confirm or recover control-plane publish
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"
-          ID="gta-control-plane-${GITHUB_RUN_ID}"
-          curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"gta-third-slot-control-plane"}')" >/tmp/host2-create.json
-          for i in $(seq 1 180); do
-            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" >/tmp/host2.json
-            ST="$(jq -r '.command.status // empty' /tmp/host2.json)"; echo "control_plane=$ST"
-            [ "$ST" = "completed" ] && break
-            [ "$ST" = "failed" ] && { cat /tmp/host2.json; exit 1; }
-            sleep 5
+          EXISTING="gta-control-plane-37392488459"
+          STATUS=""
+          for i in $(seq 1 40); do
+            OUT="$(curl -ksS "$BASE/api/ovh/deploy-status?id=$EXISTING" -H "authorization: Bearer $TOKEN" 2>/dev/null || true)"
+            STATUS="$(printf '%s' "$OUT" | jq -r '.command.status // empty' 2>/dev/null || true)"
+            echo "existing_control_plane=$STATUS"
+            [ "$STATUS" = "completed" ] && { printf '%s' "$OUT" >/tmp/control-plane.json; break; }
+            [ "$STATUS" = "failed" ] && { printf '%s' "$OUT" >/tmp/control-plane.json; break; }
+            sleep 3
           done
-          jq -e '.command.status=="completed"' /tmp/host2.json >/dev/null
-          jq '.command.result.control_plane_publish // {}' /tmp/host2.json
-          sleep 8
+
+          if [ "$STATUS" != "completed" ]; then
+            ID="gta-control-plane-recovery-${GITHUB_RUN_ID}"
+            curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'               --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"gta-third-slot-recovery"}')" >/tmp/recover-create.json
+            for i in $(seq 1 180); do
+              OUT="$(curl -ksS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" 2>/dev/null || true)"
+              ST="$(printf '%s' "$OUT" | jq -r '.command.status // empty' 2>/dev/null || true)"
+              echo "control_plane_recovery=$ST"
+              [ "$ST" = "completed" ] && { printf '%s' "$OUT" >/tmp/control-plane.json; break; }
+              [ "$ST" = "failed" ] && { printf '%s' "$OUT" >/tmp/control-plane.json; cat /tmp/control-plane.json; exit 1; }
+              sleep 5
+            done
+          fi
+          jq -e '.command.status=="completed"' /tmp/control-plane.json >/dev/null
+          jq '.command.result.control_plane_publish // {}' /tmp/control-plane.json
 
       - name: Deploy GTA runtime engines into control agent
         shell: bash
@@ -74,10 +76,11 @@ jobs:
           ID="gta-runtime-${GITHUB_RUN_ID}"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$ID" '{action:"reload_control_agent",target:"ovh-agent",request_id:$id,source:"gta-third-slot-runtime"}')" >/tmp/runtime-create.json
           for i in $(seq 1 100); do
-            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" >/tmp/runtime.json
-            ST="$(jq -r '.command.status // empty' /tmp/runtime.json)"; echo "runtime_reload=$ST"
-            [ "$ST" = "completed" ] && break
-            [ "$ST" = "failed" ] && { cat /tmp/runtime.json; exit 1; }
+            OUT="$(curl -ksS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" 2>/dev/null || true)"
+            ST="$(printf '%s' "$OUT" | jq -r '.command.status // empty' 2>/dev/null || true)"
+            echo "runtime_reload=$ST"
+            [ "$ST" = "completed" ] && { printf '%s' "$OUT" >/tmp/runtime.json; break; }
+            [ "$ST" = "failed" ] && { printf '%s' "$OUT" >/tmp/runtime.json; cat /tmp/runtime.json; exit 1; }
             sleep 3
           done
           jq -e '.command.status=="completed"' /tmp/runtime.json >/dev/null
