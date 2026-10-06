@@ -80,7 +80,7 @@ async function githubQueueFile(env,path,payload,message){
   if(!res.ok){const text=await res.text();throw new Error(`GitHub queue falhou (${res.status}): ${text.slice(0,500)}`);}return res.json();
 }
 async function githubQueueFileToRepo(env,repo,path,payload,message){
-  if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('Bridge GitHub indisponível: GITHUB_WORKFLOW_TOKEN não configurado na OVH.');
+  if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('Bridge GitHub indisponível: token não configurado no bridge remoto.');
   const api=`https://api.github.com/repos/${repo}/contents/${path}`;
   let sha='';
   try{const g=await fetch(api+'?ref=main',{headers:githubHeaders(env)});if(g.ok)sha=String((await g.json()).sha||'');}catch(_){}
@@ -850,13 +850,17 @@ async function handleApi(request,env,url){
     if(!sessionId||!title||!description||!loopUrl||!thumbnailUrl)return json({error:'bridge_payload_incomplete'},400,cors);
     const requestedAt=String(b.requested_at||new Date().toISOString());
     const launchPath=`control/gta-youtube-launch/${sessionId}.json`;
-    await githubQueueFileToRepo(
-      env,
-      'thebusinessflowtv/theofficemusic',
-      launchPath,
-      {session_id:sessionId,title,description,loop_url:loopUrl,thumbnail_url:thumbnailUrl,requested_at:requestedAt,source:'mediaforge-ovh-remote-bridge'},
-      `youtube: launch GTA VI OVH live ${sessionId}`
-    );
+    try{
+      await githubQueueFileToRepo(
+        env,
+        'thebusinessflowtv/theofficemusic',
+        launchPath,
+        {session_id:sessionId,title,description,loop_url:loopUrl,thumbnail_url:thumbnailUrl,requested_at:requestedAt,source:'mediaforge-ovh-remote-bridge'},
+        `youtube: launch GTA VI OVH live ${sessionId}`
+      );
+    }catch(e){
+      return json({error:'remote_github_bridge_failed',message:String(e?.message||e).slice(0,700)},502,cors);
+    }
     return json({ok:true,queued:true,path:launchPath,mode:'remote-github-oauth-launch'},202,cors);
   }
 
