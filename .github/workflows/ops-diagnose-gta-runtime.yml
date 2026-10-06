@@ -1,5 +1,5 @@
 name: Ops — Diagnose GTA VI Runtime
-# retry-after-host-agent-json-fix: 2026-10-05T22:28-03:00
+# gta-fifo-resolution-probe: 2026-10-05T23:52-03:00
 
 on:
   push:
