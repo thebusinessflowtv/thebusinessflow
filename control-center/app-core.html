@@ -591,7 +591,7 @@
     attempt();
   }
 
-  function renderSuggestions  function renderSuggestions(id,items){go('/ideas/'+id)}
+  function renderSuggestions(id,items){go('/ideas/'+id)}
 
   async function launchIdea(source,s,index){
     const r=await mfApi('/api/video/productions/'+encodeURIComponent(source.id)+'/select-suggestion',{method:'POST',body:JSON.stringify({index:index})});
@@ -643,7 +643,7 @@
     document.getElementById('channelFilter').onchange=apply;document.getElementById('statusFilter').onchange=apply;
     document.getElementById('searchProd').oninput=e=>{const v=e.target.value.toLowerCase();document.querySelectorAll('#prodBody tr').forEach(tr=>tr.classList.toggle('hidden',!tr.dataset.topic.includes(v)))};
   }
-  function prodRow(p){  function prodRow(p){return'<tr data-topic="'+esc(topic(p).toLowerCase())+'" onclick="location.hash=\'/production/'+p.id+'\'" style="cursor:pointer"><td class="muted">'+esc(p.mfcc_channels?.name||'—')+'</td><td><b>'+esc(topic(p))+'</b></td><td class="muted">'+esc(modeLabels[p.generation_mode]||p.generation_mode)+'</td><td class="muted">'+esc(objLabels[p.objective]||p.objective)+'</td><td>'+statusPill(p.status)+'</td><td><div class="row">'+progress(p.progress)+'<span class="tiny muted" style="width:35px;text-align:right">'+(p.progress||0)+'%</span></div></td><td class="tiny muted">'+fmt(p.created_at)+'</td></tr>'}
+  function prodRow(p){return'<tr data-topic="'+esc(topic(p).toLowerCase())+'" onclick="location.hash=\'/production/'+p.id+'\'" style="cursor:pointer"><td class="muted">'+esc(p.mfcc_channels?.name||'—')+'</td><td><b>'+esc(topic(p))+'</b></td><td class="muted">'+esc(modeLabels[p.generation_mode]||p.generation_mode)+'</td><td class="muted">'+esc(objLabels[p.objective]||p.objective)+'</td><td>'+statusPill(p.status)+'</td><td><div class="row">'+progress(p.progress)+'<span class="tiny muted" style="width:35px;text-align:right">'+(p.progress||0)+'%</span></div></td><td class="tiny muted">'+fmt(p.created_at)+'</td></tr>'}
 
   async function responseBlobWithProgress(res,onProgress){
     const total=Number(res.headers.get('content-length')||0);
@@ -720,7 +720,7 @@
     if(!terminal.includes(p.status))state.pollTimer=setTimeout(()=>{if(location.hash.includes('/production/'+id))route()},8000);
   }
 
-  async function channelsPage(path){  async function channelsPage(path){const channels=await loadChannels();let html=pageHead('Canais','Configuração dos canais lida diretamente do banco.')+'<div class="grid grid2">'+channels.map(c=>'<div class="card pad"><div class="row between"><div><h3>'+esc(c.name)+'</h3><div class="small muted" style="margin-top:4px">'+esc(c.niche)+'</div></div><span class="pill '+(c.active?'p-success':'')+'">'+(c.active?'Ativo':'Inativo')+'</span></div><div class="grid" style="margin-top:18px;gap:10px"><div class="row between small"><span class="muted">Repositório</span><code class="tiny">'+esc(c.repo_full_name)+'</code></div><div class="row between small"><span class="muted">Idioma / locale</span><span>'+esc(c.locale)+'</span></div><div class="row between small"><span class="muted">YouTube</span><span class="pill '+(ytConnected(c)?'p-success':'')+'">'+(ytConnected(c)?'Conectado':'Não conectado')+'</span></div></div><div style="margin-top:16px"><div class="tiny muted" style="margin-bottom:7px">CAPACIDADES</div><div class="row wrap"><span class="pill p-violet">Criar vídeo</span><span class="pill">Downloads</span>'+(canUpload(c)?'<span class="pill p-success">Upload privado</span>':'<span class="pill">Upload desativado</span>')+'</div></div></div>').join('')+'</div>';app.innerHTML=shell(html,path);wireShell()}
+  async function channelsPage(path){const channels=await loadChannels();let html=pageHead('Canais','Configuração dos canais lida diretamente do banco.')+'<div class="grid grid2">'+channels.map(c=>'<div class="card pad"><div class="row between"><div><h3>'+esc(c.name)+'</h3><div class="small muted" style="margin-top:4px">'+esc(c.niche)+'</div></div><span class="pill '+(c.active?'p-success':'')+'">'+(c.active?'Ativo':'Inativo')+'</span></div><div class="grid" style="margin-top:18px;gap:10px"><div class="row between small"><span class="muted">Repositório</span><code class="tiny">'+esc(c.repo_full_name)+'</code></div><div class="row between small"><span class="muted">Idioma / locale</span><span>'+esc(c.locale)+'</span></div><div class="row between small"><span class="muted">YouTube</span><span class="pill '+(ytConnected(c)?'p-success':'')+'">'+(ytConnected(c)?'Conectado':'Não conectado')+'</span></div></div><div style="margin-top:16px"><div class="tiny muted" style="margin-bottom:7px">CAPACIDADES</div><div class="row wrap"><span class="pill p-violet">Criar vídeo</span><span class="pill">Downloads</span>'+(canUpload(c)?'<span class="pill p-success">Upload privado</span>':'<span class="pill">Upload desativado</span>')+'</div></div></div>').join('')+'</div>';app.innerHTML=shell(html,path);wireShell()}
 
   async function autohealPage(path){
     const [channels,sR,eR]=await Promise.all([loadChannels(),sb.from('mfcc_autoheal_settings').select('*'),sb.from('mfcc_autoheal_events').select('*, mfcc_channels(name), mfcc_productions(requested_topic,selected_topic)').order('created_at',{ascending:false}).limit(80)]);
