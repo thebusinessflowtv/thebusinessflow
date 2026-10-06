@@ -1,5 +1,5 @@
 name: MediaForge — Direct Deploy Control API OVH
-# second-visual-private-import: 2026-10-06
+# second-visual-private-import: 2026-10-06-v2
 
 on:
   push:
@@ -39,7 +39,11 @@ jobs:
           echo "$CREATE" | jq '{ok,command:{id:.command.id,action:.command.action,target:.command.target,status:(.command.status//"pending")}}'
 
           for i in $(seq 1 120); do
-            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+            if ! curl -kfsS --retry 6 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json; then
+              echo "control-api endpoint temporarily unavailable during self-restart"
+              sleep 3
+              continue
+            fi
             ST="$(jq -r '.command.status // empty' /tmp/status.json)"
             echo "control-api=$ST"
             [ "$ST" = "completed" ] && break
@@ -57,4 +61,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -kfsS --retry 5 --retry-delay 2 "https://146.59.156.224:8443/api/health" | jq .
+          curl -kfsS --retry 10 --retry-all-errors --retry-delay 2 "https://146.59.156.224:8443/api/health" | jq .
