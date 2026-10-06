@@ -30,3 +30,11 @@ jobs:
             tracks: (.tracks | map({id,title,url,duration_seconds})),
             assets: .assets
           }' /tmp/detail.json
+
+          echo "BRIDGE_ROUTE_PROBE:"
+          CODE="$(curl -ksS -o /tmp/bridge-probe.json -w '%{http_code}' -X POST "$BASE/api/ovh/agent/commands" -H 'content-type: application/json' --data '{"action":"start","runtime_slot":"youtube-gta-vi"}' || true)"
+          echo "HTTP=$CODE"
+          cat /tmp/bridge-probe.json || true
+
+          echo "DEPLOY_STATUS:"
+          curl -kfsS "$BASE/api/ovh/deploy-status?id=direct-control-center-20261006003202" -H "authorization: Bearer $TOKEN" | jq '{command:{id:.command.id,status:.command.status,error:.command.error,result:.command.result}}'
