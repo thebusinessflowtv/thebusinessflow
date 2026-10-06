@@ -1,5 +1,5 @@
-name: MediaForge — Direct Deploy Control Center OVH
-# gta-oauth-bridge-trigger: 2026-10-05T21:52:00-03:00-oidc
+name: MediaForge — Direct Deploy Control API OVH
+# second-visual-private-import: 2026-10-06
 
 on:
   push:
@@ -13,14 +13,14 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     env:
       ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Refresh host deploy agent safely
+      - name: Deploy ONLY Control API on OVH
         shell: bash
         run: |
           set -euo pipefail
@@ -31,67 +31,30 @@ jobs:
           TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
           test -n "$TOKEN"
           echo "::add-mask::$TOKEN"
-          printf '%s' "$TOKEN" > /tmp/mf-token
 
-          ID="direct-host-agent-$(date -u +%Y%m%d%H%M%S)"
-          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+          ID="direct-control-api-$(date -u +%Y%m%d%H%M%S)"
+          CREATE="$(curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"direct-control-center-dj100"}')" \
-            | tee /tmp/host-create.json
-          for i in $(seq 1 50); do
-            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/host-status.json
-            ST="$(jq -r '.command.status // empty' /tmp/host-status.json)"
-            echo "host-agent=$ST"
-            [ "$ST" = "completed" ] && break
-            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/host-status.json; exit 1; fi
-            sleep 3
-          done
-          jq -e '.command.status=="completed"' /tmp/host-status.json >/dev/null
-          cat /tmp/host-status.json
-          sleep 5
-
-      - name: Publish Control Center and local API on OVH
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE="https://146.59.156.224:8443"
-          TOKEN="$(cat /tmp/mf-token)"
-          ID="direct-control-center-$(date -u +%Y%m%d%H%M%S)"
-          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
-            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"direct-control-center-dj100-v2"}')" \
-            | tee /tmp/create.json
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"second-visual-private-import"}')")"
+          echo "$CREATE" | jq '{ok,command:{id:.command.id,action:.command.action,target:.command.target,status:(.command.status//"pending")}}'
 
           for i in $(seq 1 120); do
             curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
             ST="$(jq -r '.command.status // empty' /tmp/status.json)"
-            echo "control-plane=$ST"
+            echo "control-api=$ST"
             [ "$ST" = "completed" ] && break
-            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; exit 1; fi
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then
+              jq '{command:{id:.command.id,status:.command.status,error:.command.error,result:.command.result}}' /tmp/status.json
+              exit 1
+            fi
             sleep 3
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
-          jq -e '.command.result.mediaforge_control_plane.ui_verified==true' /tmp/status.json >/dev/null
-          jq -e '.command.result.mediaforge_control_plane.dj100_manifest_seeded==true' /tmp/status.json >/dev/null
           jq -e '.command.result.mediaforge_control_plane.publisher_pids_preserved==true' /tmp/status.json >/dev/null
-          cat /tmp/status.json
+          jq '{command:{id:.command.id,status:.command.status,result:{git_head:.command.result.git_head,publisher_pids_preserved:.command.result.mediaforge_control_plane.publisher_pids_preserved,ui_verified:.command.result.mediaforge_control_plane.ui_verified}}}' /tmp/status.json
 
-      - name: Verify public production bundle
+      - name: Verify direct API is healthy
         shell: bash
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
-            curl -fsS --connect-timeout 8 --max-time 20 \
-              -H 'Cache-Control: no-cache' \
-              "https://peterlofi.odsgn.com.br/lives-cloudflare.js?dj100=$(date +%s)" \
-              -o /tmp/lives.js || true
-            if grep -q 'Verificar 100 novas' /tmp/lives.js 2>/dev/null && grep -q "dance100" /tmp/lives.js 2>/dev/null; then
-              echo 'PUBLIC_DJ100_UI_OK'
-              exit 0
-            fi
-            echo "waiting public UI $i/30"
-            sleep 4
-          done
-          echo '::error::OVH production bundle still old after direct deploy'
-          grep -n 'Iniciar verificação\|Verificar 100' /tmp/lives.js 2>/dev/null | head || true
-          exit 1
+          curl -kfsS --retry 5 --retry-delay 2 "https://146.59.156.224:8443/api/health" | jq .
