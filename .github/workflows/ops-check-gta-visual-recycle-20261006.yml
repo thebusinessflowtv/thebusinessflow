@@ -1,0 +1,72 @@
+name: Ops — Check GTA VI Visual Recycle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-check-gta-visual-recycle-20261006.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Verify visual recycle ACK and GTA runtime health
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          CMD_ID="6618f886-a7f1-49e8-abe6-c4a182a8bf4c"
+
+          LOGIN="$(curl -kfsS --retry 6 --retry-all-errors --retry-delay 2 -X POST "$BASE/api/auth/login"             -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          FINAL=""
+          for I in $(seq 1 60); do
+            OUT="$(curl -kfsS "$BASE/api/ovh/control/$CMD_ID" -H "authorization: Bearer $TOKEN")"
+            ST="$(printf '%s' "$OUT" | jq -r '.command.status // empty')"
+            echo "command_status[$I]=$ST"
+            FINAL="$ST"
+            [ "$ST" = "completed" ] && break
+            [ "$ST" = "failed" ] && { printf '%s\n' "$OUT"; exit 2; }
+            sleep 2
+          done
+          [ "$FINAL" = "completed" ]
+
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+          jq '{
+            gta:{
+              status:.agent.services["youtube-gta-vi"].status,
+              fps:.agent.services["youtube-gta-vi"].fps,
+              video_bitrate_kbps:.agent.services["youtube-gta-vi"].video_bitrate_kbps,
+              restarts:.agent.services["youtube-gta-vi"].restarts,
+              hot_swap:.agent.services["youtube-gta-vi"].hot_swap,
+              visual_revision:.agent.services["youtube-gta-vi"].visual_revision,
+              visual_status:.agent.services["youtube-gta-vi"].visual_status,
+              encoder_pid:.agent.services["youtube-gta-vi"].encoder_pid,
+              audio_pid:.agent.services["youtube-gta-vi"].audio_pid,
+              visual_pid:.agent.services["youtube-gta-vi"].visual_pid,
+              now_playing:.agent.services["youtube-gta-vi"].now_playing.title,
+              updated_at:.agent.services["youtube-gta-vi"].updated_at
+            }
+          }' /tmp/status.json
+
+          jq -e '
+            .agent.services["youtube-gta-vi"].status=="live"
+            and .agent.services["youtube-gta-vi"].hot_swap==true
+            and .agent.services["youtube-gta-vi"].visual_status=="streaming"
+            and (.agent.services["youtube-gta-vi"].fps|tonumber)==60
+            and (.agent.services["youtube-gta-vi"].video_bitrate_kbps|tonumber)>=8000
+            and (.agent.services["youtube-gta-vi"].visual_revision|tonumber)>=4
+            and (.agent.services["youtube-gta-vi"].encoder_pid != null)
+            and (.agent.services["youtube-gta-vi"].audio_pid != null)
+            and (.agent.services["youtube-gta-vi"].visual_pid != null)
+          ' /tmp/status.json >/dev/null
