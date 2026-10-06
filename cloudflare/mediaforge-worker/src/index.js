@@ -821,6 +821,28 @@ async function handleApi(request,env,url){
     return json({local_runtime:String(env.LOCAL_RUNTIME||'')==='1',youtube_oauth:!!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN),youtube_channel:!!env.YOUTUBE_CHANNEL_ID,music_agent_credentials:'external-root-readable-env'},200,cors);
   }
 
+  if(url.pathname==='/api/ovh/agent/youtube-github-bridge'&&request.method==='POST'){
+    if(String(env.LOCAL_RUNTIME||'')==='1')return json({error:'bridge_remote_only'},409,cors);
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok)return json({error:'forbidden_agent',ip:gate.ip},403,cors);
+    const b=await bodyJson(request);
+    const sessionId=String(b.session_id||'').trim();
+    const title=String(b.title||'').trim();
+    const description=String(b.description||'');
+    const loopUrl=String(b.loop_url||'').trim();
+    const thumbnailUrl=String(b.thumbnail_url||'').trim();
+    if(!sessionId||!title||!description||!loopUrl||!thumbnailUrl)return json({error:'bridge_payload_incomplete'},400,cors);
+    const requestedAt=String(b.requested_at||new Date().toISOString());
+    const securePath=`control/gta-youtube-secure-start/${sessionId}.json`;
+    await githubQueueFileToRepo(
+      env,
+      'thebusinessflowtv/thebusinessflow',
+      securePath,
+      {session_id:sessionId,title,description,loop_url:loopUrl,thumbnail_url:thumbnailUrl,requested_at:requestedAt,source:'mediaforge-ovh-remote-bridge'},
+      `youtube: secure GTA VI start ${sessionId}`
+    );
+    return json({ok:true,queued:true,path:securePath,mode:'remote-github-bridge'},202,cors);
+  }
+
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
   if(url.pathname==='/api/dj-catalog/scans'&&request.method==='POST'){
@@ -1187,23 +1209,25 @@ async function handleApi(request,env,url){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         if(String(env.LOCAL_RUNTIME||'')==='1'){
           if(slot==='youtube-gta-vi'){
-            const securePath=`control/gta-youtube-secure-start/${id}.json`;
-            await githubQueueFileToRepo(
-              env,
-              'thebusinessflowtv/thebusinessflow',
-              securePath,
-              {
-                session_id:id,
-                title,
-                description,
-                loop_url:visualUrl,
-                thumbnail_url:thumbnailUrl,
-                requested_at:now,
-                source:'mediaforge-gta-secure-panel'
-              },
-              `youtube: secure GTA VI start ${id}`
-            );
-            return json({ok:true,launch_mode:'github-secure-gta-bridge',message:'Credenciais do YouTube serão usadas somente dentro do GitHub Actions; a OVH receberá apenas o ingest temporário.',session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
+            const bridgeUrl='https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/agent/youtube-github-bridge';
+            const bridgePayload={
+              session_id:id,
+              title,
+              description,
+              loop_url:visualUrl,
+              thumbnail_url:thumbnailUrl,
+              requested_at:now,
+              source:'mediaforge-gta-secure-panel'
+            };
+            const bridgeRes=await fetch(bridgeUrl,{
+              method:'POST',
+              headers:{'content-type':'application/json','user-agent':'MediaForge-OVH-GTA-Bridge/1.0'},
+              body:JSON.stringify(bridgePayload)
+            });
+            const bridgeText=await bridgeRes.text();
+            let bridgeData={};try{bridgeData=JSON.parse(bridgeText||'{}')}catch(_){}
+            if(!bridgeRes.ok)throw new Error(`Bridge remoto GitHub falhou (${bridgeRes.status}): ${String(bridgeData.error||bridgeText).slice(0,300)}`);
+            return json({ok:true,launch_mode:'github-secure-gta-bridge',message:'OAuth fica no GitHub; a OVH recebe apenas o ingest temporário.',bridge:bridgeData,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
           }
           const local=await prepareYoutubeLocal(request,env,{sessionId:id,slot,title,description,thumbnailUrl,durationMinutes:duration,loopUrl:visualUrl,tracks:manifest,playlistKey});
           return json({ok:true,launch_mode:'ovh-youtube-local',youtube:local.result,command_id:local.command.id,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
