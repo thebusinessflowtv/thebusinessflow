@@ -1,5 +1,5 @@
 name: MediaForge — Deploy Cloudflare Backend
-# video-control-plane-v2: 2026-10-06T15:05Z
+# video-control-plane-v2: 2026-10-06T15:08Z
 
 on:
   # Video-control-plane API is served here; live encoders remain on OVH and are not restarted by this deploy.
@@ -115,6 +115,17 @@ jobs:
           curl --retry 5 --retry-all-errors -fsS "$WORKER_URL/api/health" | tee /tmp/mediaforge-health.json
           grep -q '"supabase":false' /tmp/mediaforge-health.json
 
+      - name: Smoke test isolated video control API
+        run: |
+          set -euo pipefail
+          LOGIN="$(jq -nc --arg email "$MEDIAFORGE_ADMIN_EMAIL" --arg password "$MEDIAFORGE_ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          TOKEN="$(curl -fsS -H 'content-type: application/json' -d "$LOGIN" "$WORKER_URL/api/auth/login" | jq -r '.token')"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          echo "::add-mask::$TOKEN"
+          curl -fsS -H "authorization: Bearer $TOKEN" "$WORKER_URL/api/video/channels" > /tmp/video-channels.json
+          jq -e '.channels | any(.slug=="nba-stars") and any(.slug=="the-business-flow")' /tmp/video-channels.json >/dev/null
+          echo 'VIDEO_CONTROL_API_OK'
+
       - name: Publish Worker URL to MediaForge Pages config
         run: |
           set -euo pipefail
@@ -151,6 +162,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
+          git restore cloudflare/mediaforge-worker/wrangler.jsonc || true
           mkdir -p control
           node - <<'NODE'
           const fs=require('fs');
