@@ -1,5 +1,5 @@
 name: MediaForge — Deploy Cloudflare Backend
-# video-control-plane-v2: 2026-10-06
+# video-control-plane-v2: 2026-10-06T15:05Z
 
 on:
   # Video-control-plane API is served here; live encoders remain on OVH and are not restarted by this deploy.
@@ -142,3 +142,30 @@ jobs:
           echo "- Storage: Cloudflare R2 / mediaforge-live-assets" >> "$GITHUB_STEP_SUMMARY"
           echo "- Database: Cloudflare D1 / mediaforge-control" >> "$GITHUB_STEP_SUMMARY"
           echo "- Supabase dependency for Lives: removed" >> "$GITHUB_STEP_SUMMARY"
+
+
+      - name: Publish video API deploy result
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p control
+          node - <<'NODE'
+          const fs=require('fs');
+          const out={
+            kind:'video-control-api',
+            status:process.env.JOB_STATUS||'unknown',
+            commit:process.env.GITHUB_SHA||'',
+            run_id:process.env.GITHUB_RUN_ID||'',
+            updated_at:new Date().toISOString()
+          };
+          fs.writeFileSync('control/video-api-deploy-result.json',JSON.stringify(out,null,2)+'\n');
+          NODE
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/video-api-deploy-result.json
+          git commit -m "mediaforge: record video API deploy result" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
