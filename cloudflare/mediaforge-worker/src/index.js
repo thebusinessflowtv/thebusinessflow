@@ -873,6 +873,49 @@ async function handleApi(request,env,url){
     },200,cors);
   }
 
+  if(url.pathname==='/api/ovh/youtube-bootstrap'&&request.method==='POST'){
+    const b=await bodyJson(request);
+    const slot=String(b.runtime_slot||'');
+    if(slot!=='youtube-gta-vi')return json({error:'invalid_youtube_bootstrap_slot'},400,cors);
+    const streamUrl=String(b.stream_url||'').trim(),streamKey=String(b.stream_key||'').trim();
+    if(!streamUrl||!streamKey)return json({error:'youtube_ingest_required'},400,cors);
+    const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)==='gta-vi-vice-city');
+    if(!playlist)return json({error:'playlist_not_found'},404,cors);
+    const tracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({
+      id:String(t.id||`gta-vi-vice-city-${i+1}`),
+      title:String(t.title||'Track'),
+      url:String(t.url),
+      duration_seconds:Number(t.duration_seconds||300),
+      position:t.position??null,
+      target_bpm:t.target_bpm??null
+    }));
+    if(!tracks.length)return json({error:'playlist_empty'},400,cors);
+    const cmd=await issueOvhCommand(env,{
+      action:'start',
+      platform:'youtube',
+      runtime_slot:'youtube-gta-vi',
+      session_id:String(b.session_id||''),
+      title:String(b.title||'GTA VI - Vice City'),
+      description:String(b.description||''),
+      duration_minutes:0,
+      loop_url:String(b.loop_url||''),
+      playlist_key:'gta-vi-vice-city',
+      tracks,
+      shuffle:true,
+      repeat:true,
+      stream_url:streamUrl,
+      stream_key:streamKey,
+      source:'github-youtube-oauth-bridge'
+    });
+    return json({
+      ok:true,
+      runtime_slot:'youtube-gta-vi',
+      playlist_key:'gta-vi-vice-city',
+      playlist_track_count:tracks.length,
+      command:{id:cmd.id,action:cmd.action,requested_at:cmd.requested_at}
+    },202,cors);
+  }
+
   if(url.pathname==='/api/ovh/playlist'&&request.method==='POST'){
     const b=await bodyJson(request),slot=String(b.runtime_slot||''),playlistKey=String(b.playlist_key||'');
     if(!OVH_SLOTS.includes(slot))return json({error:'invalid_runtime_slot'},400,cors);
