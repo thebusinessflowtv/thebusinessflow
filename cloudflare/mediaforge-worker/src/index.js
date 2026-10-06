@@ -115,6 +115,224 @@ async function getCatalog(env){
 function resolveTracks(catalog,ids){const map=new Map((catalog.tracks||[]).map(t=>[String(t.id),t]));const tracks=ids.map(id=>map.get(String(id))).filter(Boolean);return {tracks,map};}
 function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:String(t.title||'Faixa'),url:String(t.url||''),duration_seconds:Number(t.duration_seconds||0),collection_name:t.collection_name||'',style:t.style||''})).filter(t=>t.url);}
 
+
+/* VIDEO_FACTORY_CHANNELS_V2
+   Video production control-plane lives in MediaForge DB + GitHub.
+   It is intentionally isolated from all live-stream tables/endpoints. */
+const VIDEO_FACTORY_CHANNELS_V2=[
+  {id:'the-business-flow',slug:'the-business-flow',name:'The Business Flow',repo:'thebusinessflowtv/thebusinessflow',niche:'Business / Companies / Technology / Money',locale:'en-US',youtube_connected:true,allow_youtube_upload:true},
+  {id:'nba-stars',slug:'nba-stars',name:'NBA Stars',repo:'thebusinessflowtv/nbastarstv',niche:'NBA / Players / Teams / Rivalries / Curiosities / Stories',locale:'en-US',youtube_connected:false,allow_youtube_upload:false}
+];
+function videoFactoryChannel(value){
+  const v=String(value||'').trim().toLowerCase();
+  return VIDEO_FACTORY_CHANNELS_V2.find(x=>x.id===v||x.slug===v||x.name.toLowerCase()===v)||null;
+}
+async function ensureVideoFactorySchema(env){
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS video_productions (id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, channel_slug TEXT NOT NULL, channel_name TEXT NOT NULL, repo TEXT NOT NULL, requested_topic TEXT, selected_topic TEXT, generation_mode TEXT NOT NULL, objective TEXT NOT NULL, notes TEXT, upload_requested INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'draft', progress INTEGER NOT NULL DEFAULT 0, dispatch_kind TEXT, dispatch_commit_sha TEXT, github_run_id TEXT, github_run_url TEXT, suggestions_json TEXT, error_message TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_video_productions_created ON video_productions(created_at DESC)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_video_productions_channel ON video_productions(channel_slug,created_at DESC)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_video_productions_status ON video_productions(status,created_at DESC)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS video_production_events (id TEXT PRIMARY KEY, production_id TEXT NOT NULL, stage TEXT NOT NULL, status TEXT NOT NULL, message TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_video_events_prod ON video_production_events(production_id,created_at)").run();
+}
+async function videoFactoryEvent(env,productionId,stage,status,message,payload){
+  await env.DB.prepare("INSERT INTO video_production_events(id,production_id,stage,status,message,payload_json,created_at) VALUES(?,?,?,?,?,?,?)")
+    .bind(crypto.randomUUID(),String(productionId),String(stage||'system'),String(status||'info'),String(message||''),JSON.stringify(payload||{}),new Date().toISOString()).run();
+}
+function normalizeVideoFactoryRow(row){
+  if(!row)return null;
+  let suggestions=null;
+  try{suggestions=row.suggestions_json?JSON.parse(row.suggestions_json):null}catch(_){}
+  return {...row,upload_requested:!!Number(row.upload_requested||0),suggestions};
+}
+async function githubRepoJson(env,repo,path){
+  if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('GITHUB_WORKFLOW_TOKEN não configurado no MediaForge.');
+  const api='https://api.github.com/repos/'+repo+'/contents/'+path+'?ref=main';
+  const r=await fetch(api,{headers:githubHeaders(env)});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error('GitHub leitura falhou ('+r.status+'): '+(await r.text()).slice(0,400));
+  const d=await r.json();
+  if(!d||!d.content)return null;
+  const raw=String(d.content).replace(/\s+/g,'');
+  const bytes=Uint8Array.from(atob(raw),ch=>ch.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+async function githubWorkflowRunsForRepo(env,repo,workflow){
+  if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('GITHUB_WORKFLOW_TOKEN não configurado no MediaForge.');
+  const api='https://api.github.com/repos/'+repo+'/actions/workflows/'+encodeURIComponent(workflow)+'/runs?branch=main&per_page=30';
+  const r=await fetch(api,{headers:githubHeaders(env)});
+  if(!r.ok)return [];
+  const d=await r.json();
+  return Array.isArray(d.workflow_runs)?d.workflow_runs:[];
+}
+async function githubRunJobsForRepo(env,repo,runId){
+  if(!runId)return [];
+  const api='https://api.github.com/repos/'+repo+'/actions/runs/'+runId+'/jobs?per_page=100';
+  const r=await fetch(api,{headers:githubHeaders(env)});
+  if(!r.ok)return [];
+  const d=await r.json();
+  return Array.isArray(d.jobs)?d.jobs:[];
+}
+function videoFactoryStageFromJobs(jobs){
+  const names=[];
+  for(const j of jobs||[])for(const s of j.steps||[])if(s.status==='in_progress'||s.conclusion==='success')names.push(String(s.name||'').toLowerCase());
+  const joined=names.join(' | ');
+  if(/upload|youtube/.test(joined))return {status:'upload_pending',progress:96};
+  if(/validat|verify|audit/.test(joined))return {status:'validating',progress:91};
+  if(/render|ffmpeg/.test(joined))return {status:'rendering',progress:80};
+  if(/narrat|voice|tts/.test(joined))return {status:'narrating',progress:68};
+  if(/sonnet|script|writing|package/.test(joined))return {status:'scripting',progress:56};
+  if(/visual|image|media|collect/.test(joined))return {status:'collecting_media',progress:43};
+  if(/research|haiku/.test(joined))return {status:'researching',progress:26};
+  return {status:'queued',progress:18};
+}
+async function refreshVideoFactoryProduction(env,row){
+  row=normalizeVideoFactoryRow(row);
+  if(!row||['completed','uploaded_private','failed'].includes(row.status))return row;
+  const channel=videoFactoryChannel(row.channel_slug);
+  if(!channel)return row;
+  let suggestions=row.suggestions;
+  if((row.generation_mode==='suggest'||row.generation_mode==='auto')&&!suggestions){
+    try{
+      const s=await githubRepoJson(env,channel.repo,'production/mfcc-topic-suggestions/'+row.id+'.json');
+      if(s&&Array.isArray(s.suggestions)){
+        suggestions=s.suggestions.slice(0,5);
+        const selected=row.generation_mode==='auto'&&suggestions[0]?String(suggestions[0].topic||suggestions[0].title_idea||''):row.selected_topic;
+        await env.DB.prepare("UPDATE video_productions SET suggestions_json=?, selected_topic=COALESCE(?,selected_topic), updated_at=? WHERE id=?")
+          .bind(JSON.stringify(suggestions),selected||null,new Date().toISOString(),row.id).run();
+        row.suggestions=suggestions;if(selected)row.selected_topic=selected;
+      }
+    }catch(_){}
+  }
+  if(row.generation_mode==='suggest'&&!row.selected_topic){
+    if(suggestions&&suggestions.length){row.status='researching';row.progress=Math.max(Number(row.progress||0),15);}
+    return row;
+  }
+  const createdMs=Date.parse(row.created_at||'')||0;
+  const customRuns=await githubWorkflowRunsForRepo(env,channel.repo,'custom-topic-production.yml');
+  let custom=customRuns.find(x=>row.dispatch_commit_sha&&x.head_sha===row.dispatch_commit_sha);
+  if(!custom)custom=customRuns.find(x=>(Date.parse(x.created_at||'')||0)>=createdMs-30000);
+  if(custom&&custom.conclusion==='failure'){
+    await env.DB.prepare("UPDATE video_productions SET status='failed',error_message=?,github_run_id=?,github_run_url=?,updated_at=? WHERE id=?")
+      .bind('O launcher de produção falhou no GitHub.',String(custom.id||''),String(custom.html_url||''),new Date().toISOString(),row.id).run();
+    await videoFactoryEvent(env,row.id,'dispatch','failed','O launcher do GitHub falhou.',{run_id:custom.id,url:custom.html_url});
+    return {...row,status:'failed',error_message:'O launcher de produção falhou no GitHub.',github_run_id:String(custom.id||''),github_run_url:custom.html_url};
+  }
+  if(!custom||custom.status!=='completed'){
+    const progress=Math.max(Number(row.progress||0),custom?12:8);
+    if(progress!==row.progress)await env.DB.prepare("UPDATE video_productions SET status='queued',progress=?,github_run_id=?,github_run_url=?,updated_at=? WHERE id=?")
+      .bind(progress,custom?String(custom.id||''):row.github_run_id,custom?String(custom.html_url||''):row.github_run_url,new Date().toISOString(),row.id).run();
+    return {...row,status:'queued',progress,github_run_id:custom?String(custom.id||''):row.github_run_id,github_run_url:custom?custom.html_url:row.github_run_url};
+  }
+  const dailyRuns=await githubWorkflowRunsForRepo(env,channel.repo,'daily-production.yml');
+  const customCreated=Date.parse(custom.created_at||'')||createdMs;
+  const daily=dailyRuns.filter(x=>(Date.parse(x.created_at||'')||0)>=customCreated-5000).sort((a,b)=>(Date.parse(a.created_at||0)-Date.parse(b.created_at||0)))[0]||null;
+  if(!daily){
+    const progress=Math.max(Number(row.progress||0),15);
+    await env.DB.prepare("UPDATE video_productions SET status='queued',progress=?,github_run_id=?,github_run_url=?,updated_at=? WHERE id=?")
+      .bind(progress,String(custom.id||''),String(custom.html_url||''),new Date().toISOString(),row.id).run();
+    return {...row,status:'queued',progress,github_run_id:String(custom.id||''),github_run_url:custom.html_url};
+  }
+  if(daily.status==='completed'){
+    if(daily.conclusion==='success'){
+      await env.DB.prepare("UPDATE video_productions SET status='completed',progress=100,github_run_id=?,github_run_url=?,error_message=NULL,completed_at=?,updated_at=? WHERE id=?")
+        .bind(String(daily.id||''),String(daily.html_url||''),new Date().toISOString(),new Date().toISOString(),row.id).run();
+      await videoFactoryEvent(env,row.id,'production','completed','Produção concluída no GitHub.',{run_id:daily.id,url:daily.html_url});
+      return {...row,status:'completed',progress:100,github_run_id:String(daily.id||''),github_run_url:daily.html_url,error_message:null};
+    }
+    await env.DB.prepare("UPDATE video_productions SET status='failed',progress=?,github_run_id=?,github_run_url=?,error_message=?,updated_at=? WHERE id=?")
+      .bind(Math.max(Number(row.progress||0),20),String(daily.id||''),String(daily.html_url||''),'A produção terminou com falha no GitHub.',new Date().toISOString(),row.id).run();
+    await videoFactoryEvent(env,row.id,'production','failed','A produção terminou com falha no GitHub.',{run_id:daily.id,url:daily.html_url});
+    return {...row,status:'failed',github_run_id:String(daily.id||''),github_run_url:daily.html_url,error_message:'A produção terminou com falha no GitHub.'};
+  }
+  const jobs=await githubRunJobsForRepo(env,channel.repo,daily.id);
+  const stage=videoFactoryStageFromJobs(jobs);
+  await env.DB.prepare("UPDATE video_productions SET status=?,progress=?,github_run_id=?,github_run_url=?,updated_at=? WHERE id=?")
+    .bind(stage.status,Math.max(Number(row.progress||0),stage.progress),String(daily.id||''),String(daily.html_url||''),new Date().toISOString(),row.id).run();
+  return {...row,status:stage.status,progress:Math.max(Number(row.progress||0),stage.progress),github_run_id:String(daily.id||''),github_run_url:daily.html_url};
+}
+async function createVideoFactoryProduction(env,body){
+  await ensureVideoFactorySchema(env);
+  const channel=videoFactoryChannel(body.channel_slug||body.channel_id||body.channel);
+  if(!channel)throw new Error('Canal de vídeo não configurado no MediaForge.');
+  const mode=String(body.generation_mode||body.mode||'manual');
+  if(!['manual','suggest','auto'].includes(mode))throw new Error('Modo de geração inválido.');
+  const objective=String(body.objective||'viral_ctr');
+  const topic=String(body.requested_topic||body.topic||'').trim();
+  if(mode==='manual'&&topic.length<3)throw new Error('Informe um tema para a produção manual.');
+  const id=crypto.randomUUID(),now=new Date().toISOString();
+  const upload=channel.allow_youtube_upload&&body.upload_requested?1:0;
+  await env.DB.prepare("INSERT INTO video_productions(id,channel_id,channel_slug,channel_name,repo,requested_topic,selected_topic,generation_mode,objective,notes,upload_requested,status,progress,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id,channel.id,channel.slug,channel.name,channel.repo,mode==='manual'?topic:null,mode==='manual'?topic:null,mode,objective,String(body.notes||'').trim()||null,upload,mode==='manual'?'draft':'researching',0,now,now).run();
+  await videoFactoryEvent(env,id,'request','created','Produção criada no MediaForge.',{channel:channel.slug,mode,objective});
+  let payload,path,kind;
+  if(mode==='manual'){
+    path='production/custom-topic-request.json';kind='production';
+    payload={id,topic,category:channel.slug==='nba-stars'?'NBA storytelling':'timely business/technology',working_angle:topic,title_seed:topic,thumbnail_text_seed:channel.slug==='nba-stars'?'NBA STORY':'MUST SEE',click_score:100,click_reason:'Requested from MediaForge Control Center.',objective,upload_requested:!!upload,mfcc_production_id:id,notes:String(body.notes||'')};
+  }else{
+    path='production/mfcc-topic-request.json';kind='intelligence';
+    payload={request_id:id,production_id:id,mode,objective,notes:String(body.notes||''),upload_requested:!!upload,channel_name:channel.name,niche:channel.niche};
+  }
+  try{
+    const g=await githubQueueFileToRepo(env,channel.repo,path,payload,'MediaForge: '+kind+' '+id);
+    const sha=String(g?.commit?.sha||'');
+    await env.DB.prepare("UPDATE video_productions SET status=?,progress=?,dispatch_kind=?,dispatch_commit_sha=?,updated_at=? WHERE id=?")
+      .bind(mode==='manual'?'queued':'researching',mode==='manual'?5:8,kind,sha,new Date().toISOString(),id).run();
+    await videoFactoryEvent(env,id,'dispatch','queued',mode==='manual'?'Pedido enviado à fábrica GitHub.':'Pedido de inteligência enviado ao GitHub.',{commit_sha:sha,repo:channel.repo});
+  }catch(e){
+    await env.DB.prepare("UPDATE video_productions SET status='failed',error_message=?,updated_at=? WHERE id=?").bind(String(e?.message||e),new Date().toISOString(),id).run();
+    await videoFactoryEvent(env,id,'dispatch','failed','Falha ao enviar pedido ao GitHub.',{error:String(e?.message||e)});
+    throw e;
+  }
+  const row=await env.DB.prepare("SELECT * FROM video_productions WHERE id=?").bind(id).first();
+  return normalizeVideoFactoryRow(row);
+}
+async function getVideoFactoryProduction(env,id,refresh){
+  await ensureVideoFactorySchema(env);
+  let row=await env.DB.prepare("SELECT * FROM video_productions WHERE id=?").bind(String(id)).first();
+  if(!row)return null;
+  if(refresh)row=await refreshVideoFactoryProduction(env,row);
+  const ev=await env.DB.prepare("SELECT id,stage,status,message,payload_json,created_at FROM video_production_events WHERE production_id=? ORDER BY created_at ASC").bind(String(id)).all();
+  return {production:normalizeVideoFactoryRow(row),events:(ev.results||[]).map(x=>{let payload={};try{payload=JSON.parse(x.payload_json||'{}')}catch(_){}return {...x,payload};})};
+}
+async function getVideoFactorySuggestions(env,id){
+  await ensureVideoFactorySchema(env);
+  let row=await env.DB.prepare("SELECT * FROM video_productions WHERE id=?").bind(String(id)).first();
+  if(!row)throw new Error('Produção não encontrada.');
+  row=normalizeVideoFactoryRow(row);
+  const channel=videoFactoryChannel(row.channel_slug);
+  let suggestions=row.suggestions;
+  if(!suggestions){
+    const s=await githubRepoJson(env,channel.repo,'production/mfcc-topic-suggestions/'+row.id+'.json');
+    if(s&&Array.isArray(s.suggestions)){
+      suggestions=s.suggestions.slice(0,5);
+      const autoTopic=row.generation_mode==='auto'&&suggestions[0]?String(suggestions[0].topic||suggestions[0].title_idea||''):null;
+      await env.DB.prepare("UPDATE video_productions SET suggestions_json=?,selected_topic=COALESCE(?,selected_topic),updated_at=? WHERE id=?")
+        .bind(JSON.stringify(suggestions),autoTopic,new Date().toISOString(),row.id).run();
+      await videoFactoryEvent(env,row.id,'ideas','ready','As 5 ideias foram geradas.',{count:suggestions.length});
+    }
+  }
+  return {ready:!!(suggestions&&suggestions.length),suggestions:suggestions||[]};
+}
+async function selectVideoFactorySuggestion(env,id,index){
+  await ensureVideoFactorySchema(env);
+  const row=normalizeVideoFactoryRow(await env.DB.prepare("SELECT * FROM video_productions WHERE id=?").bind(String(id)).first());
+  if(!row)throw new Error('Produção não encontrada.');
+  const channel=videoFactoryChannel(row.channel_slug);
+  const sr=await getVideoFactorySuggestions(env,id);
+  if(!sr.ready)throw new Error('As sugestões ainda não estão prontas.');
+  const i=Number(index);
+  if(!Number.isInteger(i)||i<0||i>=sr.suggestions.length)throw new Error('Sugestão inválida.');
+  const s=sr.suggestions[i],topic=String(s.topic||s.title_idea||'').trim();
+  const payload={id:row.id,topic,category:channel.slug==='nba-stars'?'NBA storytelling':'timely business/technology',working_angle:String(s.title_idea||topic),title_seed:String(s.title_idea||topic),thumbnail_text_seed:channel.slug==='nba-stars'?'NBA STORY':'MUST SEE',click_score:Number(s.score||100),click_reason:String(s.reason||'Selected in MediaForge.'),objective:row.objective,upload_requested:!!row.upload_requested,mfcc_production_id:row.id,mfcc_selected_suggestion:true};
+  const g=await githubQueueFileToRepo(env,channel.repo,'production/custom-topic-request.json',payload,'MediaForge: selected idea '+row.id);
+  const sha=String(g?.commit?.sha||'');
+  await env.DB.prepare("UPDATE video_productions SET selected_topic=?,status='queued',progress=10,dispatch_kind='production',dispatch_commit_sha=?,updated_at=? WHERE id=?")
+    .bind(topic,sha,new Date().toISOString(),row.id).run();
+  await videoFactoryEvent(env,row.id,'ideas','selected','Ideia selecionada e enviada para produção.',{index:i,topic,commit_sha:sha});
+  return normalizeVideoFactoryRow(await env.DB.prepare("SELECT * FROM video_productions WHERE id=?").bind(row.id).first());
+}
+
 const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy','youtube-gta-vi'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','diagnose_service','repair_gta_runtime','rollback_service','hot_patch_streaming','reload_control_agent'];
@@ -866,6 +1084,51 @@ async function handleApi(request,env,url){
 
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
   if(url.pathname==='/api/me'&&request.method==='GET')return json({user:{email:session.sub,role:'admin'}},200,cors);
+
+  if(url.pathname==='/api/video/channels'&&request.method==='GET'){
+    await ensureVideoFactorySchema(env);
+    return json({channels:VIDEO_FACTORY_CHANNELS_V2},200,cors);
+  }
+  if(url.pathname==='/api/video/productions'&&request.method==='GET'){
+    await ensureVideoFactorySchema(env);
+    const channel=String(url.searchParams.get('channel')||'').trim(),status=String(url.searchParams.get('status')||'').trim();
+    let sql='SELECT * FROM video_productions',where=[],args=[];
+    if(channel){where.push('channel_slug=?');args.push(channel);}
+    if(status){where.push('status=?');args.push(status);}
+    if(where.length)sql+=' WHERE '+where.join(' AND ');
+    sql+=' ORDER BY created_at DESC LIMIT 300';
+    const q=await env.DB.prepare(sql).bind(...args).all();
+    return json({productions:(q.results||[]).map(normalizeVideoFactoryRow)},200,cors);
+  }
+  if(url.pathname==='/api/video/productions'&&request.method==='POST'){
+    const b=await bodyJson(request);
+    try{return json({production:await createVideoFactoryProduction(env,b)},201,cors);}
+    catch(e){return json({error:'video_production_create_failed',message:String(e?.message||e)},502,cors);}
+  }
+  const videoProdMatch=url.pathname.match(/^\/api\/video\/productions\/([^/]+)$/);
+  if(videoProdMatch&&request.method==='GET'){
+    const data=await getVideoFactoryProduction(env,decodeURIComponent(videoProdMatch[1]),url.searchParams.get('refresh')==='1');
+    if(!data)return json({error:'video_production_not_found'},404,cors);
+    return json(data,200,cors);
+  }
+  const videoRefreshMatch=url.pathname.match(/^\/api\/video\/productions\/([^/]+)\/refresh$/);
+  if(videoRefreshMatch&&request.method==='POST'){
+    const data=await getVideoFactoryProduction(env,decodeURIComponent(videoRefreshMatch[1]),true);
+    if(!data)return json({error:'video_production_not_found'},404,cors);
+    return json(data,200,cors);
+  }
+  const videoSuggestionsMatch=url.pathname.match(/^\/api\/video\/productions\/([^/]+)\/suggestions$/);
+  if(videoSuggestionsMatch&&request.method==='GET'){
+    try{return json(await getVideoFactorySuggestions(env,decodeURIComponent(videoSuggestionsMatch[1])),200,cors);}
+    catch(e){return json({error:'video_suggestions_failed',message:String(e?.message||e)},502,cors);}
+  }
+  const videoSelectMatch=url.pathname.match(/^\/api\/video\/productions\/([^/]+)\/select-suggestion$/);
+  if(videoSelectMatch&&request.method==='POST'){
+    const b=await bodyJson(request);
+    try{return json({production:await selectVideoFactorySuggestion(env,decodeURIComponent(videoSelectMatch[1]),b.index)},200,cors);}
+    catch(e){return json({error:'video_suggestion_select_failed',message:String(e?.message||e)},502,cors);}
+  }
+
   if(url.pathname==='/api/dj-catalog/scans'&&request.method==='POST'){
     const b=await bodyJson(request),source=String(b.source||'gaming').trim().toLowerCase();
     const manifests={
