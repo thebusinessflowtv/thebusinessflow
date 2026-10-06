@@ -56,7 +56,7 @@ async function getCatalog(env){
 function resolveTracks(catalog,ids){const map=new Map((catalog.tracks||[]).map(t=>[String(t.id),t]));const tracks=ids.map(id=>map.get(String(id))).filter(Boolean);return {tracks,map};}
 function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:String(t.title||'Faixa'),url:String(t.url||''),duration_seconds:Number(t.duration_seconds||0),collection_name:t.collection_name||'',style:t.style||''})).filter(t=>t.url);}
 
-const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy'];
+const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy','youtube-gta-vi'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service','hot_patch_streaming','reload_control_agent'];
 function ovhAgentAllowed(request,env){
@@ -146,9 +146,50 @@ async function youtubeFetch(env,path,{method='GET',query={},body=null,headers={}
   if(!r.ok)throw new Error('YouTube API '+r.status+': '+String(d?.error?.message||d?.error_description||d?.raw||text.slice(0,500)));
   return d;
 }
+async function ensureYoutubeStreamForStation(env,cfg,station){
+  const slot=String(station?.ovh_slot||'');
+  if(slot!=='youtube-gta-vi'){
+    if(!station?.youtube_stream_id)throw new Error('Slot YouTube OVH não configurado: '+slot);
+    return {station,streamId:String(station.youtube_stream_id),streamUrl:'',streamKey:''};
+  }
+
+  let stream=null;
+  if(station.youtube_stream_id){
+    try{
+      const listed=await youtubeFetch(env,'liveStreams',{query:{part:'id,snippet,cdn,status,contentDetails',id:String(station.youtube_stream_id)}});
+      stream=(listed.items||[])[0]||null;
+    }catch(_){}
+  }
+  if(!stream){
+    stream=await youtubeFetch(env,'liveStreams',{
+      method:'POST',
+      query:{part:'id,snippet,cdn,status,contentDetails'},
+      body:{
+        snippet:{title:'Peter Lofi — GTA VI Vice City Live'},
+        cdn:{ingestionType:'rtmp',resolution:'1080p',frameRate:'60fps'},
+        contentDetails:{isReusable:true}
+      }
+    });
+    if(!stream?.id)throw new Error('YouTube não retornou stream_id para o slot GTA VI.');
+    station.youtube_stream_id=String(stream.id);
+    station.status='stopped';
+    station.current_session_id=null;
+    station.provisioned_at=new Date().toISOString();
+    cfg.updated_at=new Date().toISOString();
+    await setLocalConfig(env,'control/youtube-stations.json',cfg);
+  }
+
+  const info=stream?.cdn?.ingestionInfo||{};
+  const streamUrl=String(info.rtmpsIngestionAddress||info.ingestionAddress||'').trim();
+  const streamKey=String(info.streamName||'').trim();
+  if(!streamUrl||!streamKey)throw new Error('O YouTube não retornou endereço/chave de ingestão para o slot GTA VI.');
+  return {station,streamId:String(stream.id||station.youtube_stream_id),streamUrl,streamKey};
+}
+
 async function prepareYoutubeLocal(request,env,{sessionId,slot,title,description,thumbnailUrl,durationMinutes,loopUrl,tracks,playlistKey}){
   const cfg=await getYoutubeStations(env),station=(cfg.stations||[]).find(x=>String(x.ovh_slot||'')===String(slot));
-  if(!station||!station.youtube_stream_id)throw new Error('Slot YouTube OVH não configurado: '+slot);
+  if(!station)throw new Error('Slot YouTube OVH não configurado: '+slot);
+  const provisioned=await ensureYoutubeStreamForStation(env,cfg,station);
   const current=String(station.current_session_id||''),state=String(station.status||'').toLowerCase();
   if(current&&current!==sessionId&&['live','starting'].includes(state))throw new Error('Slot YouTube ocupado por '+current);
   const now=new Date(),scheduled=new Date(now.getTime()+20000).toISOString();
@@ -162,7 +203,7 @@ async function prepareYoutubeLocal(request,env,{sessionId,slot,title,description
     }
   });
   const bid=String(broadcast.id||'');if(!bid)throw new Error('YouTube não retornou o broadcast_id.');
-  const streamId=String(station.youtube_stream_id);
+  const streamId=String(provisioned.streamId);
   await youtubeFetch(env,'liveBroadcasts/bind',{method:'POST',query:{part:'id,contentDetails',id:bid,streamId}});
   let thumbOk=false;
   if(thumbnailUrl){
@@ -177,7 +218,7 @@ async function prepareYoutubeLocal(request,env,{sessionId,slot,title,description
       thumbOk=true;
     }catch(e){console.log('YouTube thumbnail skipped:',e?.message||String(e))}
   }
-  const cmd=await issueOvhCommand(env,{action:'start',platform:'youtube',runtime_slot:slot,session_id:sessionId,title,description,duration_minutes:Number(durationMinutes||0),loop_url:String(loopUrl||''),playlist_key:playlistKey||null,tracks:tracks||[],shuffle:true,repeat:true,source:'mediaforge-youtube-local'});
+  const cmd=await issueOvhCommand(env,{action:'start',platform:'youtube',runtime_slot:slot,session_id:sessionId,title,description,duration_minutes:Number(durationMinutes||0),loop_url:String(loopUrl||''),playlist_key:playlistKey||null,tracks:tracks||[],shuffle:true,repeat:true,source:'mediaforge-youtube-local',...(slot==='youtube-gta-vi'?{stream_url:provisioned.streamUrl,stream_key:provisioned.streamKey}:{})});
   // The reusable stream may already be active, but a stopped slot can need a few
   // seconds after the local OVH command. Drive the YouTube lifecycle directly
   // instead of delegating this step to GitHub Actions.
@@ -255,7 +296,26 @@ async function logOvhDenied(env,request,route){
 }
 
 function mapPlatformFromSlot(slot){return String(slot||'').startsWith('youtube-')?'youtube':String(slot||'');}
-async function getYoutubeStations(env){return (await fetchGithubJson(env,'control/youtube-stations.json'))||{stations:[]};}
+async function getYoutubeStations(env){
+  const cfg=(await fetchGithubJson(env,'control/youtube-stations.json'))||{version:1,stations:[]};
+  cfg.stations=Array.isArray(cfg.stations)?cfg.stations:[];
+  if(String(env.LOCAL_RUNTIME||'')==='1'&&!cfg.stations.some(x=>String(x.ovh_slot||'')==='youtube-gta-vi')){
+    cfg.stations.push({
+      key:'gta-vi',
+      name:'GTA VI - Vice City',
+      ovh_slot:'youtube-gta-vi',
+      runtime:'ovh',
+      status:'stopped',
+      current_session_id:null,
+      youtube_broadcast_id:null,
+      youtube_stream_id:null,
+      purpose:'Dedicated third YouTube slot for GTA VI without interrupting Deep House or Rainy.'
+    });
+    cfg.updated_at=new Date().toISOString();
+    await setLocalConfig(env,'control/youtube-stations.json',cfg);
+  }
+  return cfg;
+}
 async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/music-library.json'))||{version:1,playlists:[]};}
 async function getPeterLofiSeriesConfig(env){return (await fetchGithubJson(env,'config/peter_lofi_series.json'))||{series:[]};}
 async function syncMusicGenerationJob(env,row){
@@ -899,9 +959,10 @@ async function handleApi(request,env,url){
       let slot=platform;
       if(platform==='youtube'){
         slot=String(b.youtube_slot||'');
-        if(!['youtube-deep-house','youtube-rainy'].includes(slot))return json({error:'youtube_slot_required',message:'Selecione um slot OVH do YouTube.'},400,cors);
+        if(!['youtube-deep-house','youtube-rainy','youtube-gta-vi'].includes(slot))return json({error:'youtube_slot_required',message:'Selecione um slot OVH do YouTube.'},400,cors);
         const cfg=await getYoutubeStations(env),st=(cfg.stations||[]).find(x=>String(x.ovh_slot||'')===slot);
-        if(!st||!st.youtube_stream_id)return json({error:'youtube_slot_not_configured'},409,cors);
+        if(!st)return json({error:'youtube_slot_not_configured'},409,cors);
+        if(!st.youtube_stream_id&&slot!=='youtube-gta-vi')return json({error:'youtube_slot_not_configured'},409,cors);
         if(st.current_session_id&&String(st.status||'')==='live')return json({error:'youtube_slot_busy',message:`O slot ${st.name||slot} já está transmitindo. Encerre essa live antes de reutilizar o slot.`},409,cors);
       }
       await env.DB.prepare(`INSERT INTO live_sessions(id,platform,status,title,description,duration_minutes,track_ids_json,visual_asset_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,platform,'starting',title,description,duration,JSON.stringify(trackIds),visualId||null,now).run();
