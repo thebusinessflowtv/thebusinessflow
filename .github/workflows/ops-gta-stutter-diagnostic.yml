@@ -1,0 +1,53 @@
+name: Ops — Diagnose GTA VI Stutter
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-gta-stutter-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Capture GTA VI runtime diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          echo "PUBLIC_HEALTH_BEFORE"
+          curl -kfsS "$BASE/api/ovh/public-health" | jq '.services["youtube-gta-vi"]'
+
+          ID="gta-stutter-diag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$ID" '{action:"diagnose_service",target:"youtube-gta-vi",request_id:$id,source:"gta-stutter-diagnostic"}')" > /tmp/create.json
+
+          for I in $(seq 1 60); do
+            curl -kfsS "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/status.json
+            ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+            echo "$ID -> $ST"
+            [ "$ST" = "completed" ] && break
+            if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; exit 1; fi
+            sleep 2
+          done
+          jq '.command.result' /tmp/status.json
+
+          echo "PUBLIC_HEALTH_SAMPLE"
+          for I in 1 2 3 4 5 6; do
+            curl -kfsS "$BASE/api/ovh/public-health" | jq -c '.services["youtube-gta-vi"] | {status,fps,video_bitrate_kbps,restarts,encoder_pid,visual_status,audio_status,audio_stalls,now_playing,updated_at}'
+            sleep 5
+          done
