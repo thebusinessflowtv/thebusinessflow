@@ -849,15 +849,15 @@ async function handleApi(request,env,url){
     const thumbnailUrl=String(b.thumbnail_url||'').trim();
     if(!sessionId||!title||!description||!loopUrl||!thumbnailUrl)return json({error:'bridge_payload_incomplete'},400,cors);
     const requestedAt=String(b.requested_at||new Date().toISOString());
-    const securePath=`control/gta-youtube-secure-start/${sessionId}.json`;
+    const launchPath=`control/gta-youtube-launch/${sessionId}.json`;
     await githubQueueFileToRepo(
       env,
-      'thebusinessflowtv/thebusinessflow',
-      securePath,
+      'thebusinessflowtv/theofficemusic',
+      launchPath,
       {session_id:sessionId,title,description,loop_url:loopUrl,thumbnail_url:thumbnailUrl,requested_at:requestedAt,source:'mediaforge-ovh-remote-bridge'},
-      `youtube: secure GTA VI start ${sessionId}`
+      `youtube: launch GTA VI OVH live ${sessionId}`
     );
-    return json({ok:true,queued:true,path:securePath,mode:'remote-github-bridge'},202,cors);
+    return json({ok:true,queued:true,path:launchPath,mode:'remote-github-oauth-launch'},202,cors);
   }
 
   const session=await requireAuth(request,env);if(!session)return json({error:'unauthorized',message:'Sessão inválida ou expirada.'},401,cors);
