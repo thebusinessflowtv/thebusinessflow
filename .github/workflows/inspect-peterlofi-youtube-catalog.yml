@@ -1,0 +1,150 @@
+name: Inspect PeterLofi YouTube Public Catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'control/peterlofi-youtube-catalog-request/*.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: peterlofi-youtube-catalog-inspect
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+      EXPECTED_PETERLOFI_CHANNEL_ID: UCb4zbPlfD4CbpXLpbnuOXdw
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: |
+          python -m pip install --quiet --upgrade pip
+          pip install -r youtube-worker/requirements.txt
+
+      - name: Inspect public uploads without touching metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p control/peterlofi-youtube-catalog
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from google.auth.transport.requests import Request
+          from google.oauth2.credentials import Credentials
+          from googleapiclient.discovery import build
+
+          scopes=[
+              'https://www.googleapis.com/auth/youtube.upload',
+              'https://www.googleapis.com/auth/youtube.readonly',
+          ]
+          creds=Credentials(
+              token=None,
+              refresh_token=os.environ['YOUTUBE_REFRESH_TOKEN'],
+              token_uri='https://oauth2.googleapis.com/token',
+              client_id=os.environ['YOUTUBE_CLIENT_ID'],
+              client_secret=os.environ['YOUTUBE_CLIENT_SECRET'],
+              scopes=scopes,
+          )
+          creds.refresh(Request())
+          yt=build('youtube','v3',credentials=creds,cache_discovery=False)
+
+          chs=yt.channels().list(part='id,snippet,contentDetails',mine=True,maxResults=1).execute().get('items') or []
+          if not chs:
+              raise SystemExit('No authenticated YouTube channel')
+          ch=chs[0]
+          actual=ch['id']
+          expected=os.environ['EXPECTED_PETERLOFI_CHANNEL_ID']
+          if actual != expected:
+              raise SystemExit(f'SAFETY BLOCK: authenticated channel {actual} != PeterLofi {expected}')
+          if os.environ.get('YOUTUBE_CHANNEL_ID') and os.environ['YOUTUBE_CHANNEL_ID'] != actual:
+              raise SystemExit(f'SAFETY BLOCK: secret channel {os.environ["YOUTUBE_CHANNEL_ID"]} != authenticated {actual}')
+
+          uploads=ch['contentDetails']['relatedPlaylists']['uploads']
+          ids=[]
+          token=None
+          while True:
+              resp=yt.playlistItems().list(
+                  part='contentDetails',
+                  playlistId=uploads,
+                  maxResults=50,
+                  pageToken=token
+              ).execute()
+              ids.extend([i['contentDetails']['videoId'] for i in (resp.get('items') or [])])
+              token=resp.get('nextPageToken')
+              if not token:
+                  break
+
+          videos=[]
+          for i in range(0,len(ids),50):
+              batch=ids[i:i+50]
+              resp=yt.videos().list(
+                  part='snippet,status,contentDetails,liveStreamingDetails',
+                  id=','.join(batch)
+              ).execute()
+              for v in (resp.get('items') or []):
+                  sn=v.get('snippet') or {}
+                  st=v.get('status') or {}
+                  live=v.get('liveStreamingDetails')
+                  is_live=bool(live) or sn.get('liveBroadcastContent') in ('live','upcoming')
+                  videos.append({
+                      'video_id':v['id'],
+                      'title':sn.get('title') or '',
+                      'description':sn.get('description') or '',
+                      'published_at':sn.get('publishedAt'),
+                      'category_id':sn.get('categoryId'),
+                      'tags':sn.get('tags') or [],
+                      'privacy_status':st.get('privacyStatus'),
+                      'duration':(v.get('contentDetails') or {}).get('duration'),
+                      'live_broadcast_content':sn.get('liveBroadcastContent'),
+                      'is_live_or_upcoming':is_live,
+                      'is_public_non_live':st.get('privacyStatus')=='public' and not is_live,
+                  })
+
+          videos.sort(key=lambda x: x.get('published_at') or '', reverse=True)
+          payload={
+              'channel_id':actual,
+              'channel_title':(ch.get('snippet') or {}).get('title'),
+              'uploads_count':len(videos),
+              'public_non_live_count':sum(1 for v in videos if v['is_public_non_live']),
+              'videos':videos,
+          }
+          Path('control/peterlofi-youtube-catalog/latest.json').write_text(
+              json.dumps(payload,ensure_ascii=False,indent=2)+'\n',encoding='utf-8'
+          )
+          print(json.dumps({
+              'channel_id':payload['channel_id'],
+              'channel_title':payload['channel_title'],
+              'uploads_count':payload['uploads_count'],
+              'public_non_live_count':payload['public_non_live_count'],
+          },ensure_ascii=False))
+          PY
+
+      - name: Persist catalog snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/peterlofi-youtube-catalog/latest.json
+          git commit -m "youtube: inspect PeterLofi public catalog" || exit 0
+          for N in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((N*2))
+          done
+          exit 1
