@@ -62,6 +62,16 @@ async function githubQueueFile(env,path,payload,message){
   const res=await fetch(api,{method:'PUT',headers:githubHeaders(env),body:JSON.stringify(body)});
   if(!res.ok){const text=await res.text();throw new Error(`GitHub queue falhou (${res.status}): ${text.slice(0,500)}`);}return res.json();
 }
+async function githubQueueFileToRepo(env,repo,path,payload,message){
+  if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('Bridge GitHub indisponível: GITHUB_WORKFLOW_TOKEN não configurado na OVH.');
+  const api=`https://api.github.com/repos/${repo}/contents/${path}`;
+  let sha='';
+  try{const g=await fetch(api+'?ref=main',{headers:githubHeaders(env)});if(g.ok)sha=String((await g.json()).sha||'');}catch(_){}
+  const body={message:message||`mediaforge: update ${path}`,content:base64Utf8(JSON.stringify(payload,null,2)),branch:'main'};if(sha)body.sha=sha;
+  const res=await fetch(api,{method:'PUT',headers:githubHeaders(env),body:JSON.stringify(body)});
+  if(!res.ok){const text=await res.text();throw new Error(`Bridge GitHub falhou (${res.status}): ${text.slice(0,500)}`);}
+  return res.json();
+}
 async function githubDispatchWorkflow(env,workflow,inputs){
   if(!env.GITHUB_WORKFLOW_TOKEN)throw new Error('GITHUB_WORKFLOW_TOKEN não configurado no Worker.');
   const repo=env.GITHUB_REPO||'thebusinessflowtv/theofficemusic';
@@ -1176,6 +1186,25 @@ async function handleApi(request,env,url){
       if(platform==='youtube'){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         if(String(env.LOCAL_RUNTIME||'')==='1'){
+          if(slot==='youtube-gta-vi'){
+            const securePath=`control/gta-youtube-secure-start/${id}.json`;
+            await githubQueueFileToRepo(
+              env,
+              'thebusinessflowtv/thebusinessflow',
+              securePath,
+              {
+                session_id:id,
+                title,
+                description,
+                loop_url:visualUrl,
+                thumbnail_url:thumbnailUrl,
+                requested_at:now,
+                source:'mediaforge-gta-secure-panel'
+              },
+              `youtube: secure GTA VI start ${id}`
+            );
+            return json({ok:true,launch_mode:'github-secure-gta-bridge',message:'Credenciais do YouTube serão usadas somente dentro do GitHub Actions; a OVH receberá apenas o ingest temporário.',session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
+          }
           const local=await prepareYoutubeLocal(request,env,{sessionId:id,slot,title,description,thumbnailUrl,durationMinutes:duration,loopUrl:visualUrl,tracks:manifest,playlistKey});
           return json({ok:true,launch_mode:'ovh-youtube-local',youtube:local.result,command_id:local.command.id,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
         }
