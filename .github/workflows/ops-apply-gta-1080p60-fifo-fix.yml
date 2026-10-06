@@ -1,0 +1,104 @@
+name: Ops — Apply GTA VI 1080p60 FIFO Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-apply-gta-1080p60-fifo-fix.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Deploy only OVH agent and verify GTA VI runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+
+          login() {
+            LOGIN="$(curl -kfsS --retry 5 --retry-all-errors --retry-delay 2 -X POST "$BASE/api/auth/login"               -H 'content-type: application/json'               --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+            TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+            test -n "$TOKEN"
+            echo "::add-mask::$TOKEN"
+          }
+
+          wait_cmd() {
+            local id="$1"
+            for I in $(seq 1 120); do
+              if curl -kfsS "$BASE/api/ovh/deploy-status?id=$id" -H "authorization: Bearer $TOKEN" > /tmp/status.json 2>/dev/null; then
+                ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+                echo "$id -> $ST"
+                [ "$ST" = "completed" ] && return 0
+                if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; return 1; fi
+              fi
+              sleep 3
+            done
+            return 1
+          }
+
+          diagnose() {
+            local id="$1"
+            curl -kfsS -X POST "$BASE/api/ovh/deploy"               -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'               --data "$(jq -nc --arg id "$id" '{action:"diagnose_service",target:"youtube-gta-vi",request_id:$id,source:"gta-1080p60-fifo-fix"}')" >/tmp/create.json
+            wait_cmd "$id"
+            cp /tmp/status.json "/tmp/$id.json"
+          }
+
+          login
+
+          DEPLOY_ID="gta-1080p60-fifo-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy"             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'             --data "$(jq -nc --arg id "$DEPLOY_ID" '{action:"deploy_service",target:"ovh-agent",request_id:$id,source:"gta-1080p60-fifo-fix"}')" >/tmp/create.json
+          wait_cmd "$DEPLOY_ID"
+
+          sleep 30
+          login
+          D1="gta-fifo-diag1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          diagnose "$D1"
+          jq '.command.result | {health,audio_health,visual_health,docker_stats}' "/tmp/$D1.json"
+          U1="$(jq -r '.command.result.health.updated_at // ""' "/tmp/$D1.json")"
+          F1="$(jq -r '.command.result.health.fps // 0' "/tmp/$D1.json")"
+          B1="$(jq -r '.command.result.health.video_bitrate_kbps // 0' "/tmp/$D1.json")"
+          S1="$(jq -r '.command.result.health.status // ""' "/tmp/$D1.json")"
+          V1="$(jq -r '.command.result.visual_health.status // ""' "/tmp/$D1.json")"
+          A1="$(jq -r '.command.result.audio_health.state // .command.result.audio_health.status // ""' "/tmp/$D1.json")"
+
+          sleep 25
+          D2="gta-fifo-diag2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          diagnose "$D2"
+          jq '.command.result | {health,audio_health,visual_health,docker_stats}' "/tmp/$D2.json"
+          U2="$(jq -r '.command.result.health.updated_at // ""' "/tmp/$D2.json")"
+          F2="$(jq -r '.command.result.health.fps // 0' "/tmp/$D2.json")"
+          B2="$(jq -r '.command.result.health.video_bitrate_kbps // 0' "/tmp/$D2.json")"
+          S2="$(jq -r '.command.result.health.status // ""' "/tmp/$D2.json")"
+          V2="$(jq -r '.command.result.visual_health.status // ""' "/tmp/$D2.json")"
+          A2="$(jq -r '.command.result.audio_health.state // .command.result.audio_health.status // ""' "/tmp/$D2.json")"
+
+          LOG="$(jq -r '.command.result.ffmpeg_log_tail // ""' "/tmp/$D2.json")"
+          printf '%s' "$LOG" >/tmp/postfix-ffmpeg.log
+          if grep -Eiq 'non-existing PPS|decode_slice_header error|Circular buffer overrun' /tmp/postfix-ffmpeg.log; then
+            echo "::error::Post-fix FFmpeg still shows H.264/UDP corruption"
+            tail -120 /tmp/postfix-ffmpeg.log
+            exit 1
+          fi
+
+          test "$S1" = "live"
+          test "$S2" = "live"
+          test "$V1" = "streaming"
+          test "$V2" = "streaming"
+          test "$F1" = "60"
+          test "$F2" = "60"
+          test "$B1" = "8000"
+          test "$B2" = "8000"
+          test "$U1" != "$U2"
+          case "$A2" in
+            running|playing|encoder_backpressure_buffering) ;;
+            *) echo "::error::Unexpected audio state: $A2"; exit 1 ;;
+          esac
+          echo "GTA_1080P60_FIFO_STABLE"
