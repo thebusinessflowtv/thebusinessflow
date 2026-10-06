@@ -1,0 +1,101 @@
+name: Ops — Repair GTA VI Stutter
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-repair-gta-stutter.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Deploy repair controls and recover only GTA VI runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+
+          login() {
+            LOGIN="$(curl -kfsS --retry 5 --retry-all-errors --retry-delay 2 -X POST "$BASE/api/auth/login"               -H 'content-type: application/json'               --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+            TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+            test -n "$TOKEN"
+            echo "::add-mask::$TOKEN"
+          }
+
+          wait_cmd() {
+            local id="$1"
+            for I in $(seq 1 120); do
+              if curl -kfsS --retry 3 --retry-all-errors --retry-delay 1                 "$BASE/api/ovh/deploy-status?id=$id"                 -H "authorization: Bearer $TOKEN" > /tmp/status.json 2>/dev/null; then
+                ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+                echo "$id -> $ST"
+                [ "$ST" = "completed" ] && return 0
+                if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then
+                  cat /tmp/status.json
+                  return 1
+                fi
+              fi
+              sleep 3
+            done
+            return 1
+          }
+
+          create_cmd() {
+            local id="$1"
+            local action="$2"
+            local target="$3"
+            curl -kfsS -X POST "$BASE/api/ovh/deploy"               -H "authorization: Bearer $TOKEN"               -H 'content-type: application/json'               --data "$(jq -nc --arg id "$id" --arg a "$action" --arg t "$target"                 '{action:$a,target:$t,request_id:$id,source:"gta-stutter-repair"}')" > /tmp/create.json
+          }
+
+          login
+
+          CONTROL_ID="gta-stutter-control-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          create_cmd "$CONTROL_ID" "deploy_service" "control-api"
+          wait_cmd "$CONTROL_ID"
+
+          for I in $(seq 1 30); do
+            if curl -kfsS "$BASE/api/health" >/tmp/health-api.json 2>/dev/null; then break; fi
+            sleep 2
+          done
+          login
+
+          HOST_ID="gta-stutter-host-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          create_cmd "$HOST_ID" "deploy_host_agent" "host-agent"
+          wait_cmd "$HOST_ID"
+          sleep 5
+          login
+
+          REPAIR_ID="gta-stutter-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          create_cmd "$REPAIR_ID" "repair_gta_runtime" "youtube-gta-vi"
+          wait_cmd "$REPAIR_ID"
+          jq '.command.result | {service,old_encoder_pid,new_encoder_pid,status,visual_status,audio_status}' /tmp/status.json
+
+          READY=0
+          LAST_PID=""
+          for I in $(seq 1 18); do
+            curl -kfsS "$BASE/api/ovh/public-health" > /tmp/public.json
+            ST="$(jq -r '.services["youtube-gta-vi"].status // "unknown"' /tmp/public.json)"
+            PID="$(jq -r '.services["youtube-gta-vi"].encoder_pid // ""' /tmp/public.json)"
+            VS="$(jq -r '.services["youtube-gta-vi"].visual_status // ""' /tmp/public.json)"
+            AS="$(jq -r '.services["youtube-gta-vi"].audio_status // ""' /tmp/public.json)"
+            SONG="$(jq -r '.services["youtube-gta-vi"].now_playing.title // ""' /tmp/public.json)"
+            echo "sample[$I] status=$ST pid=$PID visual=$VS audio=$AS now_playing=$SONG"
+            if [ "$ST" = "live" ] && [ -n "$PID" ] && [ "$VS" = "streaming" ] && [ "$AS" = "running" ]; then
+              READY=1
+              LAST_PID="$PID"
+            fi
+            sleep 5
+          done
+          test "$READY" = "1"
+
+          DIAG_ID="gta-stutter-postdiag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          create_cmd "$DIAG_ID" "diagnose_service" "youtube-gta-vi"
+          wait_cmd "$DIAG_ID"
+          jq '.command.result | {health,audio_health,visual_health,docker_stats,ffmpeg_log_tail,controller_log_tail}' /tmp/status.json
