@@ -34,7 +34,12 @@ async function verifyGithubActionsOidc(token){
   if(Number(claims.exp||0)<now-30||Number(claims.nbf||0)>now+30)throw new Error('expired_or_early_oidc_token');
   if(String(claims.repository||'')!=='thebusinessflowtv/theofficemusic')throw new Error('invalid_oidc_repository');
   if(String(claims.ref||'')!=='refs/heads/main')throw new Error('invalid_oidc_ref');
-  if(!String(claims.workflow_ref||'').includes('thebusinessflowtv/theofficemusic/.github/workflows/gta-youtube-oauth-bridge.yml@refs/heads/main'))throw new Error('invalid_oidc_workflow');
+  const workflowRef=String(claims.workflow_ref||'');
+  const allowedWorkflowRefs=[
+    'thebusinessflowtv/theofficemusic/.github/workflows/gta-youtube-oauth-bridge.yml@refs/heads/main',
+    'thebusinessflowtv/theofficemusic/.github/workflows/ops-gta-oidc-preflight.yml@refs/heads/main'
+  ];
+  if(!allowedWorkflowRefs.some(x=>workflowRef.includes(x)))throw new Error('invalid_oidc_workflow');
 
   const jwksRes=await fetch('https://token.actions.githubusercontent.com/.well-known/jwks');
   if(!jwksRes.ok)throw new Error('github_oidc_jwks_unavailable');
