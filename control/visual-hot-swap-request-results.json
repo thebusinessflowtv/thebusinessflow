@@ -1,101 +1,30 @@
 {
-  "requested_at": "2026-10-03T05:32:23Z",
-  "requests": [
-    {
-      "runtime_slot": "kick",
-      "response": {
-        "ok": true,
-        "visual": {
-          "asset_id": null,
-          "title": null,
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136"
-        },
-        "command": {
-          "action": "set_visual",
-          "runtime_slot": "kick",
-          "platform": "kick",
-          "session_id": "2c2b6335-7872-4a9c-af69-cee17f10bedc",
-          "title": "Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE",
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136",
-          "asset_id": null,
-          "source": "mediaforge-visual-switch",
-          "id": "162275ae-2432-4944-aea9-43cb4f4b6d04",
-          "runtime": "ovh",
-          "requested_at": "2026-10-03T05:32:15.705Z"
-        }
-      }
-    },
-    {
-      "runtime_slot": "twitch",
-      "response": {
-        "ok": true,
-        "visual": {
-          "asset_id": null,
-          "title": null,
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136"
-        },
-        "command": {
-          "action": "set_visual",
-          "runtime_slot": "twitch",
-          "platform": "twitch",
-          "session_id": "b43d8f63-6e1a-4c47-a4c5-10fd2e4a5c8f",
-          "title": "Peter Lofi Gaming Radio 🎮 Lofi Beats to Play, Focus & Chill 🔴 LIVE",
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/8d7b81f4-5328-4505-82ac-79cf6221a8e1/51ab646b49d14c55b4720f89f6ee913e1ab5cb5b9df74788afcb099eeb6d6136",
-          "asset_id": null,
-          "source": "mediaforge-visual-switch",
-          "id": "2bd00467-f3a6-42cd-9abd-0518fc444a5d",
-          "runtime": "ovh",
-          "requested_at": "2026-10-03T05:32:17.673Z"
-        }
-      }
-    },
-    {
-      "runtime_slot": "youtube-deep-house",
-      "response": {
-        "ok": true,
-        "visual": {
-          "asset_id": null,
-          "title": null,
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/a26f2e7f-4203-4788-a3ce-6d6b2052f4dc/c64b196cedad4d05977d887f1be30505023124926b4144dc935c1142fe1b4109"
-        },
-        "command": {
-          "action": "set_visual",
-          "runtime_slot": "youtube-deep-house",
-          "platform": "youtube",
-          "session_id": "8cf99db8-3e53-4b74-b9d2-51fb67b54ff8",
-          "title": "deep house radio 💻 music to work/study/focus to | Peter Lofi 🎧",
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/a26f2e7f-4203-4788-a3ce-6d6b2052f4dc/c64b196cedad4d05977d887f1be30505023124926b4144dc935c1142fe1b4109",
-          "asset_id": null,
-          "source": "mediaforge-visual-switch",
-          "id": "48d400dd-685a-40c6-9374-78916232c0ce",
-          "runtime": "ovh",
-          "requested_at": "2026-10-03T05:32:19.493Z"
-        }
-      }
-    },
-    {
-      "runtime_slot": "youtube-rainy",
-      "response": {
-        "ok": true,
-        "visual": {
-          "asset_id": null,
-          "title": null,
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/998ca654-bb42-4c35-99c6-04ac2ebad84c/b6bf0c5819a04630b36f61314ed6de7566e4b48b72df41c59093a5bd7c0f9ab0"
-        },
-        "command": {
-          "action": "set_visual",
-          "runtime_slot": "youtube-rainy",
-          "platform": "youtube",
-          "session_id": "72fcb955-bbb3-41d1-b8d0-fd90427c57a5",
-          "title": "rainy lofi radio 🌧️ beats to study/work/relax to | Peter Lofi 🎧",
-          "loop_url": "https://mediaforge-api.guilhermeodsgn.workers.dev/media/998ca654-bb42-4c35-99c6-04ac2ebad84c/b6bf0c5819a04630b36f61314ed6de7566e4b48b72df41c59093a5bd7c0f9ab0",
-          "asset_id": null,
-          "source": "mediaforge-visual-switch",
-          "id": "f873379b-beec-482b-aef7-4c5f671cff7b",
-          "runtime": "ovh",
-          "requested_at": "2026-10-03T05:32:21.643Z"
-        }
-      }
-    }
-  ]
+  "status": "completed",
+  "checked_at": "2026-10-06T00:51:48Z",
+  "asset": {
+    "id": "0ace0e7e-0613-4cce-b138-a218f23ba3ca",
+    "title": "VÍDEO RADIO GTA VI.mp4"
+  },
+  "rtmp_restart": false,
+  "publisher_restart": false,
+  "twitch": {
+    "status": "live",
+    "encoder_pid_preserved": true,
+    "encoder_pid": "9058",
+    "restart_counter_preserved": true,
+    "restarts": 3,
+    "visual_revision_before": 4,
+    "visual_revision_after": 5,
+    "visual_status": "streaming"
+  },
+  "kick": {
+    "status": "live",
+    "encoder_pid_preserved": true,
+    "encoder_pid": "8061",
+    "restart_counter_preserved": true,
+    "restarts": 1,
+    "visual_revision_before": 5,
+    "visual_revision_after": 6,
+    "visual_status": "streaming"
+  }
 }
