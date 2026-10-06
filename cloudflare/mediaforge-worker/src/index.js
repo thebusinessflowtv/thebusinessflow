@@ -41,8 +41,20 @@ async function verifyGithubActionsOidc(token){
   const jwks=await jwksRes.json();
   const jwk=(jwks.keys||[]).find(k=>k.kid===header.kid);
   if(!jwk)throw new Error('github_oidc_key_not_found');
-  const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
-  const ok=await crypto.subtle.verify({name:'RSASSA-PKCS1-v1_5'},key,b64urlBytesRaw(s),enc.encode(h+'.'+p));
+  if(jwk.kty!=='RSA'||!jwk.n||!jwk.e)throw new Error('github_oidc_key_invalid');
+  const verifyJwk={kty:'RSA',n:String(jwk.n),e:String(jwk.e),alg:'RS256',ext:true};
+  let key;
+  try{
+    key=await crypto.subtle.importKey('jwk',verifyJwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+  }catch(e){
+    throw new Error('github_oidc_key_import_failed:'+String(e?.message||e));
+  }
+  let ok=false;
+  try{
+    ok=await crypto.subtle.verify({name:'RSASSA-PKCS1-v1_5'},key,b64urlBytesRaw(s),enc.encode(h+'.'+p));
+  }catch(e){
+    throw new Error('github_oidc_verify_failed:'+String(e?.message||e));
+  }
   if(!ok)throw new Error('invalid_oidc_signature');
   return claims;
 }
