@@ -1,5 +1,5 @@
 name: Ops — Apply GTA VI 1080p60 FIFO Fix
-# direct-flv-retry: 2026-10-05T23:59-03:00-v1
+# direct-flv-retry: 2026-10-06T00:02-03:00-paced-fifo
 
 on:
   push:
