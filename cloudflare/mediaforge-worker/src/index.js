@@ -100,7 +100,7 @@ function trackManifest(tracks){return tracks.map(t=>({id:String(t.id),title:Stri
 
 const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy','youtube-gta-vi'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
-const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','rollback_service','hot_patch_streaming','reload_control_agent'];
+const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','diagnose_service','rollback_service','hot_patch_streaming','reload_control_agent'];
 function ovhAgentAllowed(request,env){
   // The agent token is the primary credential in every runtime. Previously it
   // was only honored when LOCAL_RUNTIME=1, which made production control
