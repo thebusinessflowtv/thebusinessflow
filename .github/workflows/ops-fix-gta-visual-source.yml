@@ -1,0 +1,48 @@
+name: Ops — Fix GTA VI Visual Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-fix-gta-visual-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Switch GTA visual to OVH-local asset URL and verify publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          ASSET_ID="0ace0e7e-0613-4cce-b138-a218f23ba3ca"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          curl -kfsS -X POST "$BASE/api/ovh/visual" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg a "$ASSET_ID" '{runtime_slot:"youtube-gta-vi",asset_id:$a}')" \
+            | tee /tmp/visual.json
+          jq -e '.ok==true and (.visual.loop_url|startswith("http://127.0.0.1:8790/media/"))' /tmp/visual.json >/dev/null
+
+          READY=0
+          for I in $(seq 1 36); do
+            curl -kfsS "$BASE/api/ovh/public-health" > /tmp/health.json
+            ST="$(jq -r '.services["youtube-gta-vi"].status // "unknown"' /tmp/health.json)"
+            SONG="$(jq -r '.services["youtube-gta-vi"].now_playing.title // ""' /tmp/health.json)"
+            echo "gta[$I] status=$ST now_playing=$SONG"
+            if [ "$ST" = "live" ]; then READY=1; break; fi
+            sleep 5
+          done
+          jq '.services["youtube-gta-vi"]' /tmp/health.json
+          test "$READY" = "1"
