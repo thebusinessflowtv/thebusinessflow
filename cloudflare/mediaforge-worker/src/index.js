@@ -485,6 +485,18 @@ async function handleApi(request,env,url){
     }
     return json({commands},200,cors);
   }
+  if(url.pathname==='/api/ovh/agent/commands'&&request.method==='POST'){
+    const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_agent',ip:gate.ip},403,cors);}
+    const b=await bodyJson(request);
+    const action=String(b.action||'').toLowerCase();
+    const slot=String(b.runtime_slot||'');
+    const allowedActions=new Set(['start','stop','update_playlist','set_playlist','set_visual','skip','previous','resume','restart']);
+    if(!allowedActions.has(action))return json({error:'invalid_agent_command_action'},400,cors);
+    if(!OVH_SLOTS.includes(slot))return json({error:'invalid_runtime_slot'},400,cors);
+    const cmd=await issueOvhCommand(env,{...b,action,runtime_slot:slot,source:String(b.source||'github-oauth-bridge')});
+    return json({ok:true,command:{id:cmd.id,action:cmd.action,runtime_slot:cmd.runtime_slot,requested_at:cmd.requested_at}},201,cors);
+  }
+
   if(url.pathname==='/api/ovh/agent/command-ack'&&request.method==='POST'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_agent',ip:gate.ip},403,cors);}
     const b=await bodyJson(request),id=String(b.id||''),status=String(b.status||'completed'),now=new Date().toISOString();
