@@ -1,0 +1,75 @@
+name: Ops — GTA VI Control API + Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-gta-control-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Deploy Control API and diagnose GTA VI
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS --retry 5 --retry-all-errors --retry-delay 2 -X POST "$BASE/api/auth/login" \
+            -H 'content-type: application/json' \
+            --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          wait_cmd() {
+            local id="$1"
+            for i in $(seq 1 120); do
+              if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$id" \
+                -H "authorization: Bearer $TOKEN" > /tmp/status.json; then
+                sleep 2
+                continue
+              fi
+              ST="$(jq -r '.command.status // empty' /tmp/status.json)"
+              echo "$id -> $ST"
+              [ "$ST" = "completed" ] && return 0
+              if [ "$ST" = "failed" ] || [ "$ST" = "cancelled" ]; then cat /tmp/status.json; return 1; fi
+              sleep 3
+            done
+            return 1
+          }
+
+          DEPLOY_ID="gta-control-api-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$DEPLOY_ID" '{action:"deploy_service",target:"control-api",request_id:$id,source:"gta-secure-oauth-fix"}')" \
+            > /tmp/deploy-create.json
+          wait_cmd "$DEPLOY_ID"
+
+          # Wait for the restarted Control API.
+          for i in $(seq 1 30); do
+            if curl -kfsS "$BASE/api/health" >/tmp/health.json 2>/dev/null; then break; fi
+            sleep 2
+          done
+          cat /tmp/health.json
+
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(printf '%s' "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+
+          DIAG_ID="gta-runtime-diag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$DIAG_ID" '{action:"diagnose_service",target:"youtube-gta-vi",request_id:$id,source:"gta-secure-oauth-fix"}')" \
+            > /tmp/diag-create.json
+          wait_cmd "$DIAG_ID"
+          jq '{command:{id:.command.id,status:.command.status,error:.command.error,result:.command.result}}' /tmp/status.json
