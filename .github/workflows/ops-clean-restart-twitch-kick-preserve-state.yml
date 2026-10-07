@@ -1,0 +1,159 @@
+name: MediaForge — Clean Restart Twitch and Kick Preserve State
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-clean-restart-twitch-kick-preserve-state.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Login and snapshot Twitch/Kick
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(jq -r '.token // empty' <<<"$LOGIN")"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" >/tmp/token
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/before.json
+          for SLOT in twitch kick; do
+            jq -e --arg s "$SLOT" '.agent.services[$s].status=="live"' /tmp/before.json >/dev/null
+            jq --arg s "$SLOT" '.agent.services[$s] | {
+              runtime_slot,status,title,playlist_key,playlist_track_count,loop_url,
+              visual_revision,visual_status,audio_status,encoder_pid,audio_pid,restarts,now_playing
+            }' /tmp/before.json
+          done
+
+      - name: Stop and reopen Twitch with identical state
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"; SLOT="twitch"
+          BEFORE_PID="$(jq -r --arg s "$SLOT" '.agent.services[$s].encoder_pid // empty' /tmp/before.json)"
+          test -n "$BEFORE_PID"
+
+          STOP="$(curl -kfsS -X POST "$BASE/api/ovh/control" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' --data '{"action":"stop","runtime_slot":"twitch"}')"
+          STOP_ID="$(jq -r '.command.id // empty' <<<"$STOP")"; test -n "$STOP_ID"
+          for I in $(seq 1 60); do
+            C="$(curl -kfsS "$BASE/api/ovh/control/$STOP_ID" -H "authorization: Bearer $TOKEN")"
+            ST="$(jq -r '.command.status // empty' <<<"$C")"
+            [ "$ST" = "completed" ] && break
+            [ "$ST" = "failed" ] && { echo "$C"; exit 1; }
+            sleep 2
+          done
+          for I in $(seq 1 60); do
+            curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/twitch-stopped.json
+            ST="$(jq -r '.agent.services.twitch.status // ""' /tmp/twitch-stopped.json)"
+            [ "$ST" = "stopped" ] && break
+            sleep 2
+          done
+          test "$(jq -r '.agent.services.twitch.status' /tmp/twitch-stopped.json)" = "stopped"
+          sleep 8
+
+          START="$(curl -kfsS -X POST "$BASE/api/ovh/control" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' --data '{"action":"start","runtime_slot":"twitch"}')"
+          START_ID="$(jq -r '.command.id // empty' <<<"$START")"; test -n "$START_ID"
+          for I in $(seq 1 90); do
+            C="$(curl -kfsS "$BASE/api/ovh/control/$START_ID" -H "authorization: Bearer $TOKEN")"
+            ST="$(jq -r '.command.status // empty' <<<"$C")"
+            [ "$ST" = "completed" ] && break
+            [ "$ST" = "failed" ] && { echo "$C"; exit 1; }
+            sleep 2
+          done
+
+          OK=0
+          for I in $(seq 1 90); do
+            curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/twitch-after.json
+            STATUS="$(jq -r '.agent.services.twitch.status // ""' /tmp/twitch-after.json)"
+            PID="$(jq -r '.agent.services.twitch.encoder_pid // empty' /tmp/twitch-after.json)"
+            VIS="$(jq -r '.agent.services.twitch.visual_status // ""' /tmp/twitch-after.json)"
+            if [ "$STATUS" = "live" ] && [ -n "$PID" ] && [ "$PID" != "$BEFORE_PID" ] && [ "$VIS" = "streaming" ]; then OK=1; break; fi
+            sleep 2
+          done
+          test "$OK" = "1"
+
+          for FIELD in title playlist_key playlist_track_count loop_url; do
+            B="$(jq -r --arg f "$FIELD" '.agent.services.twitch[$f] // ""' /tmp/before.json)"
+            A="$(jq -r --arg f "$FIELD" '.agent.services.twitch[$f] // ""' /tmp/twitch-after.json)"
+            if [ "$A" != "$B" ]; then echo "TWITCH STATE MISMATCH $FIELD before=$B after=$A"; exit 1; fi
+          done
+          echo "TWITCH_REOPENED_PRESERVED"
+          jq '.agent.services.twitch | {status,title,playlist_key,playlist_track_count,loop_url,visual_status,audio_status,encoder_pid,audio_pid,restarts,now_playing}' /tmp/twitch-after.json
+
+      - name: Stop and reopen Kick with identical state
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"; SLOT="kick"
+          BEFORE_PID="$(jq -r --arg s "$SLOT" '.agent.services[$s].encoder_pid // empty' /tmp/before.json)"
+          test -n "$BEFORE_PID"
+
+          STOP="$(curl -kfsS -X POST "$BASE/api/ovh/control" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' --data '{"action":"stop","runtime_slot":"kick"}')"
+          STOP_ID="$(jq -r '.command.id // empty' <<<"$STOP")"; test -n "$STOP_ID"
+          for I in $(seq 1 60); do
+            C="$(curl -kfsS "$BASE/api/ovh/control/$STOP_ID" -H "authorization: Bearer $TOKEN")"
+            ST="$(jq -r '.command.status // empty' <<<"$C")"
+            [ "$ST" = "completed" ] && break
+            [ "$ST" = "failed" ] && { echo "$C"; exit 1; }
+            sleep 2
+          done
+          for I in $(seq 1 60); do
+            curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/kick-stopped.json
+            ST="$(jq -r '.agent.services.kick.status // ""' /tmp/kick-stopped.json)"
+            [ "$ST" = "stopped" ] && break
+            sleep 2
+          done
+          test "$(jq -r '.agent.services.kick.status' /tmp/kick-stopped.json)" = "stopped"
+          sleep 8
+
+          START="$(curl -kfsS -X POST "$BASE/api/ovh/control" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' --data '{"action":"start","runtime_slot":"kick"}')"
+          START_ID="$(jq -r '.command.id // empty' <<<"$START")"; test -n "$START_ID"
+          for I in $(seq 1 90); do
+            C="$(curl -kfsS "$BASE/api/ovh/control/$START_ID" -H "authorization: Bearer $TOKEN")"
+            ST="$(jq -r '.command.status // empty' <<<"$C")"
+            [ "$ST" = "completed" ] && break
+            [ "$ST" = "failed" ] && { echo "$C"; exit 1; }
+            sleep 2
+          done
+
+          OK=0
+          for I in $(seq 1 90); do
+            curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/kick-after.json
+            STATUS="$(jq -r '.agent.services.kick.status // ""' /tmp/kick-after.json)"
+            PID="$(jq -r '.agent.services.kick.encoder_pid // empty' /tmp/kick-after.json)"
+            VIS="$(jq -r '.agent.services.kick.visual_status // ""' /tmp/kick-after.json)"
+            if [ "$STATUS" = "live" ] && [ -n "$PID" ] && [ "$PID" != "$BEFORE_PID" ] && [ "$VIS" = "streaming" ]; then OK=1; break; fi
+            sleep 2
+          done
+          test "$OK" = "1"
+
+          for FIELD in title playlist_key playlist_track_count loop_url; do
+            B="$(jq -r --arg f "$FIELD" '.agent.services.kick[$f] // ""' /tmp/before.json)"
+            A="$(jq -r --arg f "$FIELD" '.agent.services.kick[$f] // ""' /tmp/kick-after.json)"
+            if [ "$A" != "$B" ]; then echo "KICK STATE MISMATCH $FIELD before=$B after=$A"; exit 1; fi
+          done
+          echo "KICK_REOPENED_PRESERVED"
+          jq '.agent.services.kick | {status,title,playlist_key,playlist_track_count,loop_url,visual_status,audio_status,encoder_pid,audio_pid,restarts,now_playing}' /tmp/kick-after.json
+
+      - name: Final verification both live
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"; TOKEN="$(cat /tmp/token)"
+          sleep 10
+          curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/final.json
+          for SLOT in twitch kick; do
+            jq -e --arg s "$SLOT" '.agent.services[$s].status=="live" and .agent.services[$s].visual_status=="streaming"' /tmp/final.json >/dev/null
+            jq --arg s "$SLOT" '.agent.services[$s] | {status,title,playlist_key,playlist_track_count,loop_url,visual_status,audio_status,encoder_pid,audio_pid,restarts,now_playing}' /tmp/final.json
+          done
