@@ -1,0 +1,44 @@
+name: MediaForge — Check Twitch Kick After Clean Restart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-check-twitch-kick-after-clean-restart.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - name: Check final Twitch/Kick runtime health
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          LOGIN="$(curl -kfsS -X POST "$BASE/api/auth/login" -H 'content-type: application/json'             --data "$(jq -nc --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}')")"
+          TOKEN="$(jq -r '.token // empty' <<<"$LOGIN")"
+          test -n "$TOKEN"
+          echo "::add-mask::$TOKEN"
+          OK=0
+          for I in $(seq 1 30); do
+            curl -kfsS "$BASE/api/ovh/status" -H "authorization: Bearer $TOKEN" >/tmp/status.json
+            TW_STATUS="$(jq -r '.agent.services.twitch.status // ""' /tmp/status.json)"
+            KI_STATUS="$(jq -r '.agent.services.kick.status // ""' /tmp/status.json)"
+            TW_AUDIO="$(jq -r '.agent.services.twitch.audio_status // ""' /tmp/status.json)"
+            KI_AUDIO="$(jq -r '.agent.services.kick.audio_status // ""' /tmp/status.json)"
+            TW_VIS="$(jq -r '.agent.services.twitch.visual_status // ""' /tmp/status.json)"
+            KI_VIS="$(jq -r '.agent.services.kick.visual_status // ""' /tmp/status.json)"
+            echo "check[$I] twitch=$TW_STATUS/$TW_AUDIO/$TW_VIS kick=$KI_STATUS/$KI_AUDIO/$KI_VIS"
+            if [ "$TW_STATUS" = "live" ] && [ "$KI_STATUS" = "live" ]               && [ "$TW_AUDIO" = "running" ] && [ "$KI_AUDIO" = "running" ]               && [ "$TW_VIS" = "streaming" ] && [ "$KI_VIS" = "streaming" ]; then
+              OK=1
+              break
+            fi
+            sleep 2
+          done
+          jq '{twitch:(.agent.services.twitch | {status,title,playlist_key,playlist_track_count,loop_url,visual_status,audio_status,encoder_pid,audio_pid,restarts,now_playing}),
+               kick:(.agent.services.kick | {status,title,playlist_key,playlist_track_count,loop_url,visual_status,audio_status,encoder_pid,audio_pid,restarts,now_playing})}' /tmp/status.json
+          test "$OK" = "1"
