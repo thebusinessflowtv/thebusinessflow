@@ -1,4 +1,4 @@
-name: MediaForge — Emergency Kick Diagnostic
+name: MediaForge — Recover Twitch with H264 Passthrough
 # live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
@@ -20,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify no Python syntax regression in H264 passthrough
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/ovh-streaming/app/stream_core.py > /tmp/stream_core.py
+          python -m py_compile /tmp/stream_core.py
+
       - name: Login and capture encoder health
         shell: bash
         run: |
@@ -35,16 +42,16 @@ jobs:
           curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/before.json
           jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-      - name: Request Kick FFmpeg and resource diagnostics
+      - name: Deploy corrected Twitch encoder only
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          ID="incident-diag-kick-20261008-$(date -u +%Y%m%d%H%M%S)"
+          ID="incident-recover-twitch-20261008-$(date -u +%Y%m%d%H%M%S)"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"diagnose_service",target:"kick",request_id:$id,source:"incident-kick-offline"}')" \
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"twitch",request_id:$id,source:"incident-h264-passthrough-recovery"}')" \
             > /tmp/create.json
           for I in $(seq 1 120); do
             if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" \
@@ -63,11 +70,11 @@ jobs:
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
 
-      - name: Print condensed Kick diagnosis and current platform status
+      - name: Verify Twitch after isolated encoder recovery
         shell: bash
         run: |
           set -euo pipefail
-          jq '{status:.command.status,error:.command.error,health:.command.result.health,desired:.command.result.desired,audio_health:.command.result.audio_health,visual_health:.command.result.visual_health,docker_stats:.command.result.docker_stats,ffmpeg_errors:(.command.result.ffmpeg_log_tail//""|split("\\n")|map(select(test("error|failed|timed out|connection|pipe|memory|buffer|fifo";"i")))|.[-12:])}' /tmp/status.json
+          jq '{status:.command.status,error:.command.error,service:.command.result.service,health:.command.result.health}' /tmp/status.json
           TOKEN="$(cat /tmp/mf-token)"
           curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 -H "authorization: Bearer $TOKEN" "https://146.59.156.224:8443/api/ovh/status" > /tmp/after.json
           jq '{host:.agent.host,reported_at:.agent.reported_at,twitch:{status:.agent.services.twitch.status,restarts:.agent.services.twitch.restarts,pid:.agent.services.twitch.encoder_pid},kick:{status:.agent.services.kick.status,restarts:.agent.services.kick.restarts,pid:.agent.services.kick.encoder_pid}}' /tmp/after.json
