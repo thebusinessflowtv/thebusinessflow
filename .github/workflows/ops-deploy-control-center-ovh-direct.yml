@@ -1,4 +1,4 @@
-name: MediaForge — Verify Real Twitch Egress
+name: MediaForge — Retest Twitch Delivery
 # live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
@@ -94,7 +94,7 @@ jobs:
           const fs=require('fs');
           const a=JSON.parse(fs.readFileSync('/tmp/diag-before.json')).command.result;
           const b=JSON.parse(fs.readFileSync('/tmp/diag-after.json')).command.result;
-          const net=(s)=>{const t=String(s||'').split('|')[2]?.split('/')[1]?.trim()||''; const m=t.match(/^([\\d.]+)\\s*(B|kB|MB|GB|TB|KiB|MiB|GiB)?$/i);if(!m)return NaN;const map={B:1,KB:1000,MB:1e6,GB:1e9,TB:1e12,KIB:1024,MIB:1048576,GIB:1073741824};return Number(m[1])*(map[(m[2]||'B').toUpperCase()]||1)};
+          const net=(s)=>{const t=String(s||'').split('|')[2]?.split('/')[1]?.trim()||'';const n=Number.parseFloat(t);if(!Number.isFinite(n))return NaN;const u=t.replace(/[0-9. ]/g,'').toUpperCase();const factor={B:1,KB:1000,MB:1e6,GB:1e9,TB:1e12,KIB:1024,MIB:1048576,GIB:1073741824};return n*(factor[u]||1)};
           const old=net(a.docker_stats),now=net(b.docker_stats);
           const delta=(now-old)/1e6;
           const lines=String(b.ffmpeg_log_tail||'').trim().split('\\n').filter(Boolean).slice(-9);
