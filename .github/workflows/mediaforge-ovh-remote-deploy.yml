@@ -1,7 +1,12 @@
 name: MediaForge — OVH Remote Deploy Bridge
 
 on:
-  # OVH deploy commands are local now; this is emergency fallback only.
+  # One-time incident activation for an authenticated control-agent-only reload.
+  # No Twitch/Kick publisher container is deployed or recreated.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/mediaforge-ovh-remote-deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -30,9 +35,13 @@ jobs:
           jq -e '.request_id and .action' control/ovh-deploy-request.json >/dev/null
           ACTION="$(jq -r '.action' control/ovh-deploy-request.json)"
           case "$ACTION" in
-            deploy_service|deploy_all|deploy_host_agent|health_check|rollback_service) ;;
+            deploy_service|deploy_all|deploy_host_agent|health_check|rollback_service|reload_control_agent) ;;
             *) echo "::error::Unsupported deploy action: $ACTION"; exit 1 ;;
           esac
+          if [ "${{ github.event_name }}" = "push" ]; then
+            test "$ACTION" = "reload_control_agent" || { echo "::error::Push activation is restricted to control-agent reload"; exit 1; }
+            test "$(jq -r '.request_id' control/ovh-deploy-request.json)" = "live-incident-20261008-disable-30m-rotation-v1"
+          fi
 
       - name: Submit and wait for OVH
         id: submit
