@@ -18,11 +18,11 @@ jobs:
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           echo "=== HEALTH ==="
-          curl -kfsS --connect-timeout 8 --max-time 20 "$BASE/api/health"
+          curl -kfsS --retry 6 --retry-all-errors --retry-delay 2 --connect-timeout 8 --max-time 20 "$BASE/api/health" || true
           echo
           echo "=== LOCAL OPS STATUS ==="
-          curl -kfsS --connect-timeout 8 --max-time 20 "$BASE/api/ops/20261003-live-stability/status"
+          curl -kfsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 8 --max-time 20 "$BASE/api/ops/20261003-live-stability/status" || true
           echo
           echo "=== PUBLIC HEALTH ==="
-          curl -kfsS --connect-timeout 8 --max-time 20 "$BASE/api/ovh/public-health"
+          curl -kfsS --retry 6 --retry-all-errors --retry-delay 2 --connect-timeout 8 --max-time 20 "$BASE/api/ovh/public-health"
           echo
