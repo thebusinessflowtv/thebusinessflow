@@ -1,4 +1,4 @@
-name: MediaForge — Verify Both RTMP Publishers Stay Up
+name: MediaForge — Inspect Twitch Offline RTMP
 # live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
@@ -42,16 +42,16 @@ jobs:
           curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/before.json
           jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-      - name: Read host health without changing publishers
+      - name: Inspect Twitch RTMP output and FIFO
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          ID="incident-verify-both-20261008-$(date -u +%Y%m%d%H%M%S)"
+          ID="incident-twitch-offline-20261008-$(date -u +%Y%m%d%H%M%S)"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"health_check",target:"all",request_id:$id,source:"incident-130s-stability-verification"}')" \
+            --data "$(jq -nc --arg id "$ID" '{action:"diagnose_service",target:"twitch",request_id:$id,source:"incident-twitch-fifo-no-signal"}')" \
             > /tmp/create.json
           for I in $(seq 1 120); do
             if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" \
@@ -70,23 +70,12 @@ jobs:
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
 
-      - name: Compare Twitch and Kick publisher identities after 135 seconds
+      - name: Examine actual Twitch encoder errors and memory
         shell: bash
         run: |
           set -euo pipefail
           jq '{status:.command.status,error:.command.error,service:.command.result.service,health:.command.result.health}' /tmp/status.json
           TOKEN="$(cat /tmp/mf-token)"
-          sleep 135
           curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 -H "authorization: Bearer $TOKEN" "https://146.59.156.224:8443/api/ovh/status" > /tmp/after.json
           jq '{host:.agent.host,reported_at:.agent.reported_at,twitch:{status:.agent.services.twitch.status,restarts:.agent.services.twitch.restarts,pid:.agent.services.twitch.encoder_pid},kick:{status:.agent.services.kick.status,restarts:.agent.services.kick.restarts,pid:.agent.services.kick.encoder_pid}}' /tmp/after.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const before=JSON.parse(fs.readFileSync('/tmp/before.json','utf8')).agent.services;
-          const after=JSON.parse(fs.readFileSync('/tmp/after.json','utf8')).agent.services;
-          for(const slot of ['twitch','kick']){
-            const a=before[slot],b=after[slot];
-            console.log(slot,JSON.stringify({before_pid:a.encoder_pid,after_pid:b.encoder_pid,before_restarts:a.restarts,after_restarts:b.restarts,status:b.status,updated_at:b.updated_at}));
-            if(a.status!=='live'||b.status!=='live'||!a.encoder_pid||String(a.encoder_pid)!==String(b.encoder_pid)||Number(a.restarts||0)!==Number(b.restarts||0)) throw Error(slot+' publisher restarted or lost LIVE state in 135-second interval');
-          }
-          console.log('BOTH_PUBLISHERS_STABLE_135_SECONDS');
-          NODE
+          jq '{diag_status:.command.status,error:.command.error,service:.command.result.service,health:.command.result.health,desired:.command.result.desired,transport:.command.result.pipeline_probe,docker_stats:.command.result.docker_stats,ffmpeg_last_messages:(.command.result.ffmpeg_log_tail//""|split("\\n")|.[-20:]),controller_last_messages:(.command.result.controller_log_tail//""|split("\\n")|.[-12:])}' /tmp/status.json
