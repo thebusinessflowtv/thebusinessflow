@@ -1,4 +1,4 @@
-name: MediaForge — Verify Post-Hotfix Live Stability
+name: MediaForge — Emergency Twitch Diagnostic
 # live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login and snapshot publisher identities
+      - name: Login and capture encoder health
         shell: bash
         run: |
           set -euo pipefail
@@ -33,21 +33,18 @@ jobs:
           echo "::add-mask::$TOKEN"
           printf '%s' "$TOKEN" > /tmp/mf-token
           curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/before.json
-          for SLOT in twitch kick; do
-            jq -e --arg s "$SLOT" '.agent.services[$s].status=="live" and .agent.services[$s].hot_swap==true and (.agent.services[$s].encoder_pid != null)' /tmp/before.json >/dev/null
-          done
           jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-      - name: Request read-only host health check
+      - name: Request Twitch FFmpeg and resource diagnostics
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          ID="incident-health-check-20261008-$(date -u +%Y%m%d%H%M%S)"
+          ID="incident-diag-twitch-20261008-$(date -u +%Y%m%d%H%M%S)"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"health_check",target:"all",request_id:$id,source:"incident-post-watchdog-check"}')" \
+            --data "$(jq -nc --arg id "$ID" '{action:"diagnose_service",target:"twitch",request_id:$id,source:"incident-twitch-offline"}')" \
             > /tmp/create.json
           for I in $(seq 1 120); do
             if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" \
@@ -66,26 +63,11 @@ jobs:
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
 
-      - name: Verify publisher identities are stable during health check
+      - name: Print condensed Twitch diagnosis and current platform status
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://146.59.156.224:8443"
+          jq '{status:.command.status,error:.command.error,health:.command.result.health,desired:.command.result.desired,audio_health:.command.result.audio_health,visual_health:.command.result.visual_health,docker_stats:.command.result.docker_stats,ffmpeg_errors:(.command.result.ffmpeg_log_tail//""|split("\\n")|map(select(test("error|failed|timed out|connection|pipe|memory|buffer|fifo";"i")))|.[-12:])}' /tmp/status.json
           TOKEN="$(cat /tmp/mf-token)"
-          sleep 8
-          curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/after.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const b=JSON.parse(fs.readFileSync('/tmp/before.json','utf8'));
-          const a=JSON.parse(fs.readFileSync('/tmp/after.json','utf8'));
-          for(const s of ['twitch','kick']){
-            const x=b.agent.services[s], y=a.agent.services[s];
-            if(String(x.encoder_pid)!==String(y.encoder_pid)) throw new Error(s+' encoder PID changed');
-            if(Number(x.restarts||0)!==Number(y.restarts||0)) throw new Error(s+' restart counter changed');
-            if(y.status!=='live'||y.hot_swap!==true) throw new Error(s+' is not live/hot-swap after agent deploy');
-          }
-          const r=a.agent.visual_rotation||{};
-          console.log('VISUAL_ROTATION',JSON.stringify(r));
-          console.log('Rotation status retained for diagnosis; automated rotation is disabled by the OVH agent patch.');
-          NODE
-          jq '{visual_rotation:.agent.visual_rotation,twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts}}' /tmp/after.json
+          curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 -H "authorization: Bearer $TOKEN" "https://146.59.156.224:8443/api/ovh/status" > /tmp/after.json
+          jq '{host:.agent.host,reported_at:.agent.reported_at,twitch:{status:.agent.services.twitch.status,restarts:.agent.services.twitch.restarts,pid:.agent.services.twitch.encoder_pid},kick:{status:.agent.services.kick.status,restarts:.agent.services.kick.restarts,pid:.agent.services.kick.encoder_pid}}' /tmp/after.json
