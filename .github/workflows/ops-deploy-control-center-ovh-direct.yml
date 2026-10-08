@@ -1,4 +1,4 @@
-name: MediaForge — Emergency Host Watchdog Containment
+name: MediaForge — Verify Post-Hotfix Live Stability
 # live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
@@ -38,16 +38,16 @@ jobs:
           done
           jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-      - name: Deploy only host watchdog agent (no publisher recreation)
+      - name: Request read-only host health check
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          ID="incident-watchdog-20261008-$(date -u +%Y%m%d%H%M%S)"
+          ID="incident-health-check-20261008-$(date -u +%Y%m%d%H%M%S)"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"incident-watchdog-stop-auto-publisher-kills"}')" \
+            --data "$(jq -nc --arg id "$ID" '{action:"health_check",target:"all",request_id:$id,source:"incident-post-watchdog-check"}')" \
             > /tmp/create.json
           for I in $(seq 1 120); do
             if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" \
@@ -66,7 +66,7 @@ jobs:
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
 
-      - name: Verify publishers were not intentionally restarted
+      - name: Verify publisher identities are stable during health check
         shell: bash
         run: |
           set -euo pipefail
