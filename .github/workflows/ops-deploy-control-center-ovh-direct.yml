@@ -1,5 +1,5 @@
-name: MediaForge — Deploy Visual Rotation Agent OVH
-# visual-rotation-v1: 2026-10-06-gta-fluid-60fps-redeploy
+name: MediaForge — Emergency Host Watchdog Containment
+# live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
   push:
@@ -38,16 +38,16 @@ jobs:
           done
           jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-      - name: Deploy only OVH control agent
+      - name: Deploy only host watchdog agent (no publisher recreation)
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          ID="visual-rotation-agent-$(date -u +%Y%m%d%H%M%S)"
+          ID="incident-watchdog-20261008-$(date -u +%Y%m%d%H%M%S)"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"ovh-agent",request_id:$id,source:"visual-rotation-v1"}')" \
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_host_agent",target:"host-agent",request_id:$id,source:"incident-watchdog-stop-auto-publisher-kills"}')" \
             > /tmp/create.json
           for I in $(seq 1 120); do
             if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" \
@@ -66,7 +66,7 @@ jobs:
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
 
-      - name: Verify publishers were not restarted and rotation is waiting for B
+      - name: Verify publishers were not intentionally restarted
         shell: bash
         run: |
           set -euo pipefail
@@ -86,6 +86,6 @@ jobs:
           }
           const r=a.agent.visual_rotation||{};
           console.log('VISUAL_ROTATION',JSON.stringify(r));
-          if(r.status!=='waiting_second_visual') throw new Error('rotation did not capture current visual A');
+          console.log('Rotation status retained for diagnosis; automated rotation is disabled by the OVH agent patch.');
           NODE
           jq '{visual_rotation:.agent.visual_rotation,twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts}}' /tmp/after.json
