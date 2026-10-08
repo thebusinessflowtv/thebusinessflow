@@ -1,6 +1,6 @@
 {
-  "request_id": "hotswap-post-visual-healthcheck-20261003-0532",
-  "action": "health_check",
-  "target": "all",
-  "source": "chatgpt-visual-hotswap-proof"
+  "request_id": "live-incident-20261008-disable-30m-rotation-v1",
+  "action": "reload_control_agent",
+  "target": "ovh-agent",
+  "source": "twitch-kick-30m-incident-zero-publisher-restart"
 }
