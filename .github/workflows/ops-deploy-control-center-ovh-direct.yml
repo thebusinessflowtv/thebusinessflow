@@ -1,4 +1,4 @@
-name: MediaForge — Repair Twitch FLV Ingest
+name: MediaForge — Verify Real Twitch Egress
 # live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
@@ -42,16 +42,16 @@ jobs:
           curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/before.json
           jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-      - name: Deploy Twitch FLV transport fix without touching Kick
+      - name: Capture Twitch RTMP egress baseline
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          ID="incident-twitch-flv-fix-20261008-$(date -u +%Y%m%d%H%M%S)"
+          ID="incident-egress-20261008-$(date -u +%Y%m%d%H%M%S)"
           curl -kfsS -X POST "$BASE/api/ovh/deploy" \
             -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"twitch",request_id:$id,source:"incident-twitch-flv-direct-tag7"}')" \
+            --data "$(jq -nc --arg id "$ID" '{action:"diagnose_service",target:"twitch",request_id:$id,source:"incident-egress-baseline"}')" \
             > /tmp/create.json
           for I in $(seq 1 120); do
             if ! curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 "$BASE/api/ovh/deploy-status?id=$ID" \
@@ -69,16 +69,38 @@ jobs:
             sleep 3
           done
           jq -e '.command.status=="completed"' /tmp/status.json >/dev/null
+          cp /tmp/status.json /tmp/diag-before.json
+          jq '{baseline_status:.command.result.health.status,pid:.command.result.health.encoder_pid,restarts:.command.result.health.restarts,docker_stats:.command.result.docker_stats}' /tmp/diag-before.json
 
-      - name: Confirm corrected Twitch publisher and Kick retained
+      - name: Verify Twitch egress continues after 50 seconds
         shell: bash
         run: |
           set -euo pipefail
-          jq '{status:.command.status,error:.command.error,service:.command.result.service,health:.command.result.health}' /tmp/status.json
+          sleep 50
+          BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 -H "authorization: Bearer $TOKEN" "https://146.59.156.224:8443/api/ovh/status" > /tmp/after.json
-          jq '{host:.agent.host,reported_at:.agent.reported_at,twitch:{status:.agent.services.twitch.status,restarts:.agent.services.twitch.restarts,pid:.agent.services.twitch.encoder_pid},kick:{status:.agent.services.kick.status,restarts:.agent.services.kick.restarts,pid:.agent.services.kick.encoder_pid}}' /tmp/after.json
-          jq '{deploy_status:.command.status,error:.command.error,target:.command.result.service,health:.command.result.health}' /tmp/status.json
-          jq '{host:.agent.host,twitch:{status:.agent.services.twitch.status,pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts},kick:{status:.agent.services.kick.status,pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts}}' /tmp/after.json
-          jq -e '.agent.services.twitch.encoder_pid!=null and .agent.services.twitch.status=="live"' /tmp/after.json > /dev/null
-          echo "TWITCH_PUBLISHER_DEPLOYED_KICK_UNCHANGED_IN_WORKFLOW"
+          ID="incident-egress-after-20261008-$(date -u +%Y%m%d%H%M%S)"
+          curl -kfsS -X POST "$BASE/api/ovh/deploy" -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$ID" '{action:"diagnose_service",target:"twitch",request_id:$id,source:"incident-egress-after"}')" > /tmp/created-after.json
+          for I in $(seq 1 30); do
+            curl -kfsS --retry 3 --retry-all-errors --retry-delay 2 -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/deploy-status?id=$ID" > /tmp/diag-after.json
+            S="$(jq -r '.command.status // empty' /tmp/diag-after.json)"
+            [ "$S" = "completed" ] && break
+            [ "$S" = "failed" ] && { jq '.command|{status,error}' /tmp/diag-after.json; exit 1; }
+            sleep 2
+          done
+          jq -e '.command.status=="completed"' /tmp/diag-after.json >/dev/null
+          node - <<'NODE'
+          const fs=require('fs');
+          const a=JSON.parse(fs.readFileSync('/tmp/diag-before.json')).command.result;
+          const b=JSON.parse(fs.readFileSync('/tmp/diag-after.json')).command.result;
+          const net=(s)=>{const t=String(s||'').split('|')[2]?.split('/')[1]?.trim()||''; const m=t.match(/^([\\d.]+)\\s*(B|kB|MB|GB|TB|KiB|MiB|GiB)?$/i);if(!m)return NaN;const map={B:1,KB:1000,MB:1e6,GB:1e9,TB:1e12,KIB:1024,MIB:1048576,GIB:1073741824};return Number(m[1])*(map[(m[2]||'B').toUpperCase()]||1)};
+          const old=net(a.docker_stats),now=net(b.docker_stats);
+          const delta=(now-old)/1e6;
+          const lines=String(b.ffmpeg_log_tail||'').trim().split('\\n').filter(Boolean).slice(-9);
+          const out={before:a.health,after:b.health,stats_before:a.docker_stats,stats_after:b.docker_stats,egress_delta_mb:Math.round(delta*100)/100,ffmpeg_tail:lines};
+          console.log(JSON.stringify(out,null,2));
+          if(b.health.status!=='live'||!b.health.encoder_pid||String(a.health.encoder_pid)!==String(b.health.encoder_pid)||Number(a.health.restarts||0)!==Number(b.health.restarts||0))throw Error('Twitch publisher is not stable');
+          if(!Number.isFinite(delta)||delta<12)throw Error('Twitch is NOT delivering sustained video traffic to the ingest (under 12MB in 50sec)');
+          console.log('TWITCH_EGRESS_CONFIRMED_OVER_50_SECONDS');
+          NODE
