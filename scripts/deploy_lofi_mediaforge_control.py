@@ -102,6 +102,23 @@ def main():
             raise RuntimeError("PRODUCTION_SLOTLESS_UI_NOT_VERIFIED; UI may still serve old YouTube slot field")
         time.sleep(3)
 
+    # Read-only end-to-end check: the *running* host deploy-agent must advertise
+    # the new dedicated publisher action before the UI can be considered ready.
+    probe_id="lofi-host-capability-"+os.environ["GITHUB_RUN_ID"]
+    call("/api/ovh/deploy",token,{"action":"health_check","target":"all","request_id":probe_id,"source":"lofi-safe-capability-probe"})
+    capability=None
+    for i in range(48):
+        row=call("/api/ovh/deploy-status?id="+urllib.parse.quote(probe_id),token).get("command") or {}
+        if row.get("status")=="failed":
+            raise RuntimeError("OVH host capability probe failed")
+        if row.get("status")=="completed":
+            capability=((row.get("result") or {}).get("capabilities") or {})
+            break
+        time.sleep(3)
+    if not capability or capability.get("isolated_lofi_youtube") is not True:
+        raise RuntimeError("Live OVH host agent does not advertise isolated Lofi YouTube support")
+    print("LIVE_HOST_LOFI_CAPABILITY_VERIFIED:",json.dumps(capability),flush=True)
+
     after=publishers(call("/api/ovh/status",token))
     changed=[k for k in before if k in after and before[k].get("encoder_pid") and before[k]["encoder_pid"]!=after[k].get("encoder_pid")]
     if changed:raise RuntimeError("Unrelated live encoder PID changed: "+",".join(changed))
