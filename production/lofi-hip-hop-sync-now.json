@@ -6,9 +6,9 @@
   "do_not_start_youtube_live": true,
   "scope": "catalog-only",
   "requested_at": "2026-10-09T21:30:00-03:00",
-  "retry": 19,
+  "retry": 20,
   "note": "Retry after replacing skipped conditional with explicit active push trigger",
-  "phase": "publish OVH chat freeze visibility and reliable next/previous failure acknowledgement on exact production panel",
-  "validation": "real status of independent lofi when streaming; no RTMP restart",
+  "phase": "reload host deploy agent with hot-append of QC-approved Lofi Hip Hop volume 2 tracks 37-66; preserve all live publishers",
+  "validation": "existing music remains unchanged; new tracks atomically added to OVH playlist.json after technical/originality QC; streamer PID invariants",
   "production_test": "verify exact /app.html#/peter-lofi/lives route and preservation of all existing publisher PIDs"
 }
