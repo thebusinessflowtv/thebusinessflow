@@ -1548,21 +1548,13 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/uploads/abort'&&request.method==='POST'){const b=await bodyJson(request),asset=await readAsset(env,String(b.asset_id||''));if(!asset)return json({error:'asset_not_found'},404,cors);try{await env.MEDIA.resumeMultipartUpload(asset.r2_key,String(b.upload_id||'')).abort();}catch(_){}await env.DB.prepare(`UPDATE assets SET status='aborted' WHERE id=?`).bind(asset.id).run();return json({ok:true},200,cors);}
 
   if(url.pathname==='/api/live/lofi-bridge-preflight'&&request.method==='POST'){
-    // Intentionally invalid request: verifies service authentication without
-    // writing to GitHub, creating a broadcast, or starting any encoder.
+    // Send a zero-side-effect auth probe through OVH's own authenticated agent.
+    // A 400 bridge_payload_incomplete response proves authentication is working.
     if(String(env.LOCAL_RUNTIME||'')!=='1')return json({error:'local_runtime_required'},409,cors);
-    const target='https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/agent/youtube-github-bridge';
-    const reqHeaders={'content-type':'application/json','user-agent':'MediaForge-Lofi-Auth-Preflight/1',
-      ...(env.OVH_AGENT_TOKEN?{'x-ovh-agent-token':String(env.OVH_AGENT_TOKEN)}:{})};
-    try{
-      const remote=await fetch(target,{method:'POST',headers:reqHeaders,
-        body:JSON.stringify({session_id:'',playlist_key:'lofi-hip-hop'})});
-      const data=await remote.json().catch(()=>({}));
-      return json({ready:remote.status===400&&data.error==='bridge_payload_incomplete',
-        remote_http:remote.status,remote_code:String(data.error||'unknown'),
-        local_agent_token_configured:!!env.OVH_AGENT_TOKEN,
-        broadcast_created:false},200,cors);
-    }catch(e){return json({ready:false,error:'bridge_unreachable',message:String(e?.message||e).slice(0,240)},502,cors);}
+    const cmd=await issueOvhCommand(env,{action:'probe_youtube_oauth',
+      runtime_slot:'youtube-lofi-hip-hop',platform:'youtube',
+      source:'mediaforge-ovh-oauth-preflight'});
+    return json({queued:true,command_id:cmd.id,live_created:false},202,cors);
   }
 
   if(url.pathname==='/api/live/lofi-release-orphan'&&request.method==='POST'){
@@ -1653,7 +1645,18 @@ async function handleApi(request,env,url){
       if(platform==='youtube'){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         if(String(env.LOCAL_RUNTIME||'')==='1'){
-          if(['youtube-gta-vi','youtube-lofi-hip-hop'].includes(slot)&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
+          if(slot==='youtube-lofi-hip-hop'&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
+            const relay=await issueOvhCommand(env,{action:'relay_youtube_oauth',
+              platform:'youtube',runtime_slot:slot,session_id:id,
+              title,description,loop_url:visualUrl||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4',
+              thumbnail_url:thumbnailUrl,playlist_key:playlistKey,
+              requested_at:now,source:'mediaforge-ovh-authenticated-oauth-relay'});
+            return json({ok:true,launch_mode:'ovh-agent-secure-oauth-relay',
+              message:'A OVH recebeu a solicitação e enviará a autorização ao GitHub.',
+              command_id:relay.id,session:{id,platform,status:'starting',runtime:'ovh',
+              runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
+          }
+          if(slot==='youtube-gta-vi'&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
             const bridgeUrl='https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/agent/youtube-github-bridge';
             const bridgePayload={
               session_id:id,
