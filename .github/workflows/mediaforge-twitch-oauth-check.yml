@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/mediaforge-twitch-oauth-check.yml'
       - 'cloudflare/mediaforge-worker/src/twitch-oauth.js'
+      - 'cloudflare/mediaforge-worker/Dockerfile.ovh'
       - 'cloudflare/mediaforge-worker/src/index.js'
       - 'scripts/configure-peterlofi-twitch-oauth.py'
       - 'scripts/repair-peterlofi-twitch-oauth.py'
@@ -35,6 +36,9 @@ jobs:
           cd cloudflare/mediaforge-worker
           npm install
           npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
+          grep -q 'apt-get install -y --no-install-recommends ca-certificates' Dockerfile.ovh
+          grep -q 'ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt' Dockerfile.ovh
+          grep -q 'ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt' Dockerfile.ovh
           echo OAUTH_CALLBACK_BUILD_VALID
       - name: Ensure secrets remain in the private server environment
         shell: bash
