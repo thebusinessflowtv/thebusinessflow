@@ -37,9 +37,9 @@ def main():
     token=auth["token"]
     print("::add-mask::"+token,flush=True)
     before=publishers(call("/api/ovh/status",token))
-    # The first deploy was accepted before the OVH API momentarily returned 502.
-    # Reuse its idempotency key; do not trigger a second control-plane deploy.
-    cid="lofi-catalog-control-38008428070"
+    # Idempotent per GitHub run. Redeploy the control-plane only when the
+    # publication marker version has changed; RTMP containers are never restarted.
+    cid="youtube-slotless-control-"+os.environ["GITHUB_RUN_ID"]
     result=call("/api/ovh/deploy",token,{"action":"deploy_host_agent","target":"host-agent","request_id":cid,"source":"lofi-hip-hop-selector-catalog-only"})
     print("CONTROL_PLANE_DEPLOY_REQUESTED:",cid,flush=True)
     for i in range(130):
