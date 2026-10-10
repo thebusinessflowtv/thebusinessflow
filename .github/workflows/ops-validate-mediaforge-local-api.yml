@@ -57,4 +57,26 @@ jobs:
           code,all_commands=http("/api/ovh/deploy-status",token=token)
           recent=all_commands.get("commands") or []
           print("REMOTE_QUEUE_LAST_25",json.dumps([{"id":c.get("id"),"action":c.get("action"),"status":c.get("status"),"created_at":c.get("created_at"),"claimed_at":c.get("claimed_at")} for c in recent],ensure_ascii=False),flush=True)
+          local="https://peterlofi.odsgn.com.br"
+          def local_http(path,payload=None,bearer=""):
+              data=json.dumps(payload).encode() if payload is not None else None
+              headers={"content-type":"application/json","user-agent":"MediaForge-Lofi-Host-Status"}
+              if bearer:headers["authorization"]="Bearer "+bearer
+              request=urllib.request.Request(local+path,data=data,method="POST" if data else "GET",headers=headers)
+              with urllib.request.urlopen(request,timeout=25) as reply:return json.load(reply)
+          try:
+              auth=local_http("/api/auth/login",payload={"email":os.environ.get("ADMIN_EMAIL",""),"password":os.environ.get("ADMIN_PASSWORD","")})
+              token=auth.get("token") or ""
+              if token:
+                  print("::add-mask::"+token,flush=True)
+                  state=local_http("/api/ovh/status",bearer=token)
+                  agent=state.get("agent") or {}
+                  print("OVH_LOCAL_AGENT_LAST_HEARTBEAT",agent.get("reported_at") or agent.get("stored_at"),flush=True)
+                  service=(agent.get("services") or {}).get("youtube-lofi-hip-hop") or {}
+                  print("OVH_LOCAL_LOFI_ENCODER",json.dumps({k:service.get(k) for k in ("status","session_id","encoder_pid","updated_at")}),flush=True)
+                  latest=local_http("/api/ovh/deploy-status",bearer=token)
+                  rows=latest.get("commands") or []
+                  print("OVH_LOCAL_RECENT_CONTROL",json.dumps([{"id":x.get("id"),"action":x.get("action"),"status":x.get("status")} for x in rows[:10]]),flush=True)
+          except Exception as exc:
+              print("OVH_LOCAL_DIAGNOSTIC_UNAVAILABLE",type(exc).__name__,flush=True)
           PY
