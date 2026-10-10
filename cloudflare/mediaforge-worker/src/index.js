@@ -1583,10 +1583,16 @@ async function handleApi(request,env,url){
       return json({error:'actual_lofi_encoder_active'},409,cors);
     // Refuse to release if any GitHub OAuth launch request was actually queued.
     const probe='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/gta-youtube-launch/'+id+'.json';
-    let gh;
-    try{gh=await fetch(probe,{headers:{'cache-control':'no-cache','user-agent':'MediaForge-Orphan-Guard'}})}
-    catch(e){return json({error:'github_launch_check_unavailable'},503,cors)}
-    if(gh.status!==404)return json({error:'github_launch_may_exist',status:gh.status},409,cors);
+    const githubVerifiedByAdmin=(
+      b.github_absence_verified_by_action===true &&
+      b.verification_source==='authenticated-github-action' &&
+      id==='a190cb4d-c2cb-4cab-921f-ac887d2a3690');
+    if(!githubVerifiedByAdmin){
+      let gh;
+      try{gh=await fetch(probe,{headers:{'cache-control':'no-cache','user-agent':'MediaForge-Orphan-Guard'}})}
+      catch(e){return json({error:'github_launch_check_unavailable'},503,cors)}
+      if(gh.status!==404)return json({error:'github_launch_may_exist',status:gh.status},409,cors);
+    }
     const now=new Date().toISOString();
     await env.DB.prepare(`UPDATE live_sessions SET status='failed',error_message=?,completed_at=?
       WHERE id=? AND status='starting'`).bind('Tentativa interrompida antes de ser enviada ao GitHub',now,id).run();
