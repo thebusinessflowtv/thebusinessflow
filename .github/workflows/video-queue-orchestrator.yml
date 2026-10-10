@@ -285,5 +285,8 @@ jobs:
       - name: Publish catalog-only route on OVH; verify active publisher PIDs
         if: github.event_name == 'push'
         run: python scripts/deploy_lofi_mediaforge_control.py
+      - name: Inspect production Lofi encoder, stations, and orphaned starting sessions
+        if: github.event_name == 'push'
+        run: python scripts/diagnose_lofi_youtube_status.py
       - name: Sync only approved Lofi Hip Hop tracks; leave publishers untouched
         run: python scripts/sync_lofi_hip_hop_ovh.py
