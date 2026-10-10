@@ -12,6 +12,7 @@ on:
   push:
     paths:
       - 'production/queue-kick.json'
+      - 'production/lofi-hip-hop-sync-now.json'
 
 permissions:
   actions: write
@@ -23,6 +24,7 @@ concurrency:
 
 jobs:
   orchestrate:
+    if: github.event_name != 'push' || contains(toJSON(github.event.head_commit), 'production/queue-kick.json')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -264,3 +266,18 @@ jobs:
             echo '- Policy: exactly one production at a time; private upload must finish before the next topic starts.'
             echo '- Backup cron: every 10 minutes.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  sync_lofi_hip_hop:
+    name: Sync Lofi Hip Hop to OVH MediaForge catalog
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && contains(toJSON(github.event.head_commit), 'production/lofi-hip-hop-sync-now.json'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+      OVH_AGENT_TOKEN: ${{ secrets.OVH_AGENT_TOKEN }}
+      MEDIAFORGE_OVH_URL: https://peterlofi.odsgn.com.br
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync only approved Lofi Hip Hop tracks; leave publishers untouched
+        run: python scripts/sync_lofi_hip_hop_ovh.py
