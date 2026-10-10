@@ -333,7 +333,7 @@ async function selectVideoFactorySuggestion(env,id,index){
   return normalizeVideoFactoryRow(await env.DB.prepare("SELECT * FROM video_productions WHERE id=?").bind(row.id).first());
 }
 
-const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy','youtube-gta-vi'];
+const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy','youtube-gta-vi','youtube-lofi-hip-hop'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
 const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','diagnose_service','repair_gta_runtime','rollback_service','hot_patch_streaming','reload_control_agent'];
 function ovhAgentAllowed(request,env){
