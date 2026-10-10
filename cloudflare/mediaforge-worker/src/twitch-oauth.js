@@ -18,6 +18,7 @@ async function tokenCipher(secret){
 async function createTables(env){
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS twitch_chat_oauth_pending (nonce TEXT PRIMARY KEY,expires_at INTEGER NOT NULL,requested_by TEXT NOT NULL)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS twitch_chat_oauth_tokens (broadcaster_id TEXT PRIMARY KEY,login TEXT NOT NULL,encrypted_token TEXT NOT NULL,scope_json TEXT NOT NULL,expires_at INTEGER NOT NULL,connected_at TEXT NOT NULL)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS twitch_chat_oauth_receipts (nonce TEXT PRIMARY KEY,broadcaster_id TEXT NOT NULL,completed_at TEXT NOT NULL)").run();
 }
 function config(env){
   const clientId=String(env.TWITCH_CLIENT_ID||"").trim(),clientSecret=String(env.TWITCH_CLIENT_SECRET||"").trim();
@@ -75,9 +76,13 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
   let valid=false;
   try{valid=await crypto.subtle.verify("HMAC",await signingKey(cfg.secret),b64bytes(sig),enc.encode(nonce+"."+expires));}catch(_){}
   if(!valid)return formPage(false,"OAuth state verification failed.");
+  // Never consume a one-time state BEFORE exchanging and persisting tokens.
+  // An upstream error previously caused subsequent retries to say "already used".
   await createTables(env);
-  const consumed=await env.DB.prepare("DELETE FROM twitch_chat_oauth_pending WHERE nonce=? AND expires_at>=?").bind(nonce,ts).run();
-  if(Number(consumed.meta?.changes||0)!==1)return formPage(false,"OAuth session was already used or expired.");
+  const receipt=await env.DB.prepare("SELECT broadcaster_id FROM twitch_chat_oauth_receipts WHERE nonce=?").bind(nonce).first();
+  if(receipt)return formPage(true,"PeterLofi Twitch authorization was already saved. You may close this window.");
+  const pending=await env.DB.prepare("SELECT nonce FROM twitch_chat_oauth_pending WHERE nonce=? AND expires_at>=?").bind(nonce,ts).first();
+  if(!pending)return formPage(false,"This authorization session expired. Start a new authorization from MediaForge.");
   const post=new URLSearchParams({client_id:cfg.clientId,client_secret:cfg.clientSecret,code,
     grant_type:"authorization_code",redirect_uri:cfg.redirectUri});
   const exchange=await fetch("https://id.twitch.tv/oauth2/token",{
@@ -102,5 +107,9 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
   const stored=JSON.stringify({version:1,iv:base64(iv),ciphertext:base64(encrypted)});
   await env.DB.prepare("INSERT OR REPLACE INTO twitch_chat_oauth_tokens(broadcaster_id,login,encrypted_token,scope_json,expires_at,connected_at) VALUES(?,?,?,?,?,?)")
     .bind(String(profile.id),String(profile.login),stored,JSON.stringify(scopes),expiration,new Date().toISOString()).run();
+  // Record success before consuming state, so callback refresh is idempotent.
+  await env.DB.prepare("INSERT OR IGNORE INTO twitch_chat_oauth_receipts(nonce,broadcaster_id,completed_at) VALUES(?,?,?)")
+    .bind(nonce,String(profile.id),new Date().toISOString()).run();
+  await env.DB.prepare("DELETE FROM twitch_chat_oauth_pending WHERE nonce=?").bind(nonce).run();
   return formPage(true,"PeterLofi Twitch authorization saved securely. You may close this window.");
 }
