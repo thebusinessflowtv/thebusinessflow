@@ -1077,7 +1077,9 @@ async function handleApi(request,env,url){
     const description=String(b.description||'');
     const loopUrl=String(b.loop_url||'').trim();
     const thumbnailUrl=String(b.thumbnail_url||'').trim();
-    if(!sessionId||!title||!description||!loopUrl||!thumbnailUrl)return json({error:'bridge_payload_incomplete'},400,cors);
+    const playlistKey=String(b.playlist_key||'gta-vi-vice-city').trim();
+    if(!sessionId||!title||!loopUrl||!['gta-vi-vice-city','lofi-hip-hop'].includes(playlistKey))
+      return json({error:'bridge_payload_incomplete'},400,cors);
     const requestedAt=String(b.requested_at||new Date().toISOString());
     const launchPath=`control/gta-youtube-launch/${sessionId}.json`;
     try{
@@ -1085,8 +1087,8 @@ async function handleApi(request,env,url){
         env,
         'thebusinessflowtv/theofficemusic',
         launchPath,
-        {session_id:sessionId,title,description,loop_url:loopUrl,thumbnail_url:thumbnailUrl,requested_at:requestedAt,source:'mediaforge-ovh-remote-bridge'},
-        `youtube: launch GTA VI OVH live ${sessionId}`
+        {session_id:sessionId,title,description,loop_url:loopUrl,thumbnail_url:thumbnailUrl,playlist_key:playlistKey,requested_at:requestedAt,source:'mediaforge-ovh-remote-bridge'},
+        `youtube: launch ${playlistKey} OVH live ${sessionId}`
       );
     }catch(e){
       return json({error:'remote_github_bridge_failed',message:String(e?.message||e).slice(0,700)},502,cors);
