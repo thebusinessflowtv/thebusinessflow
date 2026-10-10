@@ -114,3 +114,51 @@ jobs:
           except Exception as exc:
               print("OVH_LOCAL_DIAGNOSTIC_UNAVAILABLE",type(exc).__name__,flush=True)
           PY
+
+      - name: Diagnose GTA VI local runtime without changing live processes
+        env:
+          ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,os,time
+          host="https://peterlofi.odsgn.com.br"
+          def call(path,token="",body=None):
+              data=json.dumps(body).encode() if body is not None else None
+              h={"user-agent":"MediaForge-GTA-Recovery-Diagnostic"}
+              if token:h["authorization"]="Bearer "+token
+              if data is not None:h["content-type"]="application/json"
+              with urllib.request.urlopen(urllib.request.Request(host+path,method="POST" if body is not None else "GET",headers=h,data=data),timeout=25) as response:
+                  return json.load(response)
+          login=call("/api/auth/login",body={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
+          token=login.get("token") or ""
+          if not token:raise RuntimeError("MediaForge operator login failed")
+          print("::add-mask::"+token,flush=True)
+          cmd=call("/api/ovh/deploy",token,{"action":"diagnose_service",
+              "target":"youtube-gta-vi","request_id":"gta-read-only-diagnose-20261010-0635",
+              "source":"owner_emergency_gta_recovery"})
+          ident=(cmd.get("command") or {}).get("id") or "gta-read-only-diagnose-20261010-0635"
+          print("GTA_DIAG_QUEUED",ident,flush=True)
+          for attempt in range(52):
+              row=call("/api/ovh/deploy-status?id="+ident,token).get("command") or {}
+              if row.get("status") in ("completed","failed"):
+                  outcome=row.get("result") or {}
+                  diag=outcome.get("diagnostic") or outcome.get("diagnose") or outcome
+                  health=diag.get("health") or {}
+                  print("GTA_DIAG_RESULT",json.dumps({
+                      "status":row.get("status"),"error":row.get("error"),
+                      "result_status":outcome.get("status"),
+                      "health":{k:health.get(k) for k in ("status","encoder_pid","audio_pid","visual_pid","audio_status","visual_status","updated_at","restarts")},
+                      "desired":diag.get("desired"),"pipeline_probe":diag.get("pipeline_probe"),
+                      "audio_health":{k:(diag.get("audio_health") or {}).get(k) for k in ("state","status","stalls","updated_at")},
+                      "visual_health":{k:(diag.get("visual_health") or {}).get(k) for k in ("status","updated_at")},
+                      "controller_tail":str(diag.get("controller_log_tail") or "")[-1700:],
+                      "ffmpeg_tail":str(diag.get("ffmpeg_log_tail") or "")[-1700:]
+                  },ensure_ascii=False),flush=True)
+                  if row.get("status")=="failed":raise RuntimeError("Read-only diagnose service failed")
+                  break
+              if attempt==51:raise RuntimeError("GTA diagnosis command did not finish")
+              time.sleep(2)
+          PY
