@@ -37,11 +37,12 @@ jobs:
           npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
           echo LOCAL_API_BUILD_VALID
 
-      - name: One-time live Lofi Hip Hop next-track control confirmation
-        if: contains(github.event.head_commit.message, '[test-lofi-skip-once]')
+      - name: One-time live Lofi Hip Hop previous-track control confirmation
+        if: contains(github.event.head_commit.message, '[test-lofi-previous-once]')
         env:
           ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+          LOFI_AUDIO_ACTION: previous
         shell: bash
         run: |
           set -euo pipefail
