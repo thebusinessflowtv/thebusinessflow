@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/workflows/mediaforge-twitch-oauth-check.yml'
       - 'cloudflare/mediaforge-worker/src/twitch-oauth.js'
+      - 'cloudflare/mediaforge-worker/src/twitch-bot-bridge.js'
+      - 'cloudflare/mediaforge-worker/tests/twitch-bot-bridge.mjs'
+      - 'scripts/activate-peterlofi-twitch-bot.py'
       - 'cloudflare/mediaforge-worker/Dockerfile.ovh'
       - 'cloudflare/mediaforge-worker/src/index.js'
       - 'scripts/configure-peterlofi-twitch-oauth.py'
@@ -29,6 +32,9 @@ jobs:
         run: |
           set -euo pipefail
           node --check cloudflare/mediaforge-worker/src/twitch-oauth.js
+          node --check cloudflare/mediaforge-worker/src/twitch-bot-bridge.js
+          node cloudflare/mediaforge-worker/tests/twitch-bot-bridge.mjs
+          python3 -m py_compile scripts/activate-peterlofi-twitch-bot.py
           node --check cloudflare/mediaforge-worker/src/index.js
           python3 -m py_compile scripts/configure-peterlofi-twitch-oauth.py
           python3 -m py_compile scripts/repair-peterlofi-twitch-oauth.py
