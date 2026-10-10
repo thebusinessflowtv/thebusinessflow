@@ -1517,12 +1517,29 @@ async function handleApi(request,env,url){
       const id=crypto.randomUUID(),title=String(b.title||'Peter Lofi — Live').trim()||'Peter Lofi — Live',description=String(b.description||''),duration=Math.max(0,Math.min(10080,Number(b.duration_minutes??0)||0)),now=new Date().toISOString();
       let slot=platform;
       if(platform==='youtube'){
-        slot=String(b.youtube_slot||'');
-        if(!['youtube-deep-house','youtube-rainy','youtube-gta-vi'].includes(slot))return json({error:'youtube_slot_required',message:'Selecione um slot OVH do YouTube.'},400,cors);
-        const cfg=await getYoutubeStations(env),st=(cfg.stations||[]).find(x=>String(x.ovh_slot||'')===slot);
-        if(!st)return json({error:'youtube_slot_not_configured'},409,cors);
-        if(!st.youtube_stream_id&&slot!=='youtube-gta-vi')return json({error:'youtube_slot_not_configured'},409,cors);
-        if(st.current_session_id&&String(st.status||'')==='live')return json({error:'youtube_slot_busy',message:`O slot ${st.name||slot} já está transmitindo. Encerre essa live antes de reutilizar o slot.`},409,cors);
+        // Automatic internal allocation. Never occupy or restart a running live.
+        // The OAuth bridge currently supports the reusable youtube-gta-vi runtime;
+        // the other two streams require independently configured local OAuth.
+        const cfg=await getYoutubeStations(env),agent=await ovhState(env);
+        const stations=cfg.stations||[],services=agent?.services||{};
+        const localOauthReady=!!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN);
+        const candidates=['youtube-gta-vi','youtube-deep-house','youtube-rainy'];
+        const activeRows=await env.DB.prepare(
+          "SELECT r.runtime_slot FROM live_runtime r JOIN live_sessions s ON s.id=r.session_id WHERE s.platform='youtube' AND s.status IN ('live','starting') AND datetime(s.created_at)>=datetime('now','-10 minutes')"
+        ).all().catch(()=>({results:[]}));
+        const reserved=new Set((activeRows.results||[]).map(x=>String(x.runtime_slot||'')));
+        slot='';
+        for(const target of candidates){
+          const st=stations.find(x=>String(x.ovh_slot||'')===target);
+          if(!st)continue;
+          if(target!=='youtube-gta-vi'&&(!localOauthReady||!st.youtube_stream_id))continue;
+          const state=String(st.status||'').toLowerCase(),svc=services[target]||{};
+          const liveState=String(svc.status||'').toLowerCase();
+          if((st.current_session_id&&['live','starting'].includes(state))||
+             ['live','starting','restarting'].includes(liveState)||reserved.has(target))continue;
+          slot=target;break;
+        }
+        if(!slot)return json({error:'youtube_capacity_unavailable',message:'Todas as transmissões disponíveis do YouTube estão ocupadas ou aguardando configuração. Nenhuma live existente foi interrompida.'},409,cors);
       }
       await env.DB.prepare(`INSERT INTO live_sessions(id,platform,status,title,description,duration_minutes,track_ids_json,visual_asset_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,platform,'starting',title,description,duration,JSON.stringify(trackIds),visualId||null,now).run();
       await env.DB.prepare(`INSERT INTO live_runtime(session_id,runtime,runtime_slot,last_status_at,agent_status_json) VALUES(?,'ovh',?,?,?)`).bind(id,slot,now,'{}').run();
@@ -1539,10 +1556,11 @@ async function handleApi(request,env,url){
               session_id:id,
               title,
               description,
-              loop_url:visualUrl,
+              loop_url:visualUrl||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4',
               thumbnail_url:thumbnailUrl,
+              playlist_key:playlistKey,
               requested_at:now,
-              source:'mediaforge-gta-secure-panel'
+              source:'mediaforge-auto-youtube-panel'
             };
             const bridgeRes=await fetch(bridgeUrl,{
               method:'POST',
@@ -1552,7 +1570,7 @@ async function handleApi(request,env,url){
             const bridgeText=await bridgeRes.text();
             let bridgeData={};try{bridgeData=JSON.parse(bridgeText||'{}')}catch(_){}
             if(!bridgeRes.ok)throw new Error(`Bridge remoto GitHub falhou (${bridgeRes.status}): ${String(bridgeData.error||bridgeText).slice(0,300)}`);
-            return json({ok:true,launch_mode:'github-secure-gta-bridge',message:'OAuth fica no GitHub; a OVH recebe apenas o ingest temporário.',bridge:bridgeData,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
+            return json({ok:true,launch_mode:'github-secure-gta-bridge',message:'A transmissão está sendo preparada via OAuth seguro do GitHub; o encoder da OVH será iniciado automaticamente.',bridge:bridgeData,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
           }
           const local=await prepareYoutubeLocal(request,env,{sessionId:id,slot,title,description,thumbnailUrl,durationMinutes:duration,loopUrl:visualUrl,tracks:manifest,playlistKey});
           return json({ok:true,launch_mode:'ovh-youtube-local',youtube:local.result,command_id:local.command.id,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
