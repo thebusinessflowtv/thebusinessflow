@@ -993,6 +993,21 @@ async function handleApi(request,env,url){
     const asset=await readAsset(env,assetId);
     return json({ok:true,asset:{id:asset.id,title:asset.title,asset_type:asset.asset_type,mime_type:asset.mime_type,size_bytes:asset.size_bytes,public_url:assetPublicUrl(request,asset,env),runtime_url:assetRuntimeUrl(request,asset,env)}},201,cors);
   }
+  if(url.pathname==='/api/ovh/github-youtube-bootstrap-status'&&request.method==='POST'){
+    try{await verifyGithubActionsOidc(bearer(request))}
+    catch(e){return json({error:'invalid_github_oidc'},403,cors)}
+    const b=await bodyJson(request),id=String(b.id||'');
+    if(!/^lofi-youtube-[0-9a-f-]{36}$/i.test(id))return json({error:'invalid_bootstrap_id'},400,cors);
+    const row=await env.DB.prepare('SELECT id,status,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?').bind(id).first();
+    if(!row)return json({error:'bootstrap_not_found'},404,cors);
+    let result={};try{result=JSON.parse(row.result_json||'{}')}catch(_){}
+    return json({id:row.id,status:row.status,error:row.error||null,
+      completed_at:row.completed_at||null,
+      result:{runtime_slot:result.runtime_slot,session_id:result.session_id,
+        status:result.status,other_publishers_preserved:result.other_publishers_preserved,
+        track_count:result.track_count}},200,cors);
+  }
+
   if(url.pathname==='/api/ovh/github-youtube-bootstrap'&&request.method==='POST'){
     let claims;
     try{claims=await verifyGithubActionsOidc(bearer(request));}
@@ -1025,6 +1040,26 @@ async function handleApi(request,env,url){
       target_bpm:t.target_bpm??null
     }));
     if(!tracks.length)return json({error:'playlist_empty'},400,cors);
+    if(slot==='youtube-lofi-hip-hop'){
+      const sid=String(b.session_id||'').trim(),loop=String(b.loop_url||'').trim();
+      if(!/^[0-9a-f-]{36}$/i.test(sid)||!/^https?:\/\//i.test(loop))
+        return json({error:'invalid_youtube_start_request'},400,cors);
+      const id='lofi-youtube-'+sid;
+      const existing=await env.DB.prepare('SELECT id,status,error,result_json FROM ovh_deploy_commands WHERE id=?').bind(id).first();
+      if(existing)return json({ok:true,runtime_slot:slot,playlist_key:requiredPlaylist,
+        playlist_track_count:tracks.length,command:{id,status:existing.status},
+        deduplicated:true},202,cors);
+      const now=new Date().toISOString();
+      const payload={id,action:'launch_isolated_lofi_youtube',target:'youtube-lofi-hip-hop',
+        session_id:sid,playlist_key:requiredPlaylist,title:String(b.title||'Lofi Hip Hop Radio'),
+        loop_url:loop,stream_url:streamUrl,stream_key:streamKey,tracks,
+        requested_at:now,source:'github-actions-oidc-isolated-youtube'};
+      await env.DB.prepare(`INSERT INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at)
+        VALUES(?,?,?,?, 'pending', ?)`).bind(id,payload.action,payload.target,JSON.stringify(payload),now).run();
+      return json({ok:true,authenticated_repository:claims.repository,runtime_slot:slot,
+        playlist_key:requiredPlaylist,playlist_track_count:tracks.length,
+        command:{id,action:payload.action,requested_at:now}},202,cors);
+    }
     const cmd=await issueOvhCommand(env,{
       action:'start',
       platform:'youtube',
