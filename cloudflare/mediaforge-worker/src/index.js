@@ -1,6 +1,7 @@
 import { appendGamingDj30Assets } from './gaming-dj30-library.js';
 import { handleTwitchOAuth } from './twitch-oauth.js';
 import { handleTwitchBotBridge } from './twitch-bot-bridge.js';
+import { handleKick } from './kick-oauth-bot.js';
 const enc = new TextEncoder();
 
 function json(data, status = 200, extra = {}) {
@@ -750,6 +751,8 @@ async function handleMedia(request,env,url){const parts=url.pathname.split('/').
 
 async function handleApi(request,env,url){
   const cors=corsHeaders(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
+  const kick=await handleKick(request,env,url,requireAuth);
+  if(kick)return kick;
   const twitchBotBridge=await handleTwitchBotBridge(request,env,url);
   if(twitchBotBridge)return twitchBotBridge;
   const twitchOAuthResponse=await handleTwitchOAuth(request,env,url,requireAuth);
