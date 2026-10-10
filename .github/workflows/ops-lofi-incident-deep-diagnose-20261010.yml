@@ -1,0 +1,86 @@
+name: "Ops — Lofi failed encoder start diagnosis"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-lofi-incident-deep-diagnose-20261010.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Capture isolated failed encoder logs and safe snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,time,urllib.request,urllib.parse,ssl,datetime,re
+          base="https://146.59.156.224:8443"
+          ctx=ssl._create_unverified_context()
+          def api(path,token="",body=None):
+            h={"User-Agent":"Lofi-Incident-ReadOnly-Failure-RootCause"}
+            if token:h["Authorization"]="Bearer "+token
+            if body is not None:h["content-type"]="application/json"
+            req=urllib.request.Request(base+path,headers=h,data=json.dumps(body).encode() if body is not None else None,method="POST" if body is not None else "GET")
+            with urllib.request.urlopen(req,timeout=25,context=ctx) as response:return json.load(response)
+          tok=api("/api/auth/login",body={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]}).get("token")
+          if not tok:raise RuntimeError("OVH login not authorized")
+          print("::add-mask::"+str(tok),flush=True)
+          before=api("/api/ovh/status",tok);sv=(before.get("agent") or {}).get("services") or {}
+          lo=sv.get("youtube-lofi-hip-hop") or {}
+          command="lofi-encoder-deep-diagnosis-20261010-"+str(int(time.time()))
+          sent=api("/api/ovh/deploy",tok,{"action":"diagnose_service","target":"youtube-lofi-hip-hop","request_id":command,"source":"read-only-recovery-failure"})
+          if not sent.get("ok"):raise RuntimeError("Diagnostic command rejected")
+          answer={}
+          for i in range(35):
+            c=(api("/api/ovh/deploy-status?id="+urllib.parse.quote(command),tok).get("command") or {})
+            if c.get("status") in ("completed","failed","cancelled"):
+              answer=c;break
+            time.sleep(2)
+          diag=answer.get("result") or {}
+          safe=lambda d,keys: {k:d.get(k) for k in keys if k in d}
+          patterns=("error","failed","fail","traceback","critical","invalid","broken","cannot","could not","timeout","exited","refused","codec","stream","fatal","restarting","unavailable","stopped","no playable","exit code")
+          def trace(raw):
+            rows=[]
+            for x in str(raw or "").splitlines():
+              if not any(w in x.lower() for w in patterns):continue
+              x=re.sub(r'(?i)(rtmp|https?|rtmps)://[^\s"\x27]+','[REDACTED_URL]',x)
+              x=re.sub(r'(?i)(stream_key|password|token|secret)\s*[:=]\s*\S+',r'\1=[REDACTED]',x)
+              rows.append(x[:400])
+            return rows[-28:]
+          report={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+           "command_status":answer.get("status"),"command_error":str(answer.get("error") or "")[:300],
+           "lofi_before":safe(lo,["status","encoder_pid","audio_pid","visual_pid","audio_status","visual_status","audio_stalls","playlist_track_count","now_playing","updated_at","error"]),
+           "peer_services":{k:safe(v,["status","encoder_pid"]) for k,v in sv.items() if k!="youtube-lofi-hip-hop" and isinstance(v,dict)},
+           "runtime_health":safe(diag.get("health") or {},["status","encoder_pid","audio_pid","visual_pid","audio_status","visual_status","audio_stalls","error","updated_at","restarts"]),
+           "audio_health":safe(diag.get("audio_health") or {},["status","state","stalls","error","track_id","updated_at","pcm_frames_emitted","non_silent_pcm_frames","last_audible_at"]),
+           "visual_health":safe(diag.get("visual_health") or {},["status","error","updated_at","fps","prepared_file","state"]),
+           "docker_stats":str(diag.get("docker_stats") or "")[:200],
+           "pipeline_probe":diag.get("pipeline_probe"),
+           "controller_errors":trace(diag.get("controller_log_tail")),
+           "ffmpeg_errors":trace(diag.get("ffmpeg_log_tail")),
+           "visual_errors":trace(diag.get("visual_ffmpeg_log_tail"))}
+          output=pathlib.Path("control/lofi-hip-hop-incident-deep-20261010.json")
+          output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+      - name: Persist safe root-cause report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/lofi-hip-hop-incident-deep-20261010.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/lofi-hip-hop-incident-deep-20261010.json
+          git commit -m "ops: capture isolated Lofi decoder and encoder failure logs" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
