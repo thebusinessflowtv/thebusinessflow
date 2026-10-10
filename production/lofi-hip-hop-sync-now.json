@@ -6,7 +6,8 @@
   "do_not_start_youtube_live": true,
   "scope": "catalog-only",
   "requested_at": "2026-10-09T21:30:00-03:00",
-  "retry": 5,
+  "retry": 6,
   "note": "Retry after replacing skipped conditional with explicit active push trigger",
-  "phase": "deploy safe automatic YouTube live UI and check for non-invasive slot compatibility"
+  "phase": "deploy exact /app.html#/peter-lofi/lives slotless UI plus verify public HTML and JS",
+  "validation": "public app.html, app-core.html, lives.html and lives-cloudflare.js must all omit manual slots"
 }
