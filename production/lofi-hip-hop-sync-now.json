@@ -6,9 +6,9 @@
   "do_not_start_youtube_live": true,
   "scope": "catalog-only",
   "requested_at": "2026-10-09T21:30:00-03:00",
-  "retry": 13,
+  "retry": 14,
   "note": "Retry after replacing skipped conditional with explicit active push trigger",
-  "phase": "GitHub runner re-verifies absent Lofi OAuth launch, releases one orphaned STARTING, tests OVH host secure bridge",
+  "phase": "deploy final asynchronous Lofi YouTube relay status reconciliation, no stream restart",
   "validation": "public app.html, app-core.html, lives.html and lives-cloudflare.js must all omit manual slots",
   "production_test": "verify exact /app.html#/peter-lofi/lives route and preservation of all existing publisher PIDs"
 }
