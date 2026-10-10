@@ -24,3 +24,37 @@ jobs:
           npm install
           npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
           echo LOCAL_API_BUILD_VALID
+
+      - name: Read-only remote YouTube queue inspection
+        env:
+          ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          base="https://mediaforge-api.guilhermeodsgn.workers.dev"
+          def http(path,method="GET",payload=None,token=""):
+              data=json.dumps(payload).encode() if payload is not None else None
+              headers={"content-type":"application/json","user-agent":"MediaForge-Lofi-Queue-Diag"}
+              if token:headers["authorization"]="Bearer "+token
+              req=urllib.request.Request(base+path,data=data,method=method,headers=headers)
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as resp:return resp.status,json.load(resp)
+              except urllib.error.HTTPError as exc:
+                  body=exc.read().decode("utf-8","replace")
+                  try: return exc.code,json.loads(body)
+                  except: return exc.code,{"error":"non_json_response"}
+          code,auth=http("/api/auth/login",method="POST",payload={"email":os.environ.get("ADMIN_EMAIL",""),"password":os.environ.get("ADMIN_PASSWORD","")})
+          token=str(auth.get("token") or "")
+          print("REMOTE_ADMIN_LOGIN",code,"authenticated",bool(token),flush=True)
+          if not token:raise SystemExit(0)
+          print("::add-mask::"+token,flush=True)
+          code,result=http("/api/ovh/deploy-status?id=lofi-youtube-1dd4373d-351c-40cc-aa67-774a540fd991",token=token)
+          cmd=result.get("command") or {}
+          print("LOFI_COMMAND",json.dumps({"http":code,"status":cmd.get("status"),"created_at":cmd.get("created_at"),"claimed_at":cmd.get("claimed_at"),"completed_at":cmd.get("completed_at"),"error":cmd.get("error")},ensure_ascii=False),flush=True)
+          code,all_commands=http("/api/ovh/deploy-status",token=token)
+          recent=all_commands.get("commands") or []
+          print("REMOTE_QUEUE_LAST_25",json.dumps([{"id":c.get("id"),"action":c.get("action"),"status":c.get("status"),"created_at":c.get("created_at"),"claimed_at":c.get("claimed_at")} for c in recent],ensure_ascii=False),flush=True)
+          PY
