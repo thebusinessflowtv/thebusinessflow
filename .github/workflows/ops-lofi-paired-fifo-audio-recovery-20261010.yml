@@ -143,3 +143,5 @@ jobs:
           git commit -m "ops: record dedicated Lofi FIFO+audio recovery" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
+
+# retry with corrected host-agent isolated state path
