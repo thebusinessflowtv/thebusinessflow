@@ -1532,6 +1532,7 @@ async function handleApi(request,env,url){
         for(const target of candidates){
           const st=stations.find(x=>String(x.ovh_slot||'')===target);
           if(!st)continue;
+          if(target==='youtube-gta-vi'&&playlistKey!=='gta-vi-vice-city'&&!localOauthReady)continue;
           if(target!=='youtube-gta-vi'&&(!localOauthReady||!st.youtube_stream_id))continue;
           const state=String(st.status||'').toLowerCase(),svc=services[target]||{};
           const liveState=String(svc.status||'').toLowerCase();
@@ -1539,7 +1540,7 @@ async function handleApi(request,env,url){
              ['live','starting','restarting'].includes(liveState)||reserved.has(target))continue;
           slot=target;break;
         }
-        if(!slot)return json({error:'youtube_capacity_unavailable',message:'Todas as transmissões disponíveis do YouTube estão ocupadas ou aguardando configuração. Nenhuma live existente foi interrompida.'},409,cors);
+        if(!slot)return json({error:'youtube_capacity_unavailable',message:'Não há um encoder YouTube livre e compatível com esta playlist. O MediaForge não interromperá outras lives nem substituirá a música do GTA VI. É necessário provisionar um encoder YouTube para novas transmissões.'},409,cors);
       }
       await env.DB.prepare(`INSERT INTO live_sessions(id,platform,status,title,description,duration_minutes,track_ids_json,visual_asset_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,platform,'starting',title,description,duration,JSON.stringify(trackIds),visualId||null,now).run();
       await env.DB.prepare(`INSERT INTO live_runtime(session_id,runtime,runtime_slot,last_status_at,agent_status_json) VALUES(?,'ovh',?,?,?)`).bind(id,slot,now,'{}').run();
@@ -1550,7 +1551,7 @@ async function handleApi(request,env,url){
       if(platform==='youtube'){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         if(String(env.LOCAL_RUNTIME||'')==='1'){
-          if(slot==='youtube-gta-vi'){
+          if(slot==='youtube-gta-vi'&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
             const bridgeUrl='https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/agent/youtube-github-bridge';
             const bridgePayload={
               session_id:id,
@@ -1558,7 +1559,6 @@ async function handleApi(request,env,url){
               description,
               loop_url:visualUrl||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4',
               thumbnail_url:thumbnailUrl,
-              playlist_key:playlistKey,
               requested_at:now,
               source:'mediaforge-auto-youtube-panel'
             };
