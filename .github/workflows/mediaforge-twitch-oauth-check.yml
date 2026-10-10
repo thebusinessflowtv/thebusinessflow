@@ -7,6 +7,8 @@ on:
       - 'cloudflare/mediaforge-worker/src/twitch-oauth.js'
       - 'cloudflare/mediaforge-worker/src/index.js'
       - 'scripts/configure-peterlofi-twitch-oauth.py'
+      - 'scripts/repair-peterlofi-twitch-oauth.py'
+      - 'cloudflare/mediaforge-worker/tests/twitch-oauth-callback.mjs'
   workflow_dispatch:
 
 permissions:
@@ -28,6 +30,8 @@ jobs:
           node --check cloudflare/mediaforge-worker/src/twitch-oauth.js
           node --check cloudflare/mediaforge-worker/src/index.js
           python3 -m py_compile scripts/configure-peterlofi-twitch-oauth.py
+          python3 -m py_compile scripts/repair-peterlofi-twitch-oauth.py
+          node --experimental-default-type=module cloudflare/mediaforge-worker/tests/twitch-oauth-callback.mjs
           cd cloudflare/mediaforge-worker
           npm install
           npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
