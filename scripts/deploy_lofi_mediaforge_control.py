@@ -53,7 +53,7 @@ def main():
             detail=info.get("result") or {}
             cp=detail.get("control_plane_publish") or {}
             print("CONTROL_PLANE_PUBLISH:",json.dumps(cp,ensure_ascii=False)[:1000],flush=True)
-            if cp.get("status")=="already_applied" and cp.get("version")!="ovh-dynamic-real-live-controls-20261010-v2":
+            if cp.get("status")=="already_applied" and cp.get("version")!="ovh-dynamic-real-live-controls-20261010-v3":
                 raise RuntimeError("Expected Lofi control-plane update did not deploy")
             break
         time.sleep(5)
@@ -88,16 +88,17 @@ def main():
                 with urllib.request.urlopen(request,timeout=24) as res:
                     bodies[name]=res.read().decode("utf-8")
             checks={
-                "app_loader":'app-core.html?v=20261010-ovh-live-discovery1' in bodies["app.html"],
+                "app_loader":'app-core.html?v=20261010-ovh-live-discovery2' in bodies["app.html"],
                 "lives_route":'lives.html?platform=' in bodies["app-core.html"] and 'v=20261009-slotless-live2' in bodies["app-core.html"],
                 "live_script_reference":'lives-cloudflare.js?v=20261009-slotless-live2' in bodies["lives.html"],
                 "no_manual_slot_field":'SLOT OVH DO YOUTUBE' not in bodies["lives-cloudflare.js"],
                 "auto_allocator_notice":'O MediaForge escolhe automaticamente' in bodies["lives-cloudflare.js"],
-                "ovh_route":'ovh.html?v=20261010-live-discovery1' in bodies["app-core.html"],
-                "ovh_script_reference":'ovh.js?v=20261010-live-discovery1' in bodies["ovh.html"],
+                "ovh_route":'ovh.html?v=20261010-live-discovery2' in bodies["app-core.html"],
+                "ovh_script_reference":'ovh.js?v=20261010-live-discovery2' in bodies["ovh.html"],
                 "ovh_active_discovery":'function liveSlots' in bodies["ovh.js"] and 'slots.map(function(slot)' in bodies["ovh.js"],
                 "ovh_no_fixed_four_services":'Object.keys(labels).map(function(slot){return serviceCard' not in bodies["ovh.js"],
                 "ovh_command_tracking":'/api/ovh/control/' in bodies["ovh.js"] and 'Faixa não mudou' in bodies["ovh.js"],
+                "freeze_notice":'Faixa protegida pelo chat' in bodies["ovh.js"],
                 "ovh_lofi_and_gta":'youtube-lofi-hip-hop' in bodies["ovh.js"] and 'youtube-gta-vi' in bodies["ovh.js"]
             }
             print("PRODUCTION_UI_VALIDATION:",json.dumps(checks),flush=True)
@@ -133,12 +134,13 @@ def main():
         for attempt in range(26):
             published=call("/api/ovh/status",token)
             svc=((published.get("agent") or {}).get("services") or {}).get("youtube-lofi-hip-hop") or {}
-            if svc.get("status")=="live" and svc.get("encoder_pid") and svc.get("now_playing") is not None:
+            if svc.get("status")=="live" and svc.get("encoder_pid") and svc.get("now_playing") is not None and "controls_frozen" in svc:
                 confirmed=True
                 print("PRODUCTION_ISOLATED_LOFI_DISCOVERED:",json.dumps({
                     "runtime_slot":"youtube-lofi-hip-hop","status":svc.get("status"),
                     "encoder_pid_present":bool(svc.get("encoder_pid")),
                     "track_id":(svc.get("now_playing") or {}).get("track_id"),
+                    "controls_frozen":svc.get("controls_frozen"),
                     "updated_at":svc.get("updated_at")},ensure_ascii=False),flush=True)
                 break
             time.sleep(3)
