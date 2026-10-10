@@ -6,9 +6,9 @@
   "do_not_start_youtube_live": true,
   "scope": "catalog-only",
   "requested_at": "2026-10-09T21:30:00-03:00",
-  "retry": 17,
+  "retry": 18,
   "note": "Retry after replacing skipped conditional with explicit active push trigger",
-  "phase": "publish OVH VPS real active live discovery plus skip/previous per-session command acknowledgement",
-  "validation": "exact https://peterlofi.odsgn.com.br/app.html#/peter-lofi/ovh; verify no RTMP PID changes",
+  "phase": "deploy isolated Lofi heartbeat and reliable next/previous per-stream audio host-agent controls, verify public /peter-lofi/ovh",
+  "validation": "real status of independent lofi when streaming; no RTMP restart",
   "production_test": "verify exact /app.html#/peter-lofi/lives route and preservation of all existing publisher PIDs"
 }
