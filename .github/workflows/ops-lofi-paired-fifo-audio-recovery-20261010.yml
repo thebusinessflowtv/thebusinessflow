@@ -1,0 +1,145 @@
+name: "Ops — Restore isolated Lofi FIFO and audio together"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-lofi-paired-fifo-audio-recovery-20261010.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: isolated-lofi-av-repair
+  cancel-in-progress: false
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Validate only isolated FIFO and PCM repair sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          for mod in host_deploy_agent stream_core visual_engine audio_engine; do
+            if [ "$mod" = host_deploy_agent ]; then path=ovh-streaming/host_deploy_agent.py
+            else path=ovh-streaming/app/$mod.py; fi
+            curl -fsSL --retry 3 "https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/$path" > "/tmp/$mod.py"
+            python -m py_compile "/tmp/$mod.py"
+          done
+          grep -q 'modules=("stream_core.py","visual_engine.py","audio_engine.py")' /tmp/host_deploy_agent.py
+          grep -q 'youtube-lofi-hip-hop' /tmp/stream_core.py
+          grep -q 'youtube-lofi-hip-hop' /tmp/visual_engine.py
+          grep -q 'source_stalled_pcm_clock_preserved' /tmp/audio_engine.py
+          echo ISOLATED_AV_SOURCE_PREFLIGHT_OK
+      - name: Reload only OVH host control agent and recover dedicated Lofi publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,urllib.request,urllib.parse,ssl,time,datetime,sys
+          BASE="https://146.59.156.224:8443"
+          ctx=ssl._create_unverified_context()
+          def api(path,token="",payload=None):
+            h={"User-Agent":"PeterLofi-Isolated-AV-PairedRepair/20261010","Cache-Control":"no-cache"}
+            if token:h["Authorization"]="Bearer "+token
+            if payload is not None:h["content-type"]="application/json"
+            request=urllib.request.Request(BASE+path,headers=h,
+              data=json.dumps(payload).encode() if payload is not None else None,
+              method="POST" if payload is not None else "GET")
+            with urllib.request.urlopen(request,timeout=35,context=ctx) as res:return json.load(res)
+          out={"requested_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+               "scope":"youtube-lofi-hip-hop",
+               "modules":["stream_core.py","visual_engine.py","audio_engine.py"],
+               "other_publishers_restart_requested":False}
+          dest=pathlib.Path("control/lofi-hip-hop-paired-repair-20261010.json")
+          def save():
+            dest.parent.mkdir(parents=True,exist_ok=True)
+            dest.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+            print(json.dumps(out,ensure_ascii=False,indent=2),flush=True)
+          def dispatch(token,action,target,request_id,session_id=""):
+            payload={"action":action,"target":target,"request_id":request_id,"source":"20261010-paired-lofi-only-av-pipeline"}
+            if session_id:payload["session_id"]=session_id
+            response=api("/api/ovh/deploy",token,payload)
+            if not response.get("ok"):raise RuntimeError(action+" not accepted")
+            for n in range(115):
+              cmd=(api("/api/ovh/deploy-status?id="+urllib.parse.quote(request_id),token).get("command") or {})
+              st=str(cmd.get("status") or "")
+              if st in ("completed","failed","cancelled"):
+                return {"status":st,"error":str(cmd.get("error") or "")[:600],
+                  "result":{k:(cmd.get("result") or {}).get(k) for k in (
+                    "status","host_agent","runtime_slot","encoder_pid_present","other_publishers_preserved",
+                    "other_publishers_restarted","lofi_health","old_head","new_head")
+                   if k in (cmd.get("result") or {})}}
+              time.sleep(3)
+            return {"status":"timed_out"}
+          try:
+            login=api("/api/auth/login",payload={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
+            token=str(login.get("token") or "")
+            if not token:raise RuntimeError("Local OVH credentials invalid")
+            print("::add-mask::"+token,flush=True)
+            def snapshot():
+              x=api("/api/ovh/status",token)
+              return (x.get("agent") or {}).get("services") or {}
+            peers=snapshot()
+            slot="youtube-lofi-hip-hop"
+            relevant=peers.get(slot) or {}
+            out["before"]={k:relevant.get(k) for k in ("status","session_id","encoder_pid","audio_status","visual_status","playlist_track_count","now_playing")}
+            out["peer_encoders_before"]={k:v.get("encoder_pid") for k,v in peers.items()
+              if k!=slot and v.get("status")=="live" and v.get("encoder_pid")}
+            sid="1dd4373d-351c-40cc-aa67-774a540fd991"
+            if relevant.get("playlist_track_count")!=66:
+              raise RuntimeError("Live playlist is not exactly 66 tracks")
+            if relevant.get("session_id") and str(relevant.get("session_id"))!=sid:
+              raise RuntimeError("Active session mismatch; refuse to touch any live")
+            version="lofi-fifo-av-reload-20261010-"+str(int(time.time()))
+            out["host_reload_id"]=version
+            out["host_reload"]=dispatch(token,"deploy_host_agent","host-agent",version)
+            if out["host_reload"]["status"]!="completed":
+              raise RuntimeError("Host control-agent reload failed: "+str(out["host_reload"]))
+            time.sleep(8)
+            rid="lofi-fifo-audio-only-repair-20261010-"+str(int(time.time()))
+            out["repair_command_id"]=rid
+            out["repair"]=dispatch(token,"repair_lofi_video_transport",slot,rid,sid)
+            if out["repair"]["status"]!="completed":
+              raise RuntimeError("Dedicated Lofi A/V repair failed: "+str(out["repair"]))
+            time.sleep(15)
+            current=snapshot()
+            now=current.get(slot) or {}
+            out["after"]={k:now.get(k) for k in (
+                "status","session_id","encoder_pid","audio_pid","visual_pid","audio_status",
+                "audio_stalls","visual_status","playlist_track_count","now_playing","restarts","updated_at")}
+            out["peer_pids_preserved"]=all(
+              (current.get(k) or {}).get("encoder_pid")==pid
+              for k,pid in out["peer_encoders_before"].items())
+            out["other_streams_changed"]=[k for k,pid in out["peer_encoders_before"].items()
+              if (current.get(k) or {}).get("encoder_pid")!=pid]
+            out["local_audio_playing"]=now.get("audio_status") in ("playing","crossfading")
+            out["local_visual_streaming"]=now.get("visual_status")=="streaming"
+            out["local_encoder_live"]=now.get("status")=="live" and bool(now.get("encoder_pid"))
+            out["track_fresh"]=((now.get("now_playing") or {}).get("started_at")!=
+                                 (relevant.get("now_playing") or {}).get("started_at"))
+            save()
+            if not(out["peer_pids_preserved"] and out["local_audio_playing"] and
+                   out["local_visual_streaming"] and out["local_encoder_live"]):
+              raise RuntimeError("Post-repair health checks failed; see sanitized report")
+          except Exception as exc:
+            out["error"]=type(exc).__name__+": "+str(exc)[:700]
+            save()
+            raise
+          PY
+      - name: Commit isolated incident outcome
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/lofi-hip-hop-paired-repair-20261010.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/lofi-hip-hop-paired-repair-20261010.json
+          git commit -m "ops: record dedicated Lofi FIFO+audio recovery" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
