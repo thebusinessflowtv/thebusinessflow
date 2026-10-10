@@ -591,6 +591,13 @@ async function getYoutubeStations(env){
     cfg.updated_at=new Date().toISOString();
     await setLocalConfig(env,'control/youtube-stations.json',cfg);
   }
+  if(String(env.LOCAL_RUNTIME||'')==='1'&&!cfg.stations.some(x=>String(x.ovh_slot||'')==='youtube-lofi-hip-hop')){
+    cfg.stations.push({key:'lofi-hip-hop',name:'Lofi Hip Hop',ovh_slot:'youtube-lofi-hip-hop',
+      runtime:'ovh',status:'stopped',current_session_id:null,youtube_stream_id:null,
+      youtube_broadcast_id:null,purpose:'Dedicated isolated Lofi YouTube encoder'});
+    cfg.updated_at=new Date().toISOString();
+    await setLocalConfig(env,'control/youtube-stations.json',cfg);
+  }
   return cfg;
 }
 async function getMusicLibrary(env){return (await fetchGithubJson(env,'control/music-library.json'))||{version:1,playlists:[]};}
@@ -1537,7 +1544,7 @@ async function handleApi(request,env,url){
         const cfg=await getYoutubeStations(env),agent=await ovhState(env);
         const stations=cfg.stations||[],services=agent?.services||{};
         const localOauthReady=!!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN);
-        const candidates=['youtube-gta-vi','youtube-deep-house','youtube-rainy'];
+        const candidates=playlistKey==='lofi-hip-hop'?['youtube-lofi-hip-hop']:['youtube-gta-vi','youtube-deep-house','youtube-rainy'];
         const activeRows=await env.DB.prepare(
           "SELECT r.runtime_slot FROM live_runtime r JOIN live_sessions s ON s.id=r.session_id WHERE s.platform='youtube' AND s.status IN ('live','starting') AND datetime(s.created_at)>=datetime('now','-10 minutes')"
         ).all().catch(()=>({results:[]}));
@@ -1546,8 +1553,8 @@ async function handleApi(request,env,url){
         for(const target of candidates){
           const st=stations.find(x=>String(x.ovh_slot||'')===target);
           if(!st)continue;
-          if(target==='youtube-gta-vi'&&playlistKey!=='gta-vi-vice-city'&&!localOauthReady)continue;
-          if(target!=='youtube-gta-vi'&&(!localOauthReady||!st.youtube_stream_id))continue;
+          if(target==='youtube-gta-vi'&&playlistKey!=='gta-vi-vice-city')continue;
+          if(target!=='youtube-gta-vi'&&target!=='youtube-lofi-hip-hop'&&(!localOauthReady||!st.youtube_stream_id))continue;
           const state=String(st.status||'').toLowerCase(),svc=services[target]||{};
           const liveState=String(svc.status||'').toLowerCase();
           if((st.current_session_id&&['live','starting'].includes(state))||
@@ -1565,7 +1572,7 @@ async function handleApi(request,env,url){
       if(platform==='youtube'){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         if(String(env.LOCAL_RUNTIME||'')==='1'){
-          if(slot==='youtube-gta-vi'&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
+          if(['youtube-gta-vi','youtube-lofi-hip-hop'].includes(slot)&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
             const bridgeUrl='https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/agent/youtube-github-bridge';
             const bridgePayload={
               session_id:id,
@@ -1573,6 +1580,8 @@ async function handleApi(request,env,url){
               description,
               loop_url:visualUrl||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4',
               thumbnail_url:thumbnailUrl,
+              playlist_key:playlistKey,
+              runtime_slot:slot,
               requested_at:now,
               source:'mediaforge-auto-youtube-panel'
             };
@@ -1584,7 +1593,7 @@ async function handleApi(request,env,url){
             const bridgeText=await bridgeRes.text();
             let bridgeData={};try{bridgeData=JSON.parse(bridgeText||'{}')}catch(_){}
             if(!bridgeRes.ok)throw new Error(`Bridge remoto GitHub falhou (${bridgeRes.status}): ${String(bridgeData.error||bridgeText).slice(0,300)}`);
-            return json({ok:true,launch_mode:'github-secure-gta-bridge',message:'A transmissão está sendo preparada via OAuth seguro do GitHub; o encoder da OVH será iniciado automaticamente.',bridge:bridgeData,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
+            return json({ok:true,launch_mode:'github-secure-youtube-bridge',message:'A transmissão está sendo preparada via OAuth seguro do GitHub; o encoder da OVH será iniciado automaticamente.',bridge:bridgeData,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},202,cors);
           }
           const local=await prepareYoutubeLocal(request,env,{sessionId:id,slot,title,description,thumbnailUrl,durationMinutes:duration,loopUrl:visualUrl,tracks:manifest,playlistKey});
           return json({ok:true,launch_mode:'ovh-youtube-local',youtube:local.result,command_id:local.command.id,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
