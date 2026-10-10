@@ -20,7 +20,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check control-center/ovh.js
+          node --check docs/control-center/ovh.js
           node --check cloudflare/mediaforge-worker/src/index.js
+          node - <<'NODE'
+          const fs=require('fs');
+          const js=fs.readFileSync('control-center/ovh.js','utf8');
+          for (const phrase of ['function liveSlots','youtube-lofi-hip-hop','youtube-gta-vi','/api/ovh/control/','now_playing','track_id']) {
+            if(!js.includes(phrase)) throw new Error('OVH production live controls missing '+phrase);
+          }
+          if(js.includes('Object.keys(labels).map(function(slot){return serviceCard')) throw new Error('Legacy four-card list remains active');
+          console.log('OVH_DYNAMIC_ACTIVE_LIVES_AND_SKIP_PREVIOUS_VALID');
+          NODE
           cd cloudflare/mediaforge-worker
           npm install
           npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
