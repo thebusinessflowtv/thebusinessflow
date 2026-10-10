@@ -614,6 +614,17 @@ async function syncMusicGenerationJob(env,row){
   ).run();
   return {...row,...remote,status,progress,phase,error:err||null,result_json:JSON.stringify(remote)};
 }
+async function queueLocalLofiHostAction(env,command){
+  if(String(env.LOCAL_RUNTIME||'')!=='1')throw new Error('lofi_host_action_requires_ovh');
+  if(!['relay_lofi_youtube_oauth','probe_lofi_youtube_oauth'].includes(String(command.action||'')))
+    throw new Error('unapproved_lofi_host_action');
+  const id=String(command.id||crypto.randomUUID()),now=new Date().toISOString();
+  const payload={...command,id,target:'youtube-lofi-hip-hop',
+    requested_at:command.requested_at||now,source:'mediaforge-local-safe-host-relay'};
+  await env.DB.prepare(`INSERT INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at)
+    VALUES(?,?,?,?, 'pending',?)`).bind(id,payload.action,payload.target,JSON.stringify(payload),now).run();
+  return {id,action:payload.action,requested_at:now};
+}
 async function issueOvhCommand(env,command){
   const now=new Date().toISOString(),id=String(command.id||crypto.randomUUID()),path=`control/ovh-commands/${id}.json`;
   if(String(command?.source||'')==='mediaforge-visual-switch') command={...command,action:'set_visual'};
@@ -1551,9 +1562,8 @@ async function handleApi(request,env,url){
     // Send a zero-side-effect auth probe through OVH's own authenticated agent.
     // A 400 bridge_payload_incomplete response proves authentication is working.
     if(String(env.LOCAL_RUNTIME||'')!=='1')return json({error:'local_runtime_required'},409,cors);
-    const cmd=await issueOvhCommand(env,{action:'probe_youtube_oauth',
-      runtime_slot:'youtube-lofi-hip-hop',platform:'youtube',
-      source:'mediaforge-ovh-oauth-preflight'});
+    const cmd=await queueLocalLofiHostAction(env,{action:'probe_lofi_youtube_oauth',
+      runtime_slot:'youtube-lofi-hip-hop',platform:'youtube'});
     return json({queued:true,command_id:cmd.id,live_created:false},202,cors);
   }
 
@@ -1646,7 +1656,7 @@ async function handleApi(request,env,url){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         if(String(env.LOCAL_RUNTIME||'')==='1'){
           if(slot==='youtube-lofi-hip-hop'&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
-            const relay=await issueOvhCommand(env,{action:'relay_youtube_oauth',
+            const relay=await queueLocalLofiHostAction(env,{action:'relay_lofi_youtube_oauth',
               platform:'youtube',runtime_slot:slot,session_id:id,
               title,description,loop_url:visualUrl||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4',
               thumbnail_url:thumbnailUrl,playlist_key:playlistKey,
