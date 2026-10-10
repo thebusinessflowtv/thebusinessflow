@@ -28,7 +28,23 @@ function config(env){
 export async function handleTwitchOAuth(request,env,url,requireAuth){
   const route=url.pathname;
   if(!["/api/oauth/twitch/start","/api/oauth/twitch/status","/api/oauth/twitch/callback"].includes(route))return null;
-  if(request.method!=="GET")return respond({error:"method_not_allowed"},405);
+  const isCallback=route==="/api/oauth/twitch/callback";
+  // Twitch normally redirects by GET. Some OAuth clients and frontends send
+  // application/x-www-form-urlencoded POST callbacks. Accept either securely
+  // and never interpret a POST as a new authorization start.
+  if(request.method!=="GET"&&!(isCallback&&request.method==="POST"))
+    return respond({error:"method_not_allowed"},405);
+  let callbackParams=url.searchParams;
+  if(isCallback&&request.method==="POST"){
+    const contentType=String(request.headers.get("content-type")||"").toLowerCase();
+    if(!contentType.startsWith("application/x-www-form-urlencoded"))
+      return formPage(false,"Unsupported OAuth callback format. Please restart authorization.");
+    const raw=await request.text();
+    if(raw.length>4096)return formPage(false,"OAuth callback was too large.");
+    const posted=new URLSearchParams(raw);
+    // Form parameters take precedence on POST to prevent ambiguous duplicates.
+    if(posted.has("code")||posted.has("state")||posted.has("error"))callbackParams=posted;
+  }
   const cfg=config(env);
   if(!cfg)return respond({error:"twitch_oauth_not_configured"},503);
   if(route!=="/api/oauth/twitch/callback"){
@@ -50,8 +66,8 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
     authorize.searchParams.set("state",body+"."+sig);
     return respond({authorization_url:authorize.toString(),expires_in:600});
   }
-  if(url.searchParams.has("error"))return formPage(false,"Twitch authorization was declined.");
-  const code=url.searchParams.get("code")||"",state=url.searchParams.get("state")||"",parts=state.split(".");
+  if(callbackParams.has("error"))return formPage(false,"Twitch authorization was declined.");
+  const code=callbackParams.get("code")||"",state=callbackParams.get("state")||"",parts=state.split(".");
   if(!code||code.length>2048||parts.length!==3||!/^[a-f0-9-]{36}$/.test(parts[0])||!/^\d{10}$/.test(parts[1]))
     return formPage(false,"Invalid OAuth authorization request.");
   const [nonce,expires,sig]=parts,ts=Math.floor(Date.now()/1000);
