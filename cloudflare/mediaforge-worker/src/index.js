@@ -992,13 +992,25 @@ async function handleApi(request,env,url){
     catch(e){return json({error:'invalid_github_oidc',message:e?.message||String(e)},403,cors);}
     const b=await bodyJson(request);
     const slot=String(b.runtime_slot||'');
-    if(slot!=='youtube-gta-vi')return json({error:'invalid_youtube_bootstrap_slot'},400,cors);
+    if(!['youtube-gta-vi','youtube-lofi-hip-hop'].includes(slot))return json({error:'invalid_youtube_bootstrap_slot'},400,cors);
+    const requiredPlaylist=slot==='youtube-lofi-hip-hop'?'lofi-hip-hop':'gta-vi-vice-city';
+    if(b.playlist_key&&String(b.playlist_key)!==requiredPlaylist)return json({error:'playlist_slot_mismatch'},400,cors);
     const streamUrl=String(b.stream_url||'').trim(),streamKey=String(b.stream_key||'').trim();
     if(!streamUrl||!streamKey)return json({error:'youtube_ingest_required'},400,cors);
-    const library=await getMusicLibrary(env),playlist=(library.playlists||[]).find(p=>String(p.key)==='gta-vi-vice-city');
+    let library=await getMusicLibrary(env);
+    // The isolated OVH catalog can lag; use the approved public music library.
+    if(slot==='youtube-lofi-hip-hop'){
+      try{
+        const upstream=await fetch('https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/music-library.json',{headers:{'cache-control':'no-cache'}});
+        if(upstream.ok)library=await upstream.json();
+      }catch(_){}
+    }
+    const playlist=(library.playlists||[]).find(p=>String(p.key)===requiredPlaylist);
     if(!playlist)return json({error:'playlist_not_found'},404,cors);
+    const platforms=Array.isArray(playlist.allowed_platforms)?playlist.allowed_platforms.map(x=>String(x).toLowerCase()):[];
+    if(platforms.length&&!platforms.includes('youtube'))return json({error:'playlist_platform_blocked'},409,cors);
     const tracks=(playlist.tracks||[]).filter(t=>t&&t.url).map((t,i)=>({
-      id:String(t.id||`gta-vi-vice-city-${i+1}`),
+      id:String(t.id||`${requiredPlaylist}-${i+1}`),
       title:String(t.title||'Track'),
       url:String(t.url),
       duration_seconds:Number(t.duration_seconds||300),
@@ -1009,13 +1021,13 @@ async function handleApi(request,env,url){
     const cmd=await issueOvhCommand(env,{
       action:'start',
       platform:'youtube',
-      runtime_slot:'youtube-gta-vi',
+      runtime_slot:slot,
       session_id:String(b.session_id||''),
       title:String(b.title||'GTA VI - Vice City'),
       description:String(b.description||''),
       duration_minutes:0,
       loop_url:String(b.loop_url||''),
-      playlist_key:'gta-vi-vice-city',
+      playlist_key:requiredPlaylist,
       tracks,
       shuffle:true,
       repeat:true,
@@ -1027,8 +1039,8 @@ async function handleApi(request,env,url){
     return json({
       ok:true,
       authenticated_repository:claims.repository,
-      runtime_slot:'youtube-gta-vi',
-      playlist_key:'gta-vi-vice-city',
+      runtime_slot:slot,
+      playlist_key:requiredPlaylist,
       playlist_track_count:tracks.length,
       command:{id:cmd.id,action:cmd.action,requested_at:cmd.requested_at}
     },202,cors);
