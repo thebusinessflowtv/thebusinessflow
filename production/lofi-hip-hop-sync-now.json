@@ -1,0 +1,9 @@
+{
+  "purpose": "Trigger isolated approved Lofi Hip Hop playlist synchronization to OVH MediaForge",
+  "playlist_key": "lofi-hip-hop",
+  "target": "mediaforge-ovh-local-catalog",
+  "do_not_change_live_streams": true,
+  "do_not_start_youtube_live": true,
+  "scope": "catalog-only",
+  "requested_at": "2026-10-10T00:14:00Z"
+}
