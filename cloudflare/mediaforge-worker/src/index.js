@@ -653,7 +653,28 @@ async function ovhState(env){
 
 async function syncSessionFromGitHub(env,row){
   const rt=await runtimeForSession(env,row.id);
-  if(rt?.runtime==='ovh')return {...row,runtime:'ovh',runtime_slot:rt.runtime_slot||null};
+  if(rt?.runtime==='ovh'){
+    if(String(row.platform)==='youtube'&&rt.runtime_slot==='youtube-lofi-hip-hop'&&row.status==='starting'){
+      const relay=await env.DB.prepare('SELECT status,error FROM ovh_deploy_commands WHERE id=?')
+        .bind('lofi-relay-'+row.id).first().catch(()=>null);
+      const state=await ovhState(env),svc=state?.services?.['youtube-lofi-hip-hop']||{};
+      if(String(svc.session_id||'')===String(row.id)&&String(svc.status||'')==='live'&&svc.encoder_pid){
+        await env.DB.prepare(`UPDATE live_sessions SET status='live',live_at=COALESCE(live_at,?) WHERE id=?`)
+          .bind(new Date().toISOString(),row.id).run();
+        return {...row,status:'live',runtime:'ovh',runtime_slot:rt.runtime_slot};
+      }
+      const tooOld=Date.now()-Date.parse(String(row.created_at||''))>30*60*1000;
+      if(relay?.status==='failed'||(tooOld&&!svc.encoder_pid)){
+        const reason=String(relay?.error||'YouTube não confirmou a transmissão em 30 minutos.').slice(0,420);
+        const ended=new Date().toISOString();
+        await env.DB.prepare(`UPDATE live_sessions SET status='failed',error_message=?,completed_at=?
+          WHERE id=? AND status='starting'`).bind(reason,ended,row.id).run();
+        return {...row,status:'failed',error_message:reason,completed_at:ended,
+          runtime:'ovh',runtime_slot:rt.runtime_slot};
+      }
+    }
+    return {...row,runtime:'ovh',runtime_slot:rt.runtime_slot||null};
+  }
   if(!['queued','starting','live','reconnecting','stopping'].includes(String(row.status)))return row;
   const p=String(row.platform)==='youtube'?`control/live-results/${row.id}.json`:String(row.platform)==='twitch'?`control/twitch-live-results/${row.id}.json`:`control/kick-live-results/${row.id}.json`;
   const remote=await fetchGithubJson(env,p);if(!remote)return row;
@@ -1662,8 +1683,8 @@ async function handleApi(request,env,url){
         await githubQueueFile(env,`control/youtube-ovh-queue/${id}.json`,{...common,thumbnail_url:thumbnailUrl},`mediaforge youtube ovh queue ${id}`);
         if(String(env.LOCAL_RUNTIME||'')==='1'){
           if(slot==='youtube-lofi-hip-hop'&&!(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_REFRESH_TOKEN)){
-            const relay=await queueLocalLofiHostAction(env,{action:'relay_lofi_youtube_oauth',
-              platform:'youtube',runtime_slot:slot,session_id:id,
+            const relay=await queueLocalLofiHostAction(env,{id:'lofi-relay-'+id,
+              action:'relay_lofi_youtube_oauth',platform:'youtube',runtime_slot:slot,session_id:id,
               title,description,loop_url:visualUrl||'https://github.com/thebusinessflowtv/theofficemusic/releases/download/office-assets-v1/office-music-master-loop.mp4',
               thumbnail_url:thumbnailUrl,playlist_key:playlistKey,
               requested_at:now,source:'mediaforge-ovh-authenticated-oauth-relay'});
