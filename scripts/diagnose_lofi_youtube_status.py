@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Read-only diagnostic of the exact MediaForge production APIs used by /app.html."""
-import datetime,json,os,urllib.request
+import datetime,json,os,urllib.request,urllib.error
 BASE=os.getenv("MEDIAFORGE_OVH_URL","https://peterlofi.odsgn.com.br").rstrip("/")
 def call(url,token=None,payload=None):
   data=json.dumps(payload).encode() if payload is not None else None
@@ -8,7 +8,13 @@ def call(url,token=None,payload=None):
   if token:h["authorization"]="Bearer "+token
   if data:h["content-type"]="application/json"
   request=urllib.request.Request(BASE+url,headers=h,data=data,method="POST" if data else "GET")
-  with urllib.request.urlopen(request,timeout=35) as response:return json.load(response)
+  try:
+    with urllib.request.urlopen(request,timeout=35) as response:return json.load(response)
+  except urllib.error.HTTPError as exc:
+    text=exc.read().decode("utf-8","replace")
+    try: data=json.loads(text)
+    except Exception: data={"non_json_http_response":text[:100]}
+    return {"http":exc.code,**data}
 def main():
   login=call("/api/auth/login",payload={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
   token=login["token"]
