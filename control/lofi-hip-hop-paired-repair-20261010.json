@@ -1,5 +1,5 @@
 {
-  "requested_at": "2026-10-10T16:57:37.198882+00:00",
+  "requested_at": "2026-10-10T16:58:27.554647+00:00",
   "scope": "youtube-lofi-hip-hop",
   "modules": [
     "stream_core.py",
@@ -28,21 +28,21 @@
     "youtube-rainy": 24610,
     "youtube-gta-vi": 11514
   },
-  "host_reload_id": "lofi-fifo-av-reload-20261010-1791651457",
+  "host_reload_id": "lofi-fifo-av-reload-20261010-1791651508",
   "host_reload": {
     "status": "completed",
     "error": "",
     "result": {
       "host_agent": "reloading",
-      "old_head": "ed34d9ee67f7504c77d337ded3747324f7b19f65",
-      "new_head": "8e6b46c236d3af8bcb8fee262fbb1e48ed3e601b"
+      "old_head": "8e6b46c236d3af8bcb8fee262fbb1e48ed3e601b",
+      "new_head": "855a7ac3be12b02a1638e93e69bd8f5a23ce2290"
     }
   },
-  "repair_command_id": "lofi-fifo-audio-only-repair-20261010-1791651469",
+  "repair_command_id": "lofi-fifo-audio-only-repair-20261010-1791651520",
   "repair": {
     "status": "failed",
-    "error": "name 'st' is not defined",
+    "error": "Lofi-only A/V stack still unhealthy after synchronized FIFO/audio patch: {'status': 'restarting', 'encoder_pid': None, 'audio_pid': None, 'visual_pid': 8, 'audio_status': 'stopped', 'visual_status': 'streaming', 'error': None}",
     "result": {}
   },
-  "error": "RuntimeError: Dedicated Lofi A/V repair failed: {'status': 'failed', 'error': \"name 'st' is not defined\", 'result': {}}"
+  "error": "RuntimeError: Dedicated Lofi A/V repair failed: {'status': 'failed', 'error': \"Lofi-only A/V stack still unhealthy after synchronized FIFO/audio patch: {'status': 'restarting', 'encoder_pid': None, 'audio_pid': None, 'visual_pid': 8, 'audio_status': 'stopped', 'visual_status': 'streaming', 'error': None}\", 'result': {}}"
 }
