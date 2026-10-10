@@ -84,3 +84,5 @@ jobs:
           git commit -m "ops: capture isolated Lofi decoder and encoder failure logs" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
+
+# retry root-cause diagnosis while paired FIFO/audio repair is executing
