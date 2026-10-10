@@ -1,0 +1,48 @@
+{
+  "requested_at": "2026-10-10T16:57:37.198882+00:00",
+  "scope": "youtube-lofi-hip-hop",
+  "modules": [
+    "stream_core.py",
+    "visual_engine.py",
+    "audio_engine.py"
+  ],
+  "other_publishers_restart_requested": false,
+  "before": {
+    "status": "unknown",
+    "session_id": "1dd4373d-351c-40cc-aa67-774a540fd991",
+    "encoder_pid": null,
+    "audio_status": "stopped",
+    "visual_status": "streaming",
+    "playlist_track_count": 66,
+    "now_playing": {
+      "track_id": "lofi-hip-hop-20261008-33",
+      "title": "Grey September",
+      "state": "playing",
+      "started_at": "2026-10-10T08:57:06.310464Z"
+    }
+  },
+  "peer_encoders_before": {
+    "kick": 25,
+    "twitch": 22219,
+    "youtube-deep-house": 42121,
+    "youtube-rainy": 24610,
+    "youtube-gta-vi": 11514
+  },
+  "host_reload_id": "lofi-fifo-av-reload-20261010-1791651457",
+  "host_reload": {
+    "status": "completed",
+    "error": "",
+    "result": {
+      "host_agent": "reloading",
+      "old_head": "ed34d9ee67f7504c77d337ded3747324f7b19f65",
+      "new_head": "8e6b46c236d3af8bcb8fee262fbb1e48ed3e601b"
+    }
+  },
+  "repair_command_id": "lofi-fifo-audio-only-repair-20261010-1791651469",
+  "repair": {
+    "status": "failed",
+    "error": "name 'st' is not defined",
+    "result": {}
+  },
+  "error": "RuntimeError: Dedicated Lofi A/V repair failed: {'status': 'failed', 'error': \"name 'st' is not defined\", 'result': {}}"
+}
