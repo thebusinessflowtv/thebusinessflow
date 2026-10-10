@@ -1,0 +1,38 @@
+{
+  "checked_at": "2026-10-10T17:03:50.199602+00:00",
+  "reload_status": "completed",
+  "reload_error": "",
+  "diagnosis_status": "completed",
+  "diagnosis_error": "",
+  "health": {
+    "status": "restarting",
+    "error": null,
+    "encoder_pid": null,
+    "audio_pid": null,
+    "audio_status": "stopped",
+    "visual_status": "streaming",
+    "updated_at": "2026-10-10T17:03:59.922335Z",
+    "restarts": 0
+  },
+  "audio": {
+    "state": "stopped",
+    "status": "stopped",
+    "error": null,
+    "stalls": 3270,
+    "updated_at": "2026-10-10T16:20:36.908024Z"
+  },
+  "container": {
+    "docker_state": "running|false|0",
+    "processes": {
+      "audio_engine": 0,
+      "stream_core": 1,
+      "visual_engine": 1,
+      "ffmpeg": 1,
+      "video_fifo": true,
+      "audio_fifo": true
+    },
+    "docker_errors": ""
+  },
+  "docker_stats": "stats_unavailable",
+  "other_stations_untouched": true
+}
