@@ -1,5 +1,5 @@
 name: Ops — Validate MediaForge Local API Build
-# dynamic-ovh-live-and-music-actions-validation: 2026-10-10-0544
+# dynamic-ovh-live-and-music-actions-validation: 2026-10-10-0550-host-sidecar
 
 on:
   push:
