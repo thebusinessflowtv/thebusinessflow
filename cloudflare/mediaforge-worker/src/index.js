@@ -893,7 +893,7 @@ async function handleApi(request,env,url){
     const allowed=['runtime_slot','platform','session_id','title','playlist_key','status',
       'fps','video_bitrate_kbps','restarts','updated_at','loop_url','visual_revision',
       'hot_swap','encoder_pid','audio_pid','visual_pid','audio_status',
-      'audio_stalls','visual_status','now_playing','playlist_track_count'];
+      'audio_stalls','visual_status','now_playing','playlist_track_count','controls_frozen'];
     const sanitized={};
     for(const key of allowed)if(svc[key]!==undefined)sanitized[key]=svc[key];
     await env.DB.prepare(`INSERT INTO ovh_state(id,payload_json,updated_at)
