@@ -59,7 +59,7 @@ jobs:
               print("LOFI_AUDIO_RECOVERY_RESULT",json.dumps({"status":row.get("status"),"error":row.get("error"),
                   "outcome":{k:result.get(k) for k in ("status","playlist_track_count","encoder_pid_preserved","old_track_id",
                     "current_track_id","old_audio_pid","new_audio_pid","pcm_frames_emitted","non_silent_pcm_frames",
-                    "audio_stalls","other_publishers_preserved","rtmp_restart")}},flush=True)
+                    "audio_stalls","other_publishers_preserved","rtmp_restart")}}),flush=True)
               if row.get("status")=="failed":raise RuntimeError("Lofi feeder recovery failed: "+str(row.get("error") or "")[:300])
               if result.get("status")!="audio_restored":
                   raise RuntimeError("Recovery did not verify audible PCM: "+str(result.get("status") or "unknown"))
