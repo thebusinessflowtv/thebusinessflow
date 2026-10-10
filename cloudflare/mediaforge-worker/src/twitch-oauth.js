@@ -28,7 +28,7 @@ function config(env){
 }
 export async function handleTwitchOAuth(request,env,url,requireAuth){
   const route=url.pathname;
-  if(!["/api/oauth/twitch/start","/api/oauth/twitch/status","/api/oauth/twitch/callback"].includes(route))return null;
+  if(!["/api/oauth/twitch/start","/api/oauth/twitch/status","/api/oauth/twitch/callback","/api/oauth/twitch/probe"].includes(route))return null;
   const isCallback=route==="/api/oauth/twitch/callback";
   // Twitch normally redirects by GET. Some OAuth clients and frontends send
   // application/x-www-form-urlencoded POST callbacks. Accept either securely
@@ -51,6 +51,32 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
   if(route!=="/api/oauth/twitch/callback"){
     const session=await requireAuth(request,env);
     if(!session)return respond({error:"unauthorized"},401);
+    if(route==="/api/oauth/twitch/probe"){
+      // Authenticated, no-user-token diagnostics: test connectivity using
+      // deliberately INVALID credentials. Never send Twitch client secrets.
+      const checks=[
+        {name:"id_validate_get",url:"https://id.twitch.tv/oauth2/validate",init:{}},
+        {name:"id_token_post",url:"https://id.twitch.tv/oauth2/token",init:{
+          method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},
+          body:new URLSearchParams({client_id:"invalid",client_secret:"invalid",
+            grant_type:"authorization_code",code:"invalid",redirect_uri:cfg.redirectUri}).toString()}},
+        {name:"helix_users_get",url:"https://api.twitch.tv/helix/users",init:{}},
+      ];
+      const results=[];
+      for(const check of checks){
+        try{
+          const response=await fetch(check.url,{...check.init,signal:AbortSignal.timeout(10000)});
+          results.push({name:check.name,http_status:response.status,reachable:true});
+          await response.body?.cancel();
+        }catch(error){
+          const rawName=String(error?.name||"Error");
+          const rawCode=String(error?.cause?.code||"").replace(/[^A-Za-z0-9_]/g,"").slice(0,70);
+          results.push({name:check.name,reachable:false,error_name:rawName.slice(0,40),
+            error_code:rawCode||null});
+        }
+      }
+      return respond({runtime:"wrangler_workerd",results});
+    }
     await createTables(env);
     if(route==="/api/oauth/twitch/status"){
       const row=await env.DB.prepare("SELECT login,connected_at,expires_at FROM twitch_chat_oauth_tokens WHERE login=?").bind("peterlofi").first();
