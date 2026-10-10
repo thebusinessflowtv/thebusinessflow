@@ -22,7 +22,7 @@ function liveSlots(agent){
        Number.isFinite(stamp)&&stamp<=now+15000&&now-stamp<90000;
  }).sort(function(a,b){
    var ai=platformPriority.indexOf(a),bi=platformPriority.indexOf(b);
-   return (ai<0?999:ai)-(bi<0?999)||a.localeCompare(b);
+   return (ai<0?999:ai)-(bi<0?999:bi)||a.localeCompare(b);
  });
 }
 function labelFor(slot,s){return labels[slot]||String(s&&s.title||slot).slice(0,72);}
