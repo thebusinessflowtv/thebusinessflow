@@ -279,5 +279,11 @@ jobs:
       MEDIAFORGE_OVH_URL: https://peterlofi.odsgn.com.br
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Lofi-only catalog API patch
+        if: github.event_name == 'push'
+        run: node --check cloudflare/mediaforge-worker/src/index.js
+      - name: Publish catalog-only route on OVH; verify active publisher PIDs
+        if: github.event_name == 'push'
+        run: python scripts/deploy_lofi_mediaforge_control.py
       - name: Sync only approved Lofi Hip Hop tracks; leave publishers untouched
         run: python scripts/sync_lofi_hip_hop_ovh.py
