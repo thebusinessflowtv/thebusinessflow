@@ -53,7 +53,7 @@ def main():
             detail=info.get("result") or {}
             cp=detail.get("control_plane_publish") or {}
             print("CONTROL_PLANE_PUBLISH:",json.dumps(cp,ensure_ascii=False)[:1000],flush=True)
-            if cp.get("status")=="already_applied" and cp.get("version")!="ovh-dynamic-real-live-controls-20261010-v3":
+            if cp.get("status")=="already_applied" and cp.get("version")!="lofi-66-audio-hot-recovery-20261010-v1":
                 raise RuntimeError("Expected Lofi control-plane update did not deploy")
             break
         time.sleep(5)
