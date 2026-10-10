@@ -16,6 +16,49 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Emergency read-only diagnostics of Lofi audio and OVH playlist
+        env:
+          ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json,time,urllib.request,urllib.parse
+          base='https://peterlofi.odsgn.com.br'
+          def call(path,token='',body=None):
+              data=json.dumps(body).encode() if body is not None else None
+              headers={'user-agent':'MediaForge-ReadOnly-Lofi-Rescue','content-type':'application/json'}
+              if token:headers['authorization']='Bearer '+token
+              req=urllib.request.Request(base+path,data=data,method='POST' if data is not None else 'GET',headers=headers)
+              with urllib.request.urlopen(req,timeout=40) as f:return json.load(f)
+          auth=call('/api/auth/login',body={'email':os.environ['ADMIN_EMAIL'],'password':os.environ['ADMIN_PASSWORD']})
+          token=auth['token'];print('::add-mask::'+token,flush=True)
+          d=call('/api/ovh/status',token).get('agent') or {}
+          svc=(d.get('services') or {}).get('youtube-lofi-hip-hop') or {}
+          print('LOFI_LIVE_STATUS',json.dumps({k:svc.get(k) for k in ('status','encoder_pid','audio_pid','audio_status','audio_stalls','playlist_track_count','now_playing','updated_at')},ensure_ascii=False),flush=True)
+          ident='lofi-audio-diagnose-'+os.environ['GITHUB_RUN_ID']
+          q=call('/api/ovh/deploy',token,{'action':'diagnose_service','target':'youtube-lofi-hip-hop','request_id':ident,'source':'owner_audio_restoration'})
+          ident=str((q.get('command') or {}).get('id') or ident)
+          print('LOFI_READ_ONLY_DIAG_QUEUED',ident,flush=True)
+          for j in range(55):
+              time.sleep(2)
+              cmd=(call('/api/ovh/deploy-status?id='+urllib.parse.quote(ident),token).get('command') or {})
+              if cmd.get('status') not in ('completed','failed'):continue
+              result=cmd.get('result') or {}
+              h=result.get('health') or {}
+              ah=result.get('audio_health') or {}
+              np=result.get('now_playing') or {}
+              print('LOFI_DIAG_RESULT',json.dumps({'status':cmd.get('status'),'error':cmd.get('error'),
+                'encoder':{k:h.get(k) for k in ('status','encoder_pid','audio_pid','audio_status','audio_cache_hits','audio_cache_misses','audio_stalls','updated_at')},
+                'audio':{k:ah.get(k) for k in ('state','status','track_id','stalls','cache_hits','cache_misses','backpressure_drops','error','updated_at','cache_warm')},
+                'current':{k:np.get(k) for k in ('track_id','title','state','started_at')},
+                'desired':result.get('desired'),
+                'controller_tail':str(result.get('controller_log_tail') or '')[-650:],
+                'ffmpeg_tail':str(result.get('ffmpeg_log_tail') or '')[-800:]},ensure_ascii=False),flush=True)
+              break
+          else:print('LOFI_DIAG_TIMEOUT_NO_ACTION',flush=True)
+          PY
+
       - name: Syntax and package validation
         shell: bash
         run: |
