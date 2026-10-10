@@ -1,5 +1,5 @@
 name: MediaForge — Deploy Cloudflare Backend
-# youtube-dedicated-lofi-authenticated-bridge: 2026-10-10
+# lofi-only-remote-queue-safe-deployment: 2026-10-10 v2
 
 on:
   # Video-control-plane API is served here; live encoders remain on OVH and are not restarted by this deploy.
