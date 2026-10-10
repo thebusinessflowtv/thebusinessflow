@@ -15,7 +15,17 @@ def call(path,token="",body=None):
     if token:headers["authorization"]="Bearer "+token
     if data:headers["content-type"]="application/json"
     req=urllib.request.Request(BASE+path,data=data,headers=headers,method="POST" if data else "GET")
-    with urllib.request.urlopen(req,timeout=60) as resp:return json.load(resp)
+    for attempt in range(24):
+        try:
+            with urllib.request.urlopen(req,timeout=60) as resp:return json.load(resp)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (502,503,504,520,521,522,524) or attempt==23:
+                raise
+            print("TRANSIENT_OVH_API_HTTP:",exc.code,"retry",attempt+1,flush=True)
+        except (urllib.error.URLError,TimeoutError,OSError) as exc:
+            if attempt==23:raise
+            print("TRANSIENT_OVH_API_CONNECTION:",type(exc).__name__,"retry",attempt+1,flush=True)
+        time.sleep(min(15,3+attempt))
 
 def publishers(state):
     services=((state or {}).get("agent") or {}).get("services") or {}
@@ -27,7 +37,9 @@ def main():
     token=auth["token"]
     print("::add-mask::"+token,flush=True)
     before=publishers(call("/api/ovh/status",token))
-    cid="lofi-catalog-control-"+os.environ["GITHUB_RUN_ID"]
+    # The first deploy was accepted before the OVH API momentarily returned 502.
+    # Reuse its idempotency key; do not trigger a second control-plane deploy.
+    cid="lofi-catalog-control-38008428070"
     result=call("/api/ovh/deploy",token,{"action":"deploy_host_agent","target":"host-agent","request_id":cid,"source":"lofi-hip-hop-selector-catalog-only"})
     print("CONTROL_PLANE_DEPLOY_REQUESTED:",cid,flush=True)
     for i in range(130):
