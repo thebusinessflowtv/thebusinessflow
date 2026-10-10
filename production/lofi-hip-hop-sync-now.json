@@ -6,9 +6,9 @@
   "do_not_start_youtube_live": true,
   "scope": "catalog-only",
   "requested_at": "2026-10-09T21:30:00-03:00",
-  "retry": 9,
+  "retry": 10,
   "note": "Retry after replacing skipped conditional with explicit active push trigger",
-  "phase": "read-only diagnose live OVH station, orphaned Lofi STARTING sessions, and actual encoder health",
+  "phase": "publish Lofi orphaned reservation fix and diagnose authenticated bridge to GitHub, without initiating any live",
   "validation": "public app.html, app-core.html, lives.html and lives-cloudflare.js must all omit manual slots",
   "production_test": "verify exact /app.html#/peter-lofi/lives route and preservation of all existing publisher PIDs"
 }
