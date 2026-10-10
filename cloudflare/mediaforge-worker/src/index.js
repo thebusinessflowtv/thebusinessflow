@@ -649,7 +649,23 @@ async function runtimeForSession(env,id){
   try{return await env.DB.prepare(`SELECT * FROM live_runtime WHERE session_id=?`).bind(id).first();}catch(_){return null;}
 }
 async function ovhState(env){
-  try{const row=await env.DB.prepare(`SELECT payload_json,updated_at FROM ovh_state WHERE id='ovh-main'`).first();return row?{...JSON.parse(row.payload_json||'{}'),stored_at:row.updated_at}:null;}catch(_){return null;}
+  try{
+    const row=await env.DB.prepare(`SELECT payload_json,updated_at FROM ovh_state WHERE id='ovh-main'`).first();
+    const state=row?{...JSON.parse(row.payload_json||'{}'),stored_at:row.updated_at}:null;
+    if(!state||String(env.LOCAL_RUNTIME||'')!=='1')return state;
+    // This isolated encoder runs in its own container. The legacy streaming
+    // agent does not supervise it and must not overwrite its telemetry.
+    const extra=await env.DB.prepare(`SELECT payload_json,updated_at FROM ovh_state
+      WHERE id='ovh-isolated-lofi'`).first();
+    if(!extra||!Number.isFinite(Date.parse(extra.updated_at))||
+       Date.now()-Date.parse(extra.updated_at)>60000)return state;
+    const payload=JSON.parse(extra.payload_json||'{}');
+    const svc=payload.service||{};
+    const timestamp=Date.parse(svc.updated_at||'');
+    if(payload.runtime_slot!=='youtube-lofi-hip-hop'||!Number.isFinite(timestamp)||
+       timestamp>Date.now()+15000||Date.now()-timestamp>90000)return state;
+    return {...state,services:{...(state.services||{}),'youtube-lofi-hip-hop':svc}};
+  }catch(_){return null;}
 }
 
 async function syncSessionFromGitHub(env,row){
@@ -860,10 +876,46 @@ async function handleApi(request,env,url){
     return json({ok:true,stored_at:now},200,cors);
   }
 
+  if(url.pathname==='/api/ovh/agent/isolated-status'&&request.method==='POST'){
+    // Isolated host telemetry, separate D1 row to avoid races with legacy
+    // agent updates. Never writes to publishers, playlists, or live sessions.
+    if(String(env.LOCAL_RUNTIME||'')!=='1')return json({error:'local_only'},409,cors);
+    const gate=ovhAgentAllowed(request,env);
+    if(!gate.ok)return json({error:'forbidden_isolated_telemetry'},403,cors);
+    const b=await bodyJson(request),svc=b.service||{};
+    if(String(b.runtime_slot||'')!=='youtube-lofi-hip-hop'||
+       String(svc.runtime_slot||'')!=='youtube-lofi-hip-hop')
+      return json({error:'invalid_isolated_slot'},400,cors);
+    const timestamp=Date.parse(String(svc.updated_at||''));
+    if(!Number.isFinite(timestamp)||Math.abs(Date.now()-timestamp)>120000)
+      return json({error:'stale_isolated_status'},409,cors);
+    const now=new Date().toISOString();
+    const allowed=['runtime_slot','platform','session_id','title','playlist_key','status',
+      'fps','video_bitrate_kbps','restarts','updated_at','loop_url','visual_revision',
+      'hot_swap','encoder_pid','audio_pid','visual_pid','audio_status',
+      'audio_stalls','visual_status','now_playing','playlist_track_count'];
+    const sanitized={};
+    for(const key of allowed)if(svc[key]!==undefined)sanitized[key]=svc[key];
+    await env.DB.prepare(`INSERT INTO ovh_state(id,payload_json,updated_at)
+      VALUES('ovh-isolated-lofi',?,?) ON CONFLICT(id)
+      DO UPDATE SET payload_json=excluded.payload_json,updated_at=excluded.updated_at`)
+      .bind(JSON.stringify({runtime_slot:'youtube-lofi-hip-hop',service:sanitized}),now).run();
+    return json({ok:true,received_at:now,slot:'youtube-lofi-hip-hop'},200,cors);
+  }
+
   if(url.pathname==='/api/ovh/agent/commands'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_agent',ip:gate.ip},403,cors);}
     const limit=Math.max(1,Math.min(50,Number(url.searchParams.get('limit')||20)));
-    const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_commands WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-60 seconds')) ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
+    // Only the OVH host agent processes next/previous for independently hosted
+    // Lofi. Exclude those from the legacy streaming agent's generic inbox.
+    const onlyLofi=String(url.searchParams.get('only_slot')||'')==='youtube-lofi-hip-hop';
+    const filter=onlyLofi
+      ?`runtime_slot='youtube-lofi-hip-hop' AND action IN ('skip','previous')`
+      :`NOT (runtime_slot='youtube-lofi-hip-hop' AND action IN ('skip','previous'))`;
+    const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_commands
+      WHERE (${filter}) AND (status='pending' OR
+          (status='claimed' AND datetime(claimed_at)<datetime('now','-60 seconds')))
+      ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
     const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
     if(commands.length){
       const now=new Date().toISOString();
