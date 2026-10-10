@@ -1,24 +1,8 @@
 {
-  "checked_at": "2026-10-10T16:55:19.738443+00:00",
-  "command_status": "completed",
+  "checked_at": "2026-10-10T17:01:45.849635+00:00",
+  "command_status": null,
   "command_error": "",
-  "lofi_before": {
-    "status": "unknown",
-    "encoder_pid": null,
-    "audio_pid": null,
-    "visual_pid": null,
-    "audio_status": "stopped",
-    "visual_status": "streaming",
-    "audio_stalls": 3270,
-    "playlist_track_count": 66,
-    "now_playing": {
-      "track_id": "lofi-hip-hop-20261008-33",
-      "title": "Grey September",
-      "state": "playing",
-      "started_at": "2026-10-10T08:57:06.310464Z"
-    },
-    "updated_at": "2026-10-10T16:55:12.312088Z"
-  },
+  "lofi_before": {},
   "peer_services": {
     "kick": {
       "status": "live",
@@ -45,71 +29,12 @@
       "encoder_pid": null
     }
   },
-  "runtime_health": {
-    "status": "restarting",
-    "encoder_pid": null,
-    "audio_pid": null,
-    "visual_pid": 8,
-    "audio_status": "stopped",
-    "visual_status": "streaming",
-    "audio_stalls": 3270,
-    "updated_at": "2026-10-10T16:55:19.071823Z",
-    "restarts": 0
-  },
-  "audio_health": {
-    "status": "stopped",
-    "state": "stopped",
-    "stalls": 3270,
-    "track_id": "lofi-hip-hop-20261008-33",
-    "updated_at": "2026-10-10T16:20:36.908024Z"
-  },
-  "visual_health": {
-    "status": "streaming",
-    "updated_at": "2026-10-10T16:55:18.987298Z",
-    "fps": 60,
-    "prepared_file": "/state/youtube-lofi-hip-hop/visual-cache/58d1f34aade564db9828e001.mp4"
-  },
-  "docker_stats": "stats_unavailable",
-  "pipeline_probe": {},
-  "controller_errors": [
-    "controller_log_read_error:[Errno 2] No such file or directory: '/home/ubuntu/theofficemusic/ovh-streaming/state/youtube-lofi-hip-hop/controller.log'"
-  ],
-  "ffmpeg_errors": [
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[h264 @ 0x566d1e5da480] decode_slice_header error",
-    "[udp @ 0x566d1e55ab00] Circular buffer overrun. Surviving due to overrun_nonfatal option",
-    "[mpegts @ 0x566d1e5b2380] Packet corrupt (stream = 0, dts = NOPTS), dropping it.",
-    "[udp @ 0x566d1e55ab00] Circular buffer overrun. Surviving due to overrun_nonfatal option",
-    "[mpegts @ 0x566d1e5b2380] Packet corrupt (stream = 0, dts = NOPTS), dropping it.",
-    "[udp @ 0x566d1e55ab00] Circular buffer overrun. Surviving due to overrun_nonfatal option",
-    "[flv @ 0x7a43e00570c0] Failed to update header with correct duration.",
-    "[flv @ 0x7a43e00570c0] Failed to update header with correct filesize.",
-    "[udp @ 0x566d1e55ab00] Circular buffer overrun. Surviving due to overrun_nonfatal option"
-  ],
-  "visual_errors": [
-    "[vost#0:0/copy @ 0x55bea5e51f40] Error submitting a packet to the muxer: Broken pipe",
-    "[out#0/mpegts @ 0x55bea5e4d600] Error muxing a packet",
-    "[out#0/mpegts @ 0x55bea5e4d600] Task finished with error code: -32 (Broken pipe)",
-    "[out#0/mpegts @ 0x55bea5e4d600] Terminating thread with return code -32 (Broken pipe)",
-    "[out#0/mpegts @ 0x55bea5e4d600] Error writing trailer: Broken pipe",
-    "[out#0/mpegts @ 0x55bea5e4d600] Error closing file: Broken pipe"
-  ]
+  "runtime_health": {},
+  "audio_health": {},
+  "visual_health": {},
+  "docker_stats": "",
+  "pipeline_probe": null,
+  "controller_errors": [],
+  "ffmpeg_errors": [],
+  "visual_errors": []
 }
