@@ -337,7 +337,7 @@ async function selectVideoFactorySuggestion(env,id,index){
 
 const OVH_SLOTS=['kick','twitch','youtube-deep-house','youtube-rainy','youtube-gta-vi','youtube-lofi-hip-hop'];
 const OVH_DEPLOY_TARGETS=['ovh-agent','control-api','kick','twitch','youtube-deep-house','youtube-rainy'];
-const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','diagnose_service','repair_gta_runtime','rollback_service','hot_patch_streaming','reload_control_agent','repair_lofi_video_transport'];
+const OVH_DEPLOY_ACTIONS=['deploy_service','deploy_all','deploy_host_agent','health_check','diagnose_service','repair_gta_runtime','rollback_service','hot_patch_streaming','reload_control_agent','repair_lofi_video_transport','recover_isolated_lofi_audio'];
 function ovhAgentAllowed(request,env){
   // The agent token is the primary credential in every runtime. Previously it
   // was only honored when LOCAL_RUNTIME=1, which made production control
@@ -1394,7 +1394,7 @@ async function handleApi(request,env,url){
     if(action==='deploy_host_agent')target='host-agent';
     if(action==='hot_patch_streaming')target=(target==='all'||OVH_SLOTS.includes(target))?target:'all';
     if(action==='health_check')target=target&&OVH_DEPLOY_TARGETS.includes(target)?target:'all';
-    if(action==='repair_lofi_video_transport'){
+    if(action==='repair_lofi_video_transport'||action==='recover_isolated_lofi_audio'){
       if(target!=='youtube-lofi-hip-hop'||!/^[0-9a-f-]{36}$/i.test(String(b.session_id||'')))
         return json({error:'invalid_lofi_repair_target'},400,cors);
     }
@@ -1402,7 +1402,7 @@ async function handleApi(request,env,url){
     const existing=await env.DB.prepare(`SELECT id,action,target,status,created_at,claimed_at,completed_at,error,result_json FROM ovh_deploy_commands WHERE id=?`).bind(id).first();
     if(existing)return json({ok:true,command:{...existing,result:existing.result_json?JSON.parse(existing.result_json):null},deduplicated:true},200,cors);
     const payload={id,action,target,requested_at:now,requested_by:session.sub,source:String(b.source||'mediaforge'),
-      ...(action==='repair_lofi_video_transport'?{session_id:String(b.session_id)}:{})};
+      ...(['repair_lofi_video_transport','recover_isolated_lofi_audio'].includes(action)?{session_id:String(b.session_id)}:{})};
     await env.DB.prepare(`INSERT INTO ovh_deploy_commands(id,action,target,payload_json,status,created_at) VALUES(?,?,?,?, 'pending', ?)`).bind(id,action,target,JSON.stringify(payload),now).run();
     return json({ok:true,command:payload,status:'pending'},200,cors);
   }
