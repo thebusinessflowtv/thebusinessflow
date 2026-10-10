@@ -1,0 +1,30 @@
+{
+  "checked_at": "2026-10-10T16:51:47.834832+00:00",
+  "target": "youtube-lofi-hip-hop",
+  "action": "repair_lofi_video_transport",
+  "other_stream_restart_requested": false,
+  "before": {
+    "status": "live",
+    "session_id": "1dd4373d-351c-40cc-aa67-774a540fd991",
+    "encoder_pid": 25,
+    "audio_status": "stopped",
+    "audio_stalls": 3270,
+    "visual_status": "streaming",
+    "playlist_track_count": 66,
+    "now_playing": {
+      "track_id": "lofi-hip-hop-20261008-33",
+      "title": "Grey September",
+      "state": "playing",
+      "started_at": "2026-10-10T08:57:06.310464Z"
+    },
+    "restarts": 0
+  },
+  "peer_count_before": 5,
+  "old_track_age_seconds": 28482,
+  "repair_command_id": "lofi-av-isolated-repair-20261010-1791651108",
+  "repair_queued": true,
+  "repair_status": "failed",
+  "repair_error": "Lofi-only publisher did not regain local encoder health",
+  "repair_result": {},
+  "error": "RuntimeError: Isolated Lofi host repair did not complete: Lofi-only publisher did not regain local encoder health"
+}
