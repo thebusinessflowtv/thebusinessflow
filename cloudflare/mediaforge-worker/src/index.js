@@ -1547,6 +1547,50 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/uploads/complete'&&request.method==='POST'){const b=await bodyJson(request),asset=await readAsset(env,String(b.asset_id||''));if(!asset)return json({error:'asset_not_found'},404,cors);const parts=(b.parts||[]).map(p=>({partNumber:Number(p.partNumber),etag:String(p.etag)})).sort((a,b)=>a.partNumber-b.partNumber);if(!parts.length)return json({error:'parts_required'},400,cors);await env.MEDIA.resumeMultipartUpload(asset.r2_key,String(b.upload_id||'')).complete(parts);await env.DB.prepare(`UPDATE assets SET status='ready' WHERE id=?`).bind(asset.id).run();const ready=await readAsset(env,asset.id);return json({ok:true,asset:{id:ready.id,title:ready.title,asset_type:ready.asset_type,mime_type:ready.mime_type,size_bytes:ready.size_bytes,created_at:ready.created_at,metadata:JSON.parse(ready.metadata_json||'{}'),public_url:assetPublicUrl(request,ready)}},200,cors);}
   if(url.pathname==='/api/uploads/abort'&&request.method==='POST'){const b=await bodyJson(request),asset=await readAsset(env,String(b.asset_id||''));if(!asset)return json({error:'asset_not_found'},404,cors);try{await env.MEDIA.resumeMultipartUpload(asset.r2_key,String(b.upload_id||'')).abort();}catch(_){}await env.DB.prepare(`UPDATE assets SET status='aborted' WHERE id=?`).bind(asset.id).run();return json({ok:true},200,cors);}
 
+  if(url.pathname==='/api/live/lofi-bridge-preflight'&&request.method==='POST'){
+    // Intentionally invalid request: verifies service authentication without
+    // writing to GitHub, creating a broadcast, or starting any encoder.
+    if(String(env.LOCAL_RUNTIME||'')!=='1')return json({error:'local_runtime_required'},409,cors);
+    const target='https://mediaforge-api.guilhermeodsgn.workers.dev/api/ovh/agent/youtube-github-bridge';
+    const reqHeaders={'content-type':'application/json','user-agent':'MediaForge-Lofi-Auth-Preflight/1',
+      ...(env.OVH_AGENT_TOKEN?{'x-ovh-agent-token':String(env.OVH_AGENT_TOKEN)}:{})};
+    try{
+      const remote=await fetch(target,{method:'POST',headers:reqHeaders,
+        body:JSON.stringify({session_id:'',playlist_key:'lofi-hip-hop'})});
+      const data=await remote.json().catch(()=>({}));
+      return json({ready:remote.status===400&&data.error==='bridge_payload_incomplete',
+        remote_http:remote.status,remote_code:String(data.error||'unknown'),
+        local_agent_token_configured:!!env.OVH_AGENT_TOKEN,
+        broadcast_created:false},200,cors);
+    }catch(e){return json({ready:false,error:'bridge_unreachable',message:String(e?.message||e).slice(0,240)},502,cors);}
+  }
+
+  if(url.pathname==='/api/live/lofi-release-orphan'&&request.method==='POST'){
+    // Admin-only; conservatively release ONLY a demonstrably orphaned Lofi
+    // reservation. The other five active stream services are never modified.
+    const b=await bodyJson(request),id=String(b.session_id||'');
+    if(!/^[0-9a-f-]{36}$/i.test(id))return json({error:'invalid_session_id'},400,cors);
+    const row=await env.DB.prepare(`SELECT s.id,s.status,s.created_at,r.runtime_slot FROM live_sessions s
+      JOIN live_runtime r ON s.id=r.session_id WHERE s.id=?`).bind(id).first();
+    if(!row||row.runtime_slot!=='youtube-lofi-hip-hop')return json({error:'not_a_lofi_session'},404,cors);
+    if(row.status!=='starting')return json({ok:true,released:false,status:row.status},200,cors);
+    const age=Date.now()-Date.parse(String(row.created_at||''));
+    if(!(age>120000))return json({error:'recent_start_cannot_be_released'},409,cors);
+    const state=await ovhState(env),svc=state?.services?.['youtube-lofi-hip-hop']||{};
+    if(svc.encoder_pid||['live','starting','restarting'].includes(String(svc.status||'').toLowerCase()))
+      return json({error:'actual_lofi_encoder_active'},409,cors);
+    // Refuse to release if any GitHub OAuth launch request was actually queued.
+    const probe='https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/gta-youtube-launch/'+id+'.json';
+    let gh;
+    try{gh=await fetch(probe,{headers:{'cache-control':'no-cache','user-agent':'MediaForge-Orphan-Guard'}})}
+    catch(e){return json({error:'github_launch_check_unavailable'},503,cors)}
+    if(gh.status!==404)return json({error:'github_launch_may_exist',status:gh.status},409,cors);
+    const now=new Date().toISOString();
+    await env.DB.prepare(`UPDATE live_sessions SET status='failed',error_message=?,completed_at=?
+      WHERE id=? AND status='starting'`).bind('Tentativa interrompida antes de ser enviada ao GitHub',now,id).run();
+    return json({ok:true,released:true,session_id:id,other_live_streams_touched:false},200,cors);
+  }
+
   if(url.pathname==='/api/live/start'&&request.method==='POST'){
     let reservedSessionId='';
     try{
