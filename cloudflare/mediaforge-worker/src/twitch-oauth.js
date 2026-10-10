@@ -67,6 +67,10 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
     authorize.searchParams.set("state",body+"."+sig);
     return respond({authorization_url:authorize.toString(),expires_in:600});
   }
+  // All exceptions in the callback are converted to safe actionable messages.
+  // Never log authorization codes, state, tokens, or client secrets.
+  let callbackStage="validate_authorization";
+  try {
   if(callbackParams.has("error"))return formPage(false,"Twitch authorization was declined.");
   const code=callbackParams.get("code")||"",state=callbackParams.get("state")||"",parts=state.split(".");
   if(!code||code.length>2048||parts.length!==3||!/^[a-f0-9-]{36}$/.test(parts[0])||!/^\d{10}$/.test(parts[1]))
@@ -78,6 +82,7 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
   if(!valid)return formPage(false,"OAuth state verification failed.");
   // Never consume a one-time state BEFORE exchanging and persisting tokens.
   // An upstream error previously caused subsequent retries to say "already used".
+  callbackStage="read_authorization_session";
   await createTables(env);
   const receipt=await env.DB.prepare("SELECT broadcaster_id FROM twitch_chat_oauth_receipts WHERE nonce=?").bind(nonce).first();
   if(receipt)return formPage(true,"PeterLofi Twitch authorization was already saved. You may close this window.");
@@ -85,12 +90,14 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
   if(!pending)return formPage(false,"This authorization session expired. Start a new authorization from MediaForge.");
   const post=new URLSearchParams({client_id:cfg.clientId,client_secret:cfg.clientSecret,code,
     grant_type:"authorization_code",redirect_uri:cfg.redirectUri});
+  callbackStage="exchange_twitch_code";
   const exchange=await fetch("https://id.twitch.tv/oauth2/token",{
     method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:post.toString()
   });
   if(!exchange.ok)return formPage(false,"Twitch could not complete the authorization. Please try again.");
   const token=await exchange.json();
   if(!token.access_token||!token.refresh_token)return formPage(false,"Missing renewable Twitch token.");
+  callbackStage="verify_twitch_account";
   const profileResponse=await fetch("https://api.twitch.tv/helix/users",{
     headers:{"authorization":"Bearer "+token.access_token,"client-id":cfg.clientId}
   });
@@ -105,6 +112,7 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
   const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv},await tokenCipher(cfg.secret),
     enc.encode(JSON.stringify({access_token:token.access_token,refresh_token:token.refresh_token,expires_at:expiration})));
   const stored=JSON.stringify({version:1,iv:base64(iv),ciphertext:base64(encrypted)});
+  callbackStage="persist_encrypted_credentials";
   await env.DB.prepare("INSERT OR REPLACE INTO twitch_chat_oauth_tokens(broadcaster_id,login,encrypted_token,scope_json,expires_at,connected_at) VALUES(?,?,?,?,?,?)")
     .bind(String(profile.id),String(profile.login),stored,JSON.stringify(scopes),expiration,new Date().toISOString()).run();
   // Record success before consuming state, so callback refresh is idempotent.
@@ -112,4 +120,10 @@ export async function handleTwitchOAuth(request,env,url,requireAuth){
     .bind(nonce,String(profile.id),new Date().toISOString()).run();
   await env.DB.prepare("DELETE FROM twitch_chat_oauth_pending WHERE nonce=?").bind(nonce).run();
   return formPage(true,"PeterLofi Twitch authorization saved securely. You may close this window.");
+  } catch (error) {
+    // Do not surface raw exception text: it may contain a request URL.
+    console.error("TWITCH_OAUTH_CALLBACK_FAILURE",callbackStage,String(error?.name||"Error"));
+    return formPage(false,"MediaForge OAuth failed at step: "+callbackStage+
+      ". Please retry with a new authorization after checking server logs.");
+  }
 }
