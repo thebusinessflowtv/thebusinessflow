@@ -53,7 +53,7 @@ def main():
             detail=info.get("result") or {}
             cp=detail.get("control_plane_publish") or {}
             print("CONTROL_PLANE_PUBLISH:",json.dumps(cp,ensure_ascii=False)[:1000],flush=True)
-            if cp.get("status")=="already_applied" and cp.get("version")!="lofi-hip-hop-selector-v1":
+            if cp.get("status")=="already_applied" and cp.get("version")!="youtube-slotless-live-20261009-v2":
                 raise RuntimeError("Expected Lofi control-plane update did not deploy")
             break
         time.sleep(5)
@@ -69,6 +69,39 @@ def main():
             raise RuntimeError("Unexpected API catalog route response: "+str(exc.code)+"/"+str(response.get("error")))
     else:
         raise RuntimeError("New catalog endpoint accepted an invalid playlist")
+
+    # Verify the public files served by the EXACT user-facing app URL, not just
+    # the repository source or a generic 'ui_verified' flag from the deployer.
+    urls={
+        "app.html":BASE+"/app.html?verify=20261009-slotless-live2",
+        "app-core.html":BASE+"/app-core.html?verify=20261009-slotless-live2",
+        "lives.html":BASE+"/lives.html?verify=20261009-slotless-live2",
+        "lives-cloudflare.js":BASE+"/lives-cloudflare.js?verify=20261009-slotless-live2"
+    }
+    for attempt in range(12):
+        bodies={}
+        try:
+            for name,url in urls.items():
+                request=urllib.request.Request(url,headers={"user-agent":"MediaForge-Production-Route-Check","cache-control":"no-cache"})
+                with urllib.request.urlopen(request,timeout=24) as res:
+                    bodies[name]=res.read().decode("utf-8")
+            checks={
+                "app_loader":'app-core.html?v=20261009-slotless-live2' in bodies["app.html"],
+                "lives_route":'lives.html?platform=' in bodies["app-core.html"] and 'v=20261009-slotless-live2' in bodies["app-core.html"],
+                "live_script_reference":'lives-cloudflare.js?v=20261009-slotless-live2' in bodies["lives.html"],
+                "no_manual_slot_field":'SLOT OVH DO YOUTUBE' not in bodies["lives-cloudflare.js"],
+                "auto_allocator_notice":'O MediaForge escolhe automaticamente' in bodies["lives-cloudflare.js"]
+            }
+            print("PRODUCTION_UI_VALIDATION:",json.dumps(checks),flush=True)
+            if all(checks.values()):
+                print("PRODUCTION_SLOTLESS_UI_VERIFIED: https://peterlofi.odsgn.com.br/app.html#/peter-lofi/lives",flush=True)
+                break
+        except Exception as exc:
+            print("PRODUCTION_UI_CHECK_RETRY:",type(exc).__name__,str(exc)[:170],flush=True)
+        if attempt==11:
+            raise RuntimeError("PRODUCTION_SLOTLESS_UI_NOT_VERIFIED; UI may still serve old YouTube slot field")
+        time.sleep(3)
+
     after=publishers(call("/api/ovh/status",token))
     changed=[k for k in before if k in after and before[k].get("encoder_pid") and before[k]["encoder_pid"]!=after[k].get("encoder_pid")]
     if changed:raise RuntimeError("Unrelated live encoder PID changed: "+",".join(changed))
