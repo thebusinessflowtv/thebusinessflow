@@ -1,4 +1,5 @@
 import { appendGamingDj30Assets } from './gaming-dj30-library.js';
+import { handleTwitchOAuth } from './twitch-oauth.js';
 const enc = new TextEncoder();
 
 function json(data, status = 200, extra = {}) {
@@ -732,6 +733,8 @@ async function handleMedia(request,env,url){const parts=url.pathname.split('/').
 
 async function handleApi(request,env,url){
   const cors=corsHeaders(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
+  const twitchOAuthResponse=await handleTwitchOAuth(request,env,url,requireAuth);
+  if(twitchOAuthResponse)return twitchOAuthResponse;
   if(url.pathname==='/api/health')return json({ok:true,service:'mediaforge-api',storage:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-local-r2':'r2',database:String(env.LOCAL_RUNTIME||'')==='1'?'ovh-sqlite-d1':'d1',supabase:false,youtube:true,kick:true,twitch:true,ovh:true,local_runtime:String(env.LOCAL_RUNTIME||'')==='1'},200,cors);
 
 
