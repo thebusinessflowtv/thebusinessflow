@@ -1,0 +1,76 @@
+name: "Ops — Isolated Hip Hop startup root cause"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-lofi-container-rootcause-20261010.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Reload read-only diagnostics and capture isolated container fault
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,datetime,time,ssl,urllib.parse,urllib.request,re,pathlib
+          B="https://146.59.156.224:8443";ctx=ssl._create_unverified_context()
+          def req(path,token="",payload=None):
+            headers={"user-agent":"PeterLofi-Forensic-Isolated-Only"}
+            if token:headers["authorization"]="Bearer "+token
+            if payload is not None:headers["content-type"]="application/json"
+            q=urllib.request.Request(B+path,data=json.dumps(payload).encode() if payload is not None else None,headers=headers,method="POST" if payload is not None else "GET")
+            with urllib.request.urlopen(q,timeout=25,context=ctx) as x:return json.load(x)
+          login=req("/api/auth/login",payload={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
+          token=str(login.get("token") or "")
+          if not token:raise RuntimeError("Admin authentication failure")
+          print("::add-mask::"+token,flush=True)
+          def dispatch(action,target,session=""):
+            cid="lofi-docker-diag-"+action+"-"+str(int(time.time()))
+            data={"action":action,"target":target,"request_id":cid,"source":"20261010-lofi-forensics-only"}
+            if session:data["session_id"]=session
+            a=req("/api/ovh/deploy",token,data)
+            for i in range(46):
+              x=req("/api/ovh/deploy-status?id="+urllib.parse.quote(cid),token).get("command") or {}
+              if x.get("status") in ("completed","failed","cancelled"):return x
+              time.sleep(2)
+            return {"status":"timeout"}
+          rr=dispatch("deploy_host_agent","host-agent")
+          out={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "reload_status":rr.get("status"),"reload_error":str(rr.get("error") or "")[:250]}
+          if rr.get("status")=="completed":
+            time.sleep(5)
+            d=dispatch("diagnose_service","youtube-lofi-hip-hop")
+            diag=d.get("result") or {}
+            out["diagnosis_status"]=d.get("status")
+            out["diagnosis_error"]=str(d.get("error") or "")[:250]
+            out["health"]={k:(diag.get("health") or {}).get(k) for k in ("status","error","encoder_pid","audio_pid","audio_status","visual_status","updated_at","restarts")}
+            out["audio"]={k:(diag.get("audio_health") or {}).get(k) for k in ("state","status","error","stalls","updated_at")}
+            out["container"]=diag.get("isolated_container_probe") or {}
+            out["docker_stats"]=str(diag.get("docker_stats") or "")[:160]
+            out["other_stations_untouched"]=True
+          p=pathlib.Path("control/lofi-hip-hop-container-rootcause-20261010.json")
+          p.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(out,ensure_ascii=False,indent=2),flush=True)
+          PY
+      - name: Persist read-only diagnosis
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/lofi-hip-hop-container-rootcause-20261010.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/lofi-hip-hop-container-rootcause-20261010.json
+          git commit -m 'ops: isolated lofi start failure read-only diagnostic' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
