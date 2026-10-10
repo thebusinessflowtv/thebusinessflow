@@ -99,6 +99,15 @@ jobs:
                   print("OVH_LOCAL_AGENT_LAST_HEARTBEAT",agent.get("reported_at") or agent.get("stored_at"),flush=True)
                   service=(agent.get("services") or {}).get("youtube-lofi-hip-hop") or {}
                   print("OVH_LOCAL_LOFI_ENCODER",json.dumps({k:service.get(k) for k in ("status","session_id","encoder_pid","updated_at")}),flush=True)
+                  gta=(agent.get("services") or {}).get("youtube-gta-vi") or {}
+                  print("GTA_OVH_CURRENT",json.dumps({k:gta.get(k) for k in
+                      ("status","session_id","encoder_pid","audio_pid","visual_pid","updated_at",
+                       "audio_status","visual_status","restarts","playlist_key","playlist_track_count")},
+                      ensure_ascii=False),flush=True)
+                  print("GTA_OVH_HEARTBEAT_AGE_SECONDS",
+                      round(__import__("time").time()-__import__("datetime").datetime.fromisoformat(
+                         (gta.get("updated_at") or "1970-01-01T00:00:00Z").replace("Z","+00:00")).timestamp()),
+                      flush=True)
                   latest=local_http("/api/ovh/deploy-status",bearer=token)
                   rows=latest.get("commands") or []
                   print("OVH_LOCAL_RECENT_CONTROL",json.dumps([{"id":x.get("id"),"action":x.get("action"),"status":x.get("status")} for x in rows[:10]]),flush=True)
