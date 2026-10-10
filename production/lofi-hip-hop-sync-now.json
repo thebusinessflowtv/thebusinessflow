@@ -5,5 +5,7 @@
   "do_not_change_live_streams": true,
   "do_not_start_youtube_live": true,
   "scope": "catalog-only",
-  "requested_at": "2026-10-10T00:14:00Z"
+  "requested_at": "2026-10-10T00:14:00Z",
+  "retry": 2,
+  "note": "Retry after replacing skipped conditional with explicit active push trigger"
 }
