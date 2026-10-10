@@ -1,0 +1,39 @@
+name: MediaForge Twitch OAuth Callback Build Check
+
+on:
+  push:
+    paths:
+      - '.github/workflows/mediaforge-twitch-oauth-check.yml'
+      - 'cloudflare/mediaforge-worker/src/twitch-oauth.js'
+      - 'cloudflare/mediaforge-worker/src/index.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check OAuth callback and MediaForge API syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check cloudflare/mediaforge-worker/src/twitch-oauth.js
+          node --check cloudflare/mediaforge-worker/src/index.js
+          cd cloudflare/mediaforge-worker
+          npm install
+          npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
+          echo OAUTH_CALLBACK_BUILD_VALID
+      - name: Ensure secrets remain in the private server environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'TWITCH_CLIENT_SECRET' cloudflare/mediaforge-worker/src/twitch-oauth.js
+          grep -q 'twitch_chat_oauth_tokens' cloudflare/mediaforge-worker/src/twitch-oauth.js
+          echo TOKEN_STORAGE_CODE_PRESENT_NO_LIVE_CHANGE
