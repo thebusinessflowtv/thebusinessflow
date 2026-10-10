@@ -1548,6 +1548,7 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/uploads/abort'&&request.method==='POST'){const b=await bodyJson(request),asset=await readAsset(env,String(b.asset_id||''));if(!asset)return json({error:'asset_not_found'},404,cors);try{await env.MEDIA.resumeMultipartUpload(asset.r2_key,String(b.upload_id||'')).abort();}catch(_){}await env.DB.prepare(`UPDATE assets SET status='aborted' WHERE id=?`).bind(asset.id).run();return json({ok:true},200,cors);}
 
   if(url.pathname==='/api/live/start'&&request.method==='POST'){
+    let reservedSessionId='';
     try{
       const b=await bodyJson(request),platform=String(b.platform||'kick').toLowerCase();
       if(!['kick','twitch','youtube'].includes(platform))return json({error:'unsupported_platform'},400,cors);
@@ -1571,6 +1572,7 @@ async function handleApi(request,env,url){
       if(visualId){const a=await readAsset(env,visualId);if(!a||a.status!=='ready')return json({error:'visual_not_ready'},400,cors);visualUrl=assetRuntimeUrl(request,a,env);}
       if(thumbId){const a=await readAsset(env,thumbId);if(!a||a.status!=='ready'||!String(a.mime_type||'').startsWith('image/'))return json({error:'thumbnail_not_ready',message:'A thumbnail do YouTube precisa ser uma imagem pronta.'},400,cors);thumbnailUrl=String(env.LOCAL_RUNTIME||'')==='1'?assetRuntimeUrl(request,a,env):assetPublicUrl(request,a,env);}
       const id=crypto.randomUUID(),title=String(b.title||'Peter Lofi — Live').trim()||'Peter Lofi — Live',description=String(b.description||''),duration=Math.max(0,Math.min(10080,Number(b.duration_minutes??0)||0)),now=new Date().toISOString();
+      reservedSessionId=id;
       let slot=platform;
       if(platform==='youtube'){
         // Automatic internal allocation. Never occupy or restart a running live.
@@ -1622,7 +1624,8 @@ async function handleApi(request,env,url){
             };
             const bridgeRes=await fetch(bridgeUrl,{
               method:'POST',
-              headers:{'content-type':'application/json','user-agent':'MediaForge-OVH-GTA-Bridge/1.0'},
+              headers:{'content-type':'application/json','user-agent':'MediaForge-OVH-YouTube-Bridge/2.0',
+                ...(env.OVH_AGENT_TOKEN?{'x-ovh-agent-token':String(env.OVH_AGENT_TOKEN)}:{})},
               body:JSON.stringify(bridgePayload)
             });
             const bridgeText=await bridgeRes.text();
@@ -1638,7 +1641,16 @@ async function handleApi(request,env,url){
       }
       const cmd=await issueOvhCommand(env,{...common,action:'start'});
       return json({ok:true,launch_mode:'ovh-direct',command_id:cmd.id,session:{id,platform,status:'starting',runtime:'ovh',runtime_slot:slot,title,description,duration_minutes:duration,track_ids:trackIds,created_at:now}},200,cors);
-    }catch(e){return json({error:'start_live_failed',message:e.message},502,cors);}
+    }catch(e){
+      // A bridge failure must never leave a fake STARTING session reserving the
+      // only dedicated Lofi encoder. A successfully queued launch returns above.
+      if(reservedSessionId){
+        try{await env.DB.prepare(`UPDATE live_sessions SET status='failed',error_message=?,completed_at=?
+          WHERE id=? AND status='starting'`).bind(String(e?.message||e).slice(0,450),
+          new Date().toISOString(),reservedSessionId).run();}catch(_){}
+      }
+      return json({error:'start_live_failed',message:e.message},502,cors);
+    }
   }
 
   const stopMatch=url.pathname.match(/^\/api\/live\/([^/]+)\/stop$/);
