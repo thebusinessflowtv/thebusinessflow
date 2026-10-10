@@ -42,11 +42,14 @@ def main():
         if key!=slot and item.get("status")=="live" and item.get("encoder_pid")}
     print("BEFORE",json.dumps({"slot":slot,"old_track":old_track,
         "encoder_pid":old_pid,"peers":list(peers)},ensure_ascii=False),flush=True)
-    sent=call("/api/ovh/control",token,{"action":"skip",
+    action=os.environ.get("LOFI_AUDIO_ACTION","skip").strip().lower()
+    if action not in ("skip","previous"):
+        raise RuntimeError("Invalid isolated audio action")
+    sent=call("/api/ovh/control",token,{"action":action,
         "runtime_slot":slot,"session_id":sv["session_id"]})
     cid=str((sent.get("command") or {}).get("id") or "")
     if not cid:raise RuntimeError("Local MediaForge did not accept the skip command")
-    print("SKIP_REQUEST_ACCEPTED",cid,flush=True)
+    print("AUDIO_COMMAND_REQUEST_ACCEPTED",action,cid,flush=True)
     ack=""
     for i in range(48):
         time.sleep(2)
@@ -62,7 +65,7 @@ def main():
         if changed_peers:raise RuntimeError("Another live encoder changed: "+",".join(changed_peers))
         new_track=str((now.get("now_playing") or {}).get("track_id") or "")
         if ack=="completed" and new_track and new_track!=old_track:
-            print("LIVE_NEXT_TRACK_VERIFIED",json.dumps({
+            print("LIVE_AUDIO_CONTROL_VERIFIED",json.dumps({"action":action,
                 "before":old_track,"after":new_track,"command":cid,
                 "status":ack,"encoder_pid_unchanged":True,
                 "other_live_encoders_unchanged":True},ensure_ascii=False),flush=True)
