@@ -1,0 +1,122 @@
+{
+  "checked_at": "2026-10-10T16:49:47.248991+00:00",
+  "lofi": {
+    "status": "live",
+    "session_id": "1dd4373d-351c-40cc-aa67-774a540fd991",
+    "encoder_pid": 25,
+    "audio_pid": 1468,
+    "visual_pid": 8,
+    "audio_status": "stopped",
+    "audio_stalls": 3270,
+    "visual_status": "streaming",
+    "updated_at": "2026-10-10T16:49:45.320441Z",
+    "playlist_track_count": 66,
+    "playlist_key": "lofi-hip-hop",
+    "now_playing": {
+      "track_id": "lofi-hip-hop-20261008-33",
+      "title": "Grey September",
+      "state": "playing",
+      "started_at": "2026-10-10T08:57:06.310464Z"
+    },
+    "restarts": 0,
+    "fps": 60,
+    "video_bitrate_kbps": 8000
+  },
+  "peer_status": {
+    "kick": {
+      "status": "live",
+      "encoder_pid": 25
+    },
+    "twitch": {
+      "status": "live",
+      "encoder_pid": 22219
+    },
+    "youtube-deep-house": {
+      "status": "live",
+      "encoder_pid": 42121
+    },
+    "youtube-rainy": {
+      "status": "live",
+      "encoder_pid": 24610
+    },
+    "youtube-gta-vi": {
+      "status": "live",
+      "encoder_pid": 11514
+    },
+    "youtube-ui-test": {
+      "status": "unknown",
+      "encoder_pid": null
+    }
+  },
+  "diagnose_command_id": "lofi-readonly-diagnose-20261010-1791650987",
+  "diagnose_submitted": true,
+  "command_status": "completed",
+  "command_error": "",
+  "diagnostic_keys": [
+    "audio_health",
+    "controller_log_tail",
+    "desired",
+    "docker_stats",
+    "ffmpeg_log_tail",
+    "health",
+    "now_playing",
+    "pipeline_probe",
+    "service",
+    "visual_ffmpeg_log_tail",
+    "visual_health",
+    "visual_probe"
+  ],
+  "diagnostic_safe": {
+    "now_playing": {
+      "platform": "youtube-lofi-hip-hop",
+      "state": "playing",
+      "track_id": "lofi-hip-hop-20261008-33",
+      "title": "Grey September",
+      "artists": "",
+      "source": "",
+      "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-lofi-hip-hop-033-37991966107/peter-lofi-lofi-hip-hop-033.mp3",
+      "started_at": "2026-10-10T08:57:06.310464Z",
+      "history": [
+        "lofi-hip-hop-20261008-39",
+        "lofi-hip-hop-20261008-24",
+        "lofi-hip-hop-20261008-04",
+        "lofi-hip-hop-20261008-31",
+        "lofi-hip-hop-20261008-02",
+        "lofi-hip-hop-20261008-18",
+        "lofi-hip-hop-20261008-13",
+        "lofi-hip-hop-20261008-05",
+        "lofi-hip-hop-20261008-10",
+        "lofi-hip-hop-20261008-33"
+      ]
+    },
+    "audio_health": {
+      "platform": "youtube-lofi-hip-hop",
+      "status": "stopped",
+      "cache_hits": 45,
+      "cache_misses": 1,
+      "stalls": 3270,
+      "backpressure_drops": 0,
+      "queued_actions": 0,
+      "updated_at": "2026-10-10T16:20:36.908024Z",
+      "state": "stopped",
+      "track_id": "lofi-hip-hop-20261008-33"
+    },
+    "health": {
+      "service": "youtube-lofi-hip-hop",
+      "status": "live",
+      "updated_at": "2026-10-10T16:49:49.323805Z",
+      "fps": 60,
+      "video_bitrate_kbps": 8000,
+      "restarts": 0,
+      "hot_swap": true,
+      "encoder_pid": 25,
+      "audio_pid": 1470,
+      "visual_pid": 8,
+      "visual_status": "streaming",
+      "audio_status": "stopped",
+      "audio_stalls": 3270,
+      "generation": 1,
+      "visual_revision": 1
+    }
+  }
+}
