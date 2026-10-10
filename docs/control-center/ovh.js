@@ -45,8 +45,8 @@ async function waitCommand(id,button,slot,action,previousTrack){
          if(next&&next!==previousTrack){if(button)button.textContent="✓ Faixa alterada";return true;}
          await new Promise(function(r){setTimeout(r,850)});
        }
-       if(button)button.textContent="✓ Comando recebido; aguardando transição";
-       return true;
+       if(button)button.textContent="Faixa não mudou";
+       throw new Error("A OVH recebeu o comando, mas a música não mudou. Verifique se há proteção de faixa ou bloqueio de áudio.");
      }
      if(button)button.textContent="✓ Confirmado pela OVH";
      return true;
