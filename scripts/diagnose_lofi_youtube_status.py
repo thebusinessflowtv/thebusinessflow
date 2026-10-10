@@ -23,5 +23,6 @@ def main():
   rows=[{"id":x.get("id"),"status":x.get("status"),"created_at":x.get("created_at"),"live_at":x.get("live_at"),"runtime_slot":x.get("runtime_slot"),"error":x.get("error_message")} for x in sessions if x.get("runtime_slot")=="youtube-lofi-hip-hop" or "lofi hip hop" in str(x.get("title") or "").lower()]
   print("LOFI_SESSIONS",json.dumps(rows[:12],ensure_ascii=False),flush=True)
   print("OTHER_ACTIVE_SERVICES",json.dumps({name:{"status":svc.get("status"),"encoder_pid_exists":bool(svc.get("encoder_pid"))} for name,svc in svcs.items() if name!="youtube-lofi-hip-hop"},ensure_ascii=False),flush=True)
+  print("LOFI_REMOTE_BRIDGE_AUTH_PREFLIGHT",json.dumps(call("/api/live/lofi-bridge-preflight",token,payload={}),ensure_ascii=False),flush=True)
   print("READ_ONLY_DIAGNOSTIC_FINISHED",datetime.datetime.now(datetime.timezone.utc).isoformat(),flush=True)
 if __name__=="__main__":main()
