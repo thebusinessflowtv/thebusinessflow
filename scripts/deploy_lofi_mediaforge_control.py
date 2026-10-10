@@ -53,7 +53,7 @@ def main():
             detail=info.get("result") or {}
             cp=detail.get("control_plane_publish") or {}
             print("CONTROL_PLANE_PUBLISH:",json.dumps(cp,ensure_ascii=False)[:1000],flush=True)
-            if cp.get("status")=="already_applied" and cp.get("version")!="ovh-dynamic-real-live-controls-20261010-v1":
+            if cp.get("status")=="already_applied" and cp.get("version")!="ovh-dynamic-real-live-controls-20261010-v2":
                 raise RuntimeError("Expected Lofi control-plane update did not deploy")
             break
         time.sleep(5)
@@ -126,6 +126,26 @@ def main():
     if not capability or capability.get("isolated_lofi_youtube") is not True:
         raise RuntimeError("Live OVH host agent does not advertise isolated Lofi YouTube support")
     print("LIVE_HOST_LOFI_CAPABILITY_VERIFIED:",json.dumps(capability),flush=True)
+    host_lofi=((row.get("result") or {}).get("services") or {}).get("youtube-lofi-hip-hop") or {}
+    host_running=(host_lofi.get("status")=="live" and bool(host_lofi.get("encoder_pid")))
+    if host_running:
+        confirmed=False
+        for attempt in range(26):
+            published=call("/api/ovh/status",token)
+            svc=((published.get("agent") or {}).get("services") or {}).get("youtube-lofi-hip-hop") or {}
+            if svc.get("status")=="live" and svc.get("encoder_pid") and svc.get("now_playing") is not None:
+                confirmed=True
+                print("PRODUCTION_ISOLATED_LOFI_DISCOVERED:",json.dumps({
+                    "runtime_slot":"youtube-lofi-hip-hop","status":svc.get("status"),
+                    "encoder_pid_present":bool(svc.get("encoder_pid")),
+                    "track_id":(svc.get("now_playing") or {}).get("track_id"),
+                    "updated_at":svc.get("updated_at")},ensure_ascii=False),flush=True)
+                break
+            time.sleep(3)
+        if not confirmed: raise RuntimeError("Running independent Lofi publisher is still missing from real OVH status API")
+    else:
+        print("ISOLATED_LOFI_NOT_CURRENTLY_LIVE_ON_HOST; dashboard must not invent a LIVE card",flush=True)
+
 
     status=call("/api/ovh/status",token)
     last_status=(status.get("agent") or {})
