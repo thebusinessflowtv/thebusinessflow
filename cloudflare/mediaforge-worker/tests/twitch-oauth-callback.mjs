@@ -125,3 +125,32 @@ try{
   globalThis.fetch=originalFetch;
 }
 console.log('TWITCH_OAUTH_END_TO_END_IDEMPOTENCY_TESTS_PASSED');
+
+
+// Diagnostic probe must use only dummy tokens, require admin auth, and never
+// reveal credentials. No real Twitch requests are made by this test.
+const probeUrl='https://peterlofi.odsgn.com.br/api/oauth/twitch/probe';
+let requests=[];
+const savedFetch=globalThis.fetch;
+try{
+  globalThis.fetch=async(url,init)=>{
+    requests.push({url:String(url),method:init?.method||'GET',body:String(init?.body||'')});
+    return new Response(null,{status:String(url).includes('/token')?400:401});
+  };
+  const response=await handleTwitchOAuth(new Request(probeUrl),fullEnv,
+    new URL(probeUrl),async()=>({sub:'admin'}));
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.runtime,'wrangler_workerd');
+  assert.equal(data.results.length,3);
+  assert.equal(data.results.filter(x=>x.reachable).length,3);
+  assert.equal(requests.filter(x=>x.method==='POST').length,1);
+  assert.match(requests.find(x=>x.method==='POST').body,/client_secret=invalid/);
+  assert.ok(requests.every(x=>!x.body.includes('testsecret')));
+  const denied=await handleTwitchOAuth(new Request(probeUrl),fullEnv,
+    new URL(probeUrl),async()=>null);
+  assert.equal(denied.status,401);
+} finally {
+  globalThis.fetch=savedFetch;
+}
+console.log('TWITCH_OAUTH_RUNTIME_PROBE_TESTS_PASSED');
