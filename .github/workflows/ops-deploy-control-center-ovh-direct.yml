@@ -1,4 +1,4 @@
-name: MediaForge — Diagnose Twitch Kick Video Corruption 2026-10-10
+name: MediaForge — Recover Twitch Lossless Video FIFO
 # live-incident: 2026-10-08-disable-120s-encoder-kill
 
 on:
@@ -20,12 +20,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify no Python syntax regression in H264 passthrough
+      - name: Validate stream core and visual sender FIFO changes
         shell: bash
         run: |
           set -euo pipefail
           curl -fsS --retry 3 https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/ovh-streaming/app/stream_core.py > /tmp/stream_core.py
-          python -m py_compile /tmp/stream_core.py
+          curl -fsS --retry 3 https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/ovh-streaming/app/visual_engine.py > /tmp/visual_engine.py
+          python -m py_compile /tmp/stream_core.py /tmp/visual_engine.py
+          python - <<'PY'
+          a=open('/tmp/stream_core.py').read();b=open('/tmp/visual_engine.py').read()
+          assert a.count('if self.platform in {"youtube-gta-vi", "twitch", "kick"}:')==2
+          assert 'if self.platform in {"youtube-gta-vi", "twitch", "kick"}:' in b
+          assert 'video_input_args = ["-readrate", "1", "-f", "mpegts", "-i", video_input]' in a
+          print('FIFO_PATH_VALIDATED')
+          PY
 
       - name: Login and capture encoder health
         shell: bash
@@ -42,29 +50,33 @@ jobs:
           curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/before.json
           jq '{twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts,visual_revision:.agent.services.twitch.visual_revision},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts,visual_revision:.agent.services.kick.visual_revision}}' /tmp/before.json
 
-      - name: Read both publishers and video sender diagnostics without restarts
+      - name: Recreate only Twitch publisher from verified source
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://146.59.156.224:8443"
           TOKEN="$(cat /tmp/mf-token)"
-          for SLOT in twitch kick; do
-            ID="incident-video-corruption-20261010-$SLOT-$(date -u +%Y%m%d%H%M%S)"
-            echo "=== $SLOT ==="
-            curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 -X POST "$BASE/api/ovh/deploy" \
-              -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-              --data "$(jq -nc --arg id "$ID" --arg slot "$SLOT" '{action:"diagnose_service",target:$slot,request_id:$id,source:"20261010-video-corruption-both"}')" > /tmp/request.json
-            for I in $(seq 1 70); do
-              curl -kfsS --retry 3 --retry-all-errors --retry-delay 2 \
-                "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/"$SLOT"-diagnostic.json
-              STATUS="$(jq -r '.command.status // empty' /tmp/"$SLOT"-diagnostic.json)"
-              [ "$STATUS" = completed ] && break
-              [ "$STATUS" = failed ] && { jq '.command | {status,error}' /tmp/"$SLOT"-diagnostic.json; exit 1; }
-              sleep 2
-            done
-            jq -e '.command.status=="completed"' /tmp/"$SLOT"-diagnostic.json >/dev/null
-            jq '{status:.command.status,health:.command.result.health,desired:.command.result.desired,video:.command.result.visual_health,audio:.command.result.audio_health,container:.command.result.docker_stats,ffmpeg_errors:(.command.result.ffmpeg_log_tail//""|split("\\n")|map(select(test("corrupt|overrun|decod|invalid|error|failed|fifo|non-existing|pps|sps|buffer|queue";"i")))|.[-12:]),sender_errors:(.command.result.visual_ffmpeg_log_tail//""|split("\\n")|map(select(test("error|failed|broken|pipe|invalid|drop|overrun";"i")))|.[-12:])}' /tmp/"$SLOT"-diagnostic.json
+          ID="lossless-video-fifo-twitch-20261010-$(date -u +%Y%m%d%H%M%S)"
+          curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 -X POST "$BASE/api/ovh/deploy" \
+            -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg id "$ID" '{action:"deploy_service",target:"twitch",request_id:$id,source:"20261010-fix-udp-h264-corruption"}')" > /tmp/request.json
+          for I in $(seq 1 120); do
+            curl -kfsS --retry 3 --retry-all-errors --retry-delay 2 \
+              "$BASE/api/ovh/deploy-status?id=$ID" -H "authorization: Bearer $TOKEN" > /tmp/deploy.json
+            STATUS="$(jq -r '.command.status // empty' /tmp/deploy.json)"
+            echo "twitch_deploy=$STATUS"
+            [ "$STATUS" = completed ] && break
+            [ "$STATUS" = failed ] && { jq '.command | {status,error}' /tmp/deploy.json; exit 1; }
+            sleep 3
           done
-          curl -kfsS --retry 4 --retry-all-errors --retry-delay 2 \
-            -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/host.json
-          jq '{reported_at:.agent.reported_at,host:.agent.host,twitch:{status:.agent.services.twitch.status,encoder_pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts},kick:{status:.agent.services.kick.status,encoder_pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts}}' /tmp/host.json
+          jq -e '.command.status=="completed"' /tmp/deploy.json >/dev/null
+          jq '{result:.command.result|{service,health,old_head,new_head},error:.command.error}' /tmp/deploy.json
+      - name: Check Twitch and Kick after Twitch-only restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://146.59.156.224:8443"
+          TOKEN="$(cat /tmp/mf-token)"
+          curl -kfsS -H "authorization: Bearer $TOKEN" "$BASE/api/ovh/status" > /tmp/after.json
+          jq '{reported_at:.agent.reported_at,host:.agent.host,twitch:{status:.agent.services.twitch.status,pid:.agent.services.twitch.encoder_pid,restarts:.agent.services.twitch.restarts},kick:{status:.agent.services.kick.status,pid:.agent.services.kick.encoder_pid,restarts:.agent.services.kick.restarts}}' /tmp/after.json
+          jq -e '.agent.services.twitch.status=="live" and .agent.services.twitch.encoder_pid!=null and .agent.services.kick.status=="live"' /tmp/after.json >/dev/null
