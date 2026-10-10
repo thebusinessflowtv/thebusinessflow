@@ -891,7 +891,17 @@ async function handleApi(request,env,url){
   if(url.pathname==='/api/ovh/deploy-agent/commands'&&request.method==='GET'){
     const gate=ovhAgentAllowed(request,env);if(!gate.ok){await logOvhDenied(env,request,url.pathname);return json({error:'forbidden_deploy_agent',ip:gate.ip},403,cors);}
     const limit=Math.max(1,Math.min(20,Number(url.searchParams.get('limit')||5)));
-    const q=await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_deploy_commands WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-120 seconds')) ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
+    const onlyAction=String(url.searchParams.get('only_action')||'');
+    if(onlyAction&&onlyAction!=='launch_isolated_lofi_youtube')
+      return json({error:'unsupported_deploy_filter'},400,cors);
+    const q=onlyAction
+      ?await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_deploy_commands
+         WHERE action='launch_isolated_lofi_youtube' AND target='youtube-lofi-hip-hop'
+           AND (status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-120 seconds')))
+         ORDER BY created_at ASC LIMIT ?`).bind(limit).all()
+      :await env.DB.prepare(`SELECT id,payload_json,created_at FROM ovh_deploy_commands
+         WHERE status='pending' OR (status='claimed' AND datetime(claimed_at)<datetime('now','-120 seconds'))
+         ORDER BY created_at ASC LIMIT ?`).bind(limit).all();
     const commands=(q.results||[]).map(r=>{try{return JSON.parse(r.payload_json)}catch(_){return null}}).filter(Boolean);
     if(commands.length){
       const now=new Date().toISOString();
