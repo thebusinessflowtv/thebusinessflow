@@ -747,7 +747,7 @@
       else if(path==='/peter-lofi/music')await modulePage(path,'Gerar música','Criação de faixas, séries e catálogo do Peter Lofi.','./office-music.html?v=20261003-cloudflare-generator2',false);
       else if(path==='/peter-lofi/series')await modulePage(path,'Séries de áudio','Biblioteca e produção de séries musicais.','./peter-lofi-series.html',false);
       else if(path==='/peter-lofi/lives')await modulePage(path,'Lives','Abrir e gerenciar Kick, Twitch e YouTube pela OVH.','./lives.html?platform='+(params.get('platform')||'kick')+'&v=20261009-slotless-live2',true);
-      else if(path==='/peter-lofi/ovh')await modulePage(path,'OVH VPS','Saúde dos encoders e controles do servidor.','./ovh.html',true);
+      else if(path==='/peter-lofi/ovh')await modulePage(path,'OVH VPS','Saúde dos encoders e controles do servidor.','./ovh.html?v=20261010-live-discovery1',true);
       else if(['/the-business-flow','/nba-stars','/leonidanos'].includes(path))await videoChannelHome(path);
       else if(/^\/(the-business-flow|nba-stars|leonidanos)\/create$/.test(path))await createPage(path,params);
       else if(/^\/(the-business-flow|nba-stars|leonidanos)\/productions$/.test(path))await productions(path,params);
