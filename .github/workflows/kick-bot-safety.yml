@@ -1,0 +1,21 @@
+name: Kick Bot Integration Safety
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/mediaforge-worker/src/kick-oauth-bot.js'
+      - 'cloudflare/mediaforge-worker/src/index.js'
+      - 'scripts/configure-peterlofi-kick-oauth.py'
+      - '.github/workflows/kick-bot-safety.yml'
+  workflow_dispatch:
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate isolated Kick OAuth and Worker router
+        run: |
+          node --input-type=module --check < cloudflare/mediaforge-worker/src/kick-oauth-bot.js
+          node --input-type=module --check < cloudflare/mediaforge-worker/src/index.js
+          python3 -m py_compile scripts/configure-peterlofi-kick-oauth.py
+          echo KICK_BACKEND_SYNTAX_OK
