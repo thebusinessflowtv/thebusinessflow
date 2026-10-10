@@ -29,3 +29,99 @@ const forbidden=await handleTwitchOAuth(
 );
 assert.equal(forbidden.status,405);
 console.log('TWITCH_OAUTH_GET_POST_CALLBACK_TESTS_PASSED');
+
+
+// Full OAuth completion regression: mock D1 and Twitch API, never actual tokens.
+function mockDatabase(){
+  const pending=new Map(),receipt=new Map(),tokens=new Map();
+  return {pending,receipt,tokens,prepare(sql){
+    let args=[];
+    return {
+      bind(...values){args=values;return this},
+      async run(){
+        if(sql.startsWith('CREATE TABLE'))return {meta:{changes:0}};
+        if(sql.startsWith('INSERT INTO twitch_chat_oauth_pending')){
+          pending.set(args[0],{nonce:args[0],expires_at:args[1],requested_by:args[2]});
+          return {meta:{changes:1}};
+        }
+        if(sql.startsWith('DELETE FROM twitch_chat_oauth_pending')){
+          const found=pending.delete(args[0]);
+          return {meta:{changes:Number(found)}};
+        }
+        if(sql.startsWith('INSERT OR REPLACE INTO twitch_chat_oauth_tokens')){
+          tokens.set(args[0],{broadcaster_id:args[0],login:args[1],encrypted_token:args[2],expires_at:args[4]});
+          return {meta:{changes:1}};
+        }
+        if(sql.startsWith('INSERT OR IGNORE INTO twitch_chat_oauth_receipts')){
+          receipt.set(args[0],{nonce:args[0],broadcaster_id:args[1]});
+          return {meta:{changes:1}};
+        }
+        throw Error('unsupported D1 run query');
+      },
+      async first(){
+        if(sql.startsWith('SELECT broadcaster_id FROM twitch_chat_oauth_receipts'))return receipt.get(args[0])||null;
+        if(sql.startsWith('SELECT nonce FROM twitch_chat_oauth_pending')){
+          const found=pending.get(args[0]);
+          return found&&found.expires_at>=args[1]?found:null;
+        }
+        if(sql.startsWith('SELECT login,connected_at,expires_at FROM twitch_chat_oauth_tokens')){
+          return [...tokens.values()].find(x=>x.login===args[0])||null;
+        }
+        throw Error('unsupported D1 first query');
+      }
+    };
+  }};
+}
+const db=mockDatabase(), fullEnv={...env,DB:db};
+const authRoute='https://peterlofi.odsgn.com.br/api/oauth/twitch/start';
+const authRequest=new Request(authRoute);
+const startResponse=await handleTwitchOAuth(authRequest,fullEnv,new URL(authRoute),async()=>({sub:'admin'}));
+assert.equal(startResponse.status,200);
+const authorize=new URL((await startResponse.json()).authorization_url);
+assert.equal(authorize.searchParams.get('redirect_uri'),uri);
+const state=authorize.searchParams.get('state');
+const callback=uri+'?code=mock-authorization-code&state='+encodeURIComponent(state);
+const originalFetch=globalThis.fetch;
+let fetches=0;
+try{
+  globalThis.fetch=async (input)=>{
+    fetches++;
+    if(String(input).includes('/oauth2/token'))return new Response(JSON.stringify({
+      access_token:'mock_access',refresh_token:'mock_refresh',scope:['user:read:chat','user:write:chat'],expires_in:3600
+    }),{status:200,headers:{'content-type':'application/json'}});
+    if(String(input).includes('/helix/users'))return new Response(JSON.stringify({data:[{id:'123456',login:'peterlofi'}]}),{status:200,headers:{'content-type':'application/json'}});
+    throw Error('unexpected fetch');
+  };
+  const result=await handleTwitchOAuth(new Request(callback),fullEnv,new URL(callback),noAuth);
+  assert.equal(result.status,200,await result.clone().text());
+  assert.match(await result.text(),/Connected/);
+  assert.equal(db.tokens.size,1);
+  assert.equal(db.receipt.size,1);
+  assert.equal(db.pending.size,0);
+  assert.equal(fetches,2);
+  const repeat=await handleTwitchOAuth(new Request(callback),fullEnv,new URL(callback),noAuth);
+  assert.equal(repeat.status,200);
+  assert.match(await repeat.text(),/already saved/);
+  assert.equal(fetches,2,'repeated callback must not exchange again');
+
+  const second=await handleTwitchOAuth(new Request(authRoute),fullEnv,new URL(authRoute),async()=>({sub:'admin'}));
+  const newState=new URL((await second.json()).authorization_url).searchParams.get('state');
+  const postCallback=uri+'?code=mock2&state='+encodeURIComponent(newState);
+  const postRequest=new Request(postCallback,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'auth_result=success'});
+  const postResult=await handleTwitchOAuth(postRequest,fullEnv,new URL(postCallback),noAuth);
+  assert.equal(postResult.status,200,await postResult.clone().text());
+  assert.match(await postResult.text(),/Connected/);
+
+  const third=await handleTwitchOAuth(new Request(authRoute),fullEnv,new URL(authRoute),async()=>({sub:'admin'}));
+  const errState=new URL((await third.json()).authorization_url).searchParams.get('state');
+  const errorCallback=uri+'?code=temporary-network-error&state='+encodeURIComponent(errState);
+  const oldPending=db.pending.size;
+  globalThis.fetch=async()=>{throw Error('mock Twitch API downtime')};
+  const failure=await handleTwitchOAuth(new Request(errorCallback),fullEnv,new URL(errorCallback),noAuth);
+  assert.equal(failure.status,400);
+  assert.match(await failure.text(),/exchange_twitch_code/);
+  assert.equal(db.pending.size,oldPending,'state must survive network errors');
+} finally {
+  globalThis.fetch=originalFetch;
+}
+console.log('TWITCH_OAUTH_END_TO_END_IDEMPOTENCY_TESTS_PASSED');
