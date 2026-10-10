@@ -1267,6 +1267,47 @@ async function handleApi(request,env,url){
     try{return json(await appendGamingDj30Assets(env,request,b.tracks,assetPublicUrl),200,cors);}
     catch(e){return json({error:e.message||'gaming_append_failed'},400,cors);}
   }
+  // Admin-authenticated, Lofi-only import into the OVH-local music selector.
+  // Never modifies a live session, slot, encoder or unrelated playlist.
+  if(url.pathname==='/api/music-library/lofi-hip-hop-sync'&&request.method==='POST'){
+    if(String(env.LOCAL_RUNTIME||'')!=='1')return json({error:'ovh_local_only'},409,cors);
+    const input=(await bodyJson(request)).playlist;
+    if(!input||input.key!=='lofi-hip-hop'||!Array.isArray(input.tracks)||input.tracks.length<1||input.tracks.length>36)
+      return json({error:'invalid_lofi_catalog'},400,cors);
+    const ids=new Set(),validated=[];
+    for(const t of input.tracks){
+      const id=String(t?.id||''),url=String(t?.url||'');
+      if(!/^lofi-hip-hop-20261008-\d{2}$/.test(id)||ids.has(id)||
+         !url.startsWith('https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-lofi-hip-hop-')||
+         Number(t.duration_seconds)!==300||t.quality_gate!=='technical_and_45s_intro_diversity_passed')
+        return json({error:'unapproved_or_duplicate_lofi_track',id},400,cors);
+      ids.add(id);
+      validated.push({...t,id,url,title:String(t.title||id).slice(0,150),duration_seconds:300});
+    }
+    const current=await getMusicLibrary(env);
+    if(!Array.isArray(current?.playlists))return json({error:'invalid_ovh_music_library'},409,cors);
+    const prior=current.playlists.find(p=>p?.key==='lofi-hip-hop')||null;
+    const oldTracks=Array.isArray(prior?.tracks)?prior.tracks:[];
+    const all=new Map();
+    for(const t of oldTracks)if(t?.id&&t?.url)all.set(String(t.id),t);
+    for(const t of validated){
+      const old=all.get(t.id);
+      // Do not replace an already localized file with a GitHub URL.
+      all.set(t.id,old?.asset_id&&old?.url?{...t,url:old.url,asset_id:old.asset_id}:t);
+    }
+    const tracks=[...all.values()].sort((a,b)=>Number(a.position||999)-Number(b.position||999));
+    const library={...current,updated_at:new Date().toISOString(),
+      playlists:[...current.playlists.filter(p=>p?.key!=='lofi-hip-hop'),{
+        ...(prior||{}),...input,key:'lofi-hip-hop',name:'Lofi Hip Hop',
+        tracks,track_count:tracks.length,total_duration_seconds:tracks.reduce((sum,t)=>sum+Number(t.duration_seconds||0),0),
+        status:tracks.length>=36?'complete':'generating'
+      }]};
+    if(!prior||JSON.stringify(prior.tracks)!==JSON.stringify(tracks))
+      await setLocalConfig(env,'control/music-library.json',library);
+    return json({ok:true,playlist_key:'lofi-hip-hop',track_count:tracks.length,
+      other_playlists_preserved:current.playlists.length-(prior?1:0),rtmp_restart:false},200,cors);
+  }
+
   if(url.pathname==='/api/music-library'&&request.method==='GET'){
     const library=await getMusicLibrary(env);
     return json(library,200,cors);
