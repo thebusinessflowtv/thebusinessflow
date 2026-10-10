@@ -101,6 +101,21 @@ def main():
     if connected:
         print("\nTwitch já autorizada! connected: true. Não é necessário repetir OAuth.",flush=True)
         return 0
+    # Never issue another real OAuth code if the Wrangler Worker cannot
+    # reach Twitch. The Node connectivity test alone is not sufficient.
+    probe_status, probe_raw=http(LOCAL+"/api/oauth/twitch/probe",bearer=token)
+    if probe_status!=200:
+        raise RuntimeError(f"Diagnostico Worker indisponivel: HTTP {probe_status}")
+    probe=json.loads(probe_raw)
+    checks=probe.get("results",[])
+    print("Diagnostico de egress do próprio Worker:")
+    for item in checks:
+        print(" ",item.get("name"),"reachable=",bool(item.get("reachable")),
+              "http_status=",item.get("http_status"),
+              "error_name=",item.get("error_name"))
+    if len(checks)!=3 or any(not x.get("reachable") for x in checks):
+        raise RuntimeError("Worker/Workerd não alcança Twitch: autorização real interrompida; "
+                           "não gere outra URL antes de resolver esse acesso.")
     status,resp=http(LOCAL+"/api/oauth/twitch/start",bearer=token)
     if status!=200:raise RuntimeError(f"Não foi possível criar nova autorização: HTTP {status}")
     uri=str(json.loads(resp).get("authorization_url") or "")
