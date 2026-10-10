@@ -1,0 +1,87 @@
+name: "Ops — Diagnose isolated Lofi audio-video incident"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-lofi-incident-diagnose-20261010.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: isolated-lofi-incident-diagnose
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inspect isolated publisher and request read-only runtime diagnosis
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import urllib.request, urllib.parse, urllib.error, ssl, json, os, time, pathlib, datetime
+          BASE="https://146.59.156.224:8443"
+          ctx=ssl._create_unverified_context()
+          def call(path,body=None,token=""):
+            h={"User-Agent":"MediaForge-Lofi-Isolated-Incident/20261010","Cache-Control":"no-cache"}
+            if token:h["authorization"]="Bearer "+token
+            data=json.dumps(body).encode() if body is not None else None
+            if body is not None:h["content-type"]="application/json"
+            req=urllib.request.Request(BASE+path,headers=h,data=data,method="POST" if body is not None else "GET")
+            with urllib.request.urlopen(req,timeout=35,context=ctx) as res: return json.load(res)
+          if not os.environ.get("ADMIN_EMAIL") or not os.environ.get("ADMIN_PASSWORD"):
+            raise RuntimeError("MediaForge admin GitHub Actions secrets are not configured")
+          login=call("/api/auth/login",{"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
+          token=str(login.get("token") or "")
+          if not token:raise RuntimeError("OVH admin auth failed")
+          print("::add-mask::"+token,flush=True)
+          status=call("/api/ovh/status",token=token)
+          sv=(status.get("agent") or {}).get("services") or {}
+          slot="youtube-lofi-hip-hop"
+          lo=sv.get(slot) or {}
+          peers={k:{"status":v.get("status"),"encoder_pid":v.get("encoder_pid")} for k,v in sv.items() if k!=slot and isinstance(v,dict)}
+          summary={k:lo.get(k) for k in ("status","session_id","encoder_pid","audio_pid","visual_pid","audio_status","audio_stalls","visual_status","updated_at","playlist_track_count","playlist_key","now_playing","restarts","fps","video_bitrate_kbps")}
+          result={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"lofi":summary,"peer_status":peers}
+          if not lo or lo.get("status")!="live":
+            result["diagnostic_warning"]="Dedicated Lofi publisher is not live; no changes were made"
+          else:
+            cid="lofi-readonly-diagnose-20261010-"+str(int(time.time()))
+            submission=call("/api/ovh/deploy",{"request_id":cid,"action":"diagnose_service","target":slot,"source":"read-only-lofi-incident-diagnosis"},token)
+            result["diagnose_command_id"]=cid
+            result["diagnose_submitted"]=bool(submission.get("ok"))
+            for i in range(36):
+              d=call("/api/ovh/deploy-status?id="+urllib.parse.quote(cid),token=token).get("command") or {}
+              if d.get("status") in ("completed","failed","cancelled"):
+                result["command_status"]=d.get("status")
+                result["command_error"]=str(d.get("error") or "")[:500]
+                diag=d.get("result") or {}
+                if isinstance(diag,dict):
+                  result["diagnostic_keys"]=sorted(diag.keys())
+                  result["diagnostic_safe"]={k:diag.get(k) for k in ("slot","status","audio","visual","ffmpeg","audio_status","visual_status","stream_status","encoder_pid","audio_pid","visual_pid","now_playing","playlist_track_count","audio_stalls","audio_health","video_health","health") if k in diag}
+                break
+              time.sleep(3)
+            else:result["command_status"]="pending_timeout"
+          path=pathlib.Path("control/lofi-hip-hop-incident-diagnosis-20261010.json")
+          path.parent.mkdir(parents=True,exist_ok=True)
+          path.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(result,ensure_ascii=False,indent=2))
+          PY
+      - name: Commit sanitized diagnostic
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/lofi-hip-hop-incident-diagnosis-20261010.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/lofi-hip-hop-incident-diagnosis-20261010.json
+          git commit -m "ops: record isolated Lofi runtime diagnosis" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
