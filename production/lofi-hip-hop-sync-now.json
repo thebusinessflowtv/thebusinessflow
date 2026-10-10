@@ -6,9 +6,9 @@
   "do_not_start_youtube_live": true,
   "scope": "catalog-only",
   "requested_at": "2026-10-09T21:30:00-03:00",
-  "retry": 15,
+  "retry": 16,
   "note": "Retry after replacing skipped conditional with explicit active push trigger",
-  "phase": "deploy corrected OAuth workflow and host recognition for independent Lofi encoder; preserve all active publishers",
+  "phase": "reload OVH host agent to process remote Lofi-only OAuth command; do not drain legacy queue or touch other encoders",
   "validation": "public app.html, app-core.html, lives.html and lives-cloudflare.js must all omit manual slots",
   "production_test": "verify exact /app.html#/peter-lofi/lives route and preservation of all existing publisher PIDs"
 }
