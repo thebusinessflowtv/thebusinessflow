@@ -1,0 +1,126 @@
+name: "Ops — Recover only Lofi Hip Hop A/V"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-lofi-av-only-recover-20261010.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: isolated-lofi-av-repair
+  cancel-in-progress: false
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Recover only the broken Lofi Hip Hop A/V publisher and validate peers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,time,urllib.parse,urllib.request,ssl,datetime,sys
+          base="https://146.59.156.224:8443"
+          ctx=ssl._create_unverified_context()
+          def api(path,token="",data=None):
+            headers={"User-Agent":"PeterLofi-LofiOnly-AVRecovery/20261010","Cache-Control":"no-cache"}
+            if token: headers["Authorization"]="Bearer "+token
+            if data is not None: headers["Content-Type"]="application/json"
+            req=urllib.request.Request(base+path,headers=headers,
+              data=json.dumps(data).encode() if data is not None else None,
+              method="POST" if data is not None else "GET")
+            with urllib.request.urlopen(req,timeout=35,context=ctx) as resp:
+              return json.load(resp)
+          out={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"target":"youtube-lofi-hip-hop",
+               "action":"repair_lofi_video_transport","other_stream_restart_requested":False}
+          target=pathlib.Path("control/lofi-hip-hop-av-repair-20261010.json")
+          def save():
+            target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+            print(json.dumps(out,ensure_ascii=False,indent=2),flush=True)
+          try:
+            if not os.getenv("ADMIN_EMAIL") or not os.getenv("ADMIN_PASSWORD"):
+              raise RuntimeError("MediaForge authenticated recovery secrets unavailable")
+            login=api("/api/auth/login",data={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
+            token=str(login.get("token") or "")
+            if not token:raise RuntimeError("MediaForge admin login rejected")
+            print("::add-mask::"+token,flush=True)
+            before=api("/api/ovh/status",token)
+            services=(before.get("agent") or {}).get("services") or {}
+            slot="youtube-lofi-hip-hop"
+            lo=services.get(slot) or {}
+            sid="1dd4373d-351c-40cc-aa67-774a540fd991"
+            peers={key:{"status":sv.get("status"),"pid":sv.get("encoder_pid")} for key,sv in services.items()
+               if key!=slot and sv.get("status")=="live" and sv.get("encoder_pid")}
+            out["before"]={k:lo.get(k) for k in ("status","session_id","encoder_pid","audio_status","audio_stalls","visual_status","playlist_track_count","now_playing","restarts")}
+            out["peer_count_before"]=len(peers)
+            if (lo.get("status")!="live" or str(lo.get("session_id") or "")!=sid
+                  or not lo.get("encoder_pid") or lo.get("playlist_track_count")!=66):
+              raise RuntimeError("Lofi-only recovery guard failed: wrong session, offline or playlist incomplete")
+            current=(lo.get("now_playing") or {}).get("started_at") or ""
+            started=datetime.datetime.fromisoformat(str(current).replace("Z","+00:00"))
+            age=(datetime.datetime.now(datetime.timezone.utc)-started).total_seconds()
+            out["old_track_age_seconds"]=round(age)
+            if age<600 and str(lo.get("audio_status") or "").lower() not in ("stopped","source_stalled_pcm_clock_preserved"):
+              out["result"]="aborted_playlist_recovered_before_action"
+              save();sys.exit(0)
+            request_id="lofi-av-isolated-repair-20261010-"+str(int(time.time()))
+            req={"action":"repair_lofi_video_transport","target":slot,"session_id":sid,
+                 "request_id":request_id,"source":"20261010-audio-stopped-3270-stalls-video-stalling"}
+            accepted=api("/api/ovh/deploy",token,req)
+            if not accepted.get("ok"):raise RuntimeError("Local OVH did not accept isolated repair")
+            out["repair_command_id"]=request_id
+            out["repair_queued"]=True
+            for i in range(72):
+              cmd=(api("/api/ovh/deploy-status?id="+urllib.parse.quote(request_id),token).get("command") or {})
+              state=str(cmd.get("status") or "")
+              if state in ("completed","failed","cancelled"):
+                out["repair_status"]=state
+                out["repair_error"]=str(cmd.get("error") or "")[:450]
+                result=cmd.get("result") or {}
+                out["repair_result"]={k:result.get(k) for k in ("status","runtime_slot","session_id","encoder_pid_present","other_publishers_preserved","other_publishers_restarted","lofi_health") if k in result}
+                break
+              time.sleep(3)
+            else:out["repair_status"]="timeout"
+            if out["repair_status"]!="completed":
+              raise RuntimeError("Isolated Lofi host repair did not complete: "+str(out.get("repair_error") or out["repair_status"]))
+            time.sleep(10)
+            after=api("/api/ovh/status",token)
+            service=(after.get("agent") or {}).get("services") or {}
+            la=service.get(slot) or {}
+            out["after"]={k:la.get(k) for k in ("status","session_id","encoder_pid","audio_pid","audio_status","audio_stalls","visual_status","playlist_track_count","now_playing","restarts","updated_at")}
+            out["other_streams_encoder_pid_preserved"]=all(
+              (service.get(k) or {}).get("encoder_pid")==v["pid"] for k,v in peers.items())
+            out["changed_peer_slots"]=[k for k,v in peers.items()
+              if (service.get(k) or {}).get("encoder_pid")!=v["pid"]]
+            out["audio_reported_playing"]=la.get("audio_status") in ("playing","crossfading")
+            out["track_advanced"]=((la.get("now_playing") or {}).get("started_at")!=current)
+            out["publisher_live"]=la.get("status")=="live"
+            out["visual_reported_streaming"]=la.get("visual_status")=="streaming"
+            if not out["publisher_live"] or not out["audio_reported_playing"]:
+              out["verification_warning"]="Lofi repair executed but healthy audible playback was not yet verified"
+            save()
+          except Exception as exc:
+            out["error"]=type(exc).__name__+": "+str(exc)[:500]
+            save()
+            raise
+          PY
+      - name: Commit recovery evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/lofi-hip-hop-av-repair-20261010.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/lofi-hip-hop-av-repair-20261010.json
+          git commit -m "ops: isolated Lofi A/V incident recovery evidence" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
