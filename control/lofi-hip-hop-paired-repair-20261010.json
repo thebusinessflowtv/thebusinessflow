@@ -1,5 +1,5 @@
 {
-  "requested_at": "2026-10-10T16:58:27.554647+00:00",
+  "requested_at": "2026-10-10T17:05:47.131516+00:00",
   "scope": "youtube-lofi-hip-hop",
   "modules": [
     "stream_core.py",
@@ -28,21 +28,59 @@
     "youtube-rainy": 24610,
     "youtube-gta-vi": 11514
   },
-  "host_reload_id": "lofi-fifo-av-reload-20261010-1791651508",
+  "host_reload_id": "lofi-fifo-av-reload-20261010-1791651947",
   "host_reload": {
     "status": "completed",
     "error": "",
     "result": {
       "host_agent": "reloading",
-      "old_head": "8e6b46c236d3af8bcb8fee262fbb1e48ed3e601b",
-      "new_head": "855a7ac3be12b02a1638e93e69bd8f5a23ce2290"
+      "old_head": "f6982fcbbd586825cb6a43ba1bc230f62a8d06bf",
+      "new_head": "71a391081fbd667cebd692ac6356f72ba3c349e7"
     }
   },
-  "repair_command_id": "lofi-fifo-audio-only-repair-20261010-1791651520",
+  "repair_command_id": "lofi-fifo-audio-only-repair-20261010-1791651960",
   "repair": {
-    "status": "failed",
-    "error": "Lofi-only A/V stack still unhealthy after synchronized FIFO/audio patch: {'status': 'restarting', 'encoder_pid': None, 'audio_pid': None, 'visual_pid': 8, 'audio_status': 'stopped', 'visual_status': 'streaming', 'error': None}",
-    "result": {}
+    "status": "completed",
+    "error": "",
+    "result": {
+      "status": "lofi_transport_restarted",
+      "runtime_slot": "youtube-lofi-hip-hop",
+      "encoder_pid_present": true,
+      "other_publishers_preserved": true,
+      "other_publishers_restarted": false,
+      "lofi_health": {
+        "status": "live",
+        "audio_status": "playing",
+        "visual_status": "streaming",
+        "restarts": 0
+      },
+      "old_head": "71a391081fbd667cebd692ac6356f72ba3c349e7",
+      "new_head": "71a391081fbd667cebd692ac6356f72ba3c349e7"
+    }
   },
-  "error": "RuntimeError: Dedicated Lofi A/V repair failed: {'status': 'failed', 'error': \"Lofi-only A/V stack still unhealthy after synchronized FIFO/audio patch: {'status': 'restarting', 'encoder_pid': None, 'audio_pid': None, 'visual_pid': 8, 'audio_status': 'stopped', 'visual_status': 'streaming', 'error': None}\", 'result': {}}"
+  "after": {
+    "status": "live",
+    "session_id": "1dd4373d-351c-40cc-aa67-774a540fd991",
+    "encoder_pid": 25,
+    "audio_pid": 7,
+    "visual_pid": 8,
+    "audio_status": "playing",
+    "audio_stalls": 0,
+    "visual_status": "streaming",
+    "playlist_track_count": 66,
+    "now_playing": {
+      "track_id": "lofi-hip-hop-20261008-58",
+      "title": "Midnight Basketball",
+      "state": "playing",
+      "started_at": "2026-10-10T17:06:04.984596Z"
+    },
+    "restarts": 0,
+    "updated_at": "2026-10-10T17:06:52.566546Z"
+  },
+  "peer_pids_preserved": true,
+  "other_streams_changed": [],
+  "local_audio_playing": true,
+  "local_visual_streaming": true,
+  "local_encoder_live": true,
+  "track_fresh": true
 }
