@@ -24,13 +24,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for mod in host_deploy_agent stream_core visual_engine audio_engine; do
+          for mod in host_deploy_agent stream_core visual_engine audio_engine chat_requests; do
             if [ "$mod" = host_deploy_agent ]; then path=ovh-streaming/host_deploy_agent.py
             else path=ovh-streaming/app/$mod.py; fi
             curl -fsSL --retry 3 "https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/$path" > "/tmp/$mod.py"
             python -m py_compile "/tmp/$mod.py"
           done
-          grep -q 'modules=("stream_core.py","visual_engine.py","audio_engine.py")' /tmp/host_deploy_agent.py
+          grep -q 'modules=("chat_requests.py","audio_engine.py","visual_engine.py","stream_core.py")' /tmp/host_deploy_agent.py
           grep -q 'youtube-lofi-hip-hop' /tmp/stream_core.py
           grep -q 'youtube-lofi-hip-hop' /tmp/visual_engine.py
           grep -q 'source_stalled_pcm_clock_preserved' /tmp/audio_engine.py
@@ -145,3 +145,5 @@ jobs:
           git push origin HEAD:main
 
 # retry with corrected host-agent isolated state path
+
+# recover missing linked chat_requests.py module in isolated Lofi audio container
