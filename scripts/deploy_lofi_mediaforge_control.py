@@ -53,7 +53,7 @@ def main():
             detail=info.get("result") or {}
             cp=detail.get("control_plane_publish") or {}
             print("CONTROL_PLANE_PUBLISH:",json.dumps(cp,ensure_ascii=False)[:1000],flush=True)
-            if cp.get("status")=="already_applied" and cp.get("version")!="lofi-filtered-remote-queue-20261010-v3":
+            if cp.get("status")=="already_applied" and cp.get("version")!="ovh-dynamic-real-live-controls-20261010-v1":
                 raise RuntimeError("Expected Lofi control-plane update did not deploy")
             break
         time.sleep(5)
@@ -73,10 +73,12 @@ def main():
     # Verify the public files served by the EXACT user-facing app URL, not just
     # the repository source or a generic 'ui_verified' flag from the deployer.
     urls={
-        "app.html":BASE+"/app.html?verify=20261009-slotless-live2",
-        "app-core.html":BASE+"/app-core.html?verify=20261009-slotless-live2",
-        "lives.html":BASE+"/lives.html?verify=20261009-slotless-live2",
-        "lives-cloudflare.js":BASE+"/lives-cloudflare.js?verify=20261009-slotless-live2"
+        "app.html":BASE+"/app.html?verify=20261010-ovh-live-discovery1",
+        "app-core.html":BASE+"/app-core.html?verify=20261010-ovh-live-discovery1",
+        "lives.html":BASE+"/lives.html?verify=20261010-ovh-live-discovery1",
+        "lives-cloudflare.js":BASE+"/lives-cloudflare.js?verify=20261010-ovh-live-discovery1",
+        "ovh.html":BASE+"/ovh.html?verify=20261010-live-discovery1",
+        "ovh.js":BASE+"/ovh.js?verify=20261010-live-discovery1"
     }
     for attempt in range(12):
         bodies={}
@@ -86,20 +88,26 @@ def main():
                 with urllib.request.urlopen(request,timeout=24) as res:
                     bodies[name]=res.read().decode("utf-8")
             checks={
-                "app_loader":'app-core.html?v=20261009-slotless-live2' in bodies["app.html"],
+                "app_loader":'app-core.html?v=20261010-ovh-live-discovery1' in bodies["app.html"],
                 "lives_route":'lives.html?platform=' in bodies["app-core.html"] and 'v=20261009-slotless-live2' in bodies["app-core.html"],
                 "live_script_reference":'lives-cloudflare.js?v=20261009-slotless-live2' in bodies["lives.html"],
                 "no_manual_slot_field":'SLOT OVH DO YOUTUBE' not in bodies["lives-cloudflare.js"],
-                "auto_allocator_notice":'O MediaForge escolhe automaticamente' in bodies["lives-cloudflare.js"]
+                "auto_allocator_notice":'O MediaForge escolhe automaticamente' in bodies["lives-cloudflare.js"],
+                "ovh_route":'ovh.html?v=20261010-live-discovery1' in bodies["app-core.html"],
+                "ovh_script_reference":'ovh.js?v=20261010-live-discovery1' in bodies["ovh.html"],
+                "ovh_active_discovery":'function liveSlots' in bodies["ovh.js"] and 'slots.map(function(slot)' in bodies["ovh.js"],
+                "ovh_no_fixed_four_services":'Object.keys(labels).map(function(slot){return serviceCard' not in bodies["ovh.js"],
+                "ovh_command_tracking":'/api/ovh/control/' in bodies["ovh.js"] and 'Faixa não mudou' in bodies["ovh.js"],
+                "ovh_lofi_and_gta":'youtube-lofi-hip-hop' in bodies["ovh.js"] and 'youtube-gta-vi' in bodies["ovh.js"]
             }
             print("PRODUCTION_UI_VALIDATION:",json.dumps(checks),flush=True)
             if all(checks.values()):
-                print("PRODUCTION_SLOTLESS_UI_VERIFIED: https://peterlofi.odsgn.com.br/app.html#/peter-lofi/lives",flush=True)
+                print("PRODUCTION_OVH_DYNAMIC_CONTROLS_VERIFIED: https://peterlofi.odsgn.com.br/app.html#/peter-lofi/ovh",flush=True)
                 break
         except Exception as exc:
             print("PRODUCTION_UI_CHECK_RETRY:",type(exc).__name__,str(exc)[:170],flush=True)
         if attempt==11:
-            raise RuntimeError("PRODUCTION_SLOTLESS_UI_NOT_VERIFIED; UI may still serve old YouTube slot field")
+            raise RuntimeError("PRODUCTION_OVH_DYNAMIC_CONTROLS_NOT_VERIFIED; OVH panel may still serve hard-coded live cards")
         time.sleep(3)
 
     # Read-only end-to-end check: the *running* host deploy-agent must advertise
@@ -119,6 +127,14 @@ def main():
         raise RuntimeError("Live OVH host agent does not advertise isolated Lofi YouTube support")
     print("LIVE_HOST_LOFI_CAPABILITY_VERIFIED:",json.dumps(capability),flush=True)
 
+    status=call("/api/ovh/status",token)
+    last_status=(status.get("agent") or {})
+    services=last_status.get("services") or {}
+    print("OVH_LIVE_ENCODERS_REPORTED:",json.dumps(
+        {name:{"status":svc.get("status"),"encoder_pid_present":bool(svc.get("encoder_pid")),
+               "updated_at":svc.get("updated_at")}
+          for name,svc in services.items() if svc.get("status")=="live"},
+        ensure_ascii=False),flush=True)
     after=publishers(call("/api/ovh/status",token))
     changed=[k for k in before if k in after and before[k].get("encoder_pid") and before[k]["encoder_pid"]!=after[k].get("encoder_pid")]
     if changed:raise RuntimeError("Unrelated live encoder PID changed: "+",".join(changed))
