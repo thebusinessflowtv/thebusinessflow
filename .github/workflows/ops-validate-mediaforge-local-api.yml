@@ -37,6 +37,16 @@ jobs:
           npx wrangler deploy --dry-run --config wrangler.ovh.jsonc
           echo LOCAL_API_BUILD_VALID
 
+      - name: One-time live Lofi Hip Hop next-track control confirmation
+        if: contains(github.event.head_commit.message, '[test-lofi-skip-once]')
+        env:
+          ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/test_ovh_lofi_next_once.py
+
       - name: Read-only remote YouTube queue inspection
         env:
           ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
