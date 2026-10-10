@@ -1,4 +1,5 @@
 name: Ops — Validate MediaForge Local API Build
+# isolated-lofi-provisioning-status-check: 2026-10-10-0515
 
 on:
   push:
