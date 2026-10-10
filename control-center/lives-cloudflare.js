@@ -124,7 +124,7 @@
       <div class="field"><label>TÍTULO DA LIVE</label><input id="title" class="input" value="${esc(d.title)}"></div>
       <div class="field"><label>DESCRIÇÃO</label><textarea id="description" class="input" rows="4">${esc(d.description)}</textarea><div class="tiny muted" style="margin-top:5px">${activePlatform==='kick'?'A Kick permite alterar o título da transmissão via API; a descrição permanece registrada no MediaForge.':'No YouTube, título e descrição são enviados para a transmissão.'}</div></div>
       <div class="field"><label>DURAÇÃO</label><select id="duration" class="select"><option value="0" ${d.duration==='0'?'selected':''}>Contínua</option><option value="60" ${d.duration==='60'?'selected':''}>1 hora</option><option value="120" ${d.duration==='120'?'selected':''}>2 horas</option><option value="240" ${d.duration==='240'?'selected':''}>4 horas</option><option value="480" ${d.duration==='480'?'selected':''}>8 horas</option></select></div>
-      ${activePlatform==='youtube'?`<div class="field"><label>SLOT OVH DO YOUTUBE</label><select id="youtubeSlot" class="select"><option value="">Selecione um slot disponível</option>${youtubeSlotOptions()}</select><div class="tiny muted" style="margin-top:5px">Cada live simultânea do YouTube usa um stream reutilizável provisionado na VPS.</div></div>`:''}
+      ${activePlatform==='youtube'?`<div class="tiny muted" style="margin:4px 0 14px">O MediaForge escolhe automaticamente uma transmissão disponível na OVH. Suas outras lives permanecem intactas.</div>`:''}
       <div class="field"><label>PLAYLIST DE MÚSICA</label><select id="playlist" class="select"><option value="">Selecione uma playlist</option>${canonicalPlaylistOptions(d.playlist)}</select><div class="tiny muted" style="margin-top:6px">As lives rodam faixa por faixa. Ao terminar todas as músicas, a playlist continua novamente em shuffle sem compartilhar posição com as outras plataformas.</div></div>
       <div id="playlistSummary" class="note">${(()=>{const p=playlists.find(x=>String(x.key)===String(d.playlist));return p?`<b>${esc(p.name)}</b> · ${esc(p.track_count)} faixas · ${esc(p.genre||'Lofi')}`:'Escolha uma playlist do catálogo PeterLofi.'})()}</div>
     </section><aside class="grid"><section class="card">
@@ -174,9 +174,8 @@
     if(!playlistKey){alert('Selecione uma playlist de música.');return;}
     btn.disabled=true;btn.textContent='Enviando comando…';
     try{
-      const youtubeSlot=platformAtStart==='youtube'?(document.getElementById('youtubeSlot')?.value||''):null;
-      if(platformAtStart==='youtube'&&!youtubeSlot)throw new Error('Selecione um slot OVH do YouTube que esteja livre.');
-      const launch=await api('/api/live/start',{method:'POST',body:JSON.stringify({platform:platformAtStart,playlist_key:playlistKey,duration_minutes:Number(d.duration||0),title:d.title.trim(),description:d.description,visual_asset_id:d.visual||null,thumbnail_asset_id:platformAtStart==='youtube'?(d.thumbnail||null):null,youtube_slot:youtubeSlot})});
+
+      const launch=await api('/api/live/start',{method:'POST',body:JSON.stringify({platform:platformAtStart,playlist_key:playlistKey,duration_minutes:Number(d.duration||0),title:d.title.trim(),description:d.description,visual_asset_id:d.visual||null,thumbnail_asset_id:platformAtStart==='youtube'?(d.thumbnail||null):null})});
       const id=launch?.session?.id;
       if(!id)throw new Error('O MediaForge não retornou o ID da sessão.');
       btn.textContent='Inicializando encoder…';
