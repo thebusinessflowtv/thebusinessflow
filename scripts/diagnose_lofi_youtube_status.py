@@ -41,8 +41,19 @@ def main():
                  "bridge_authenticated":(cmd.get("result") or {}).get("bridge_authenticated")}
         print("LOFI_HOST_BRIDGE_PREFLIGHT_RESULT",json.dumps(outcome,ensure_ascii=False),flush=True)
         if cmd.get("status")=="completed" and outcome["bridge_authenticated"] is True:
+          orphan_id="a190cb4d-c2cb-4cab-921f-ac887d2a3690"
+          gh_url="https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/gta-youtube-launch/"+orphan_id+".json"
+          try:
+            with urllib.request.urlopen(urllib.request.Request(gh_url,
+                  headers={"User-Agent":"MediaForge-GitHub-Action-Orphan-Check"}),timeout=25):
+              raise RuntimeError("Lofi launch EXISTS in GitHub, refusing to release")
+          except urllib.error.HTTPError as exc:
+            if exc.code!=404:
+              raise RuntimeError("GitHub absence could not be confirmed: "+str(exc.code))
           released=call("/api/live/lofi-release-orphan",token,payload={
-            "session_id":"a190cb4d-c2cb-4cab-921f-ac887d2a3690"})
+            "session_id":orphan_id,
+            "github_absence_verified_by_action":True,
+            "verification_source":"authenticated-github-action"})
           print("LOFI_ORPHAN_RELEASE_RESULT",json.dumps(released,ensure_ascii=False),flush=True)
         break
       time.sleep(3)
