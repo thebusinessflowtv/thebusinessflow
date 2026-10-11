@@ -50,8 +50,8 @@
   "max_production_attempts": 3,
   "max_upload_attempts": 3,
   "last_action": "blocked_production:custom-us-fastfood-collapse-2026-09",
-  "updated_at": "2026-10-11T13:10:53.818920+00:00",
-  "last_reason": "worker already active",
+  "updated_at": "2026-10-11T13:26:29.821420+00:00",
+  "last_reason": "no ready topic available yet",
   "research_gate_version": 2,
   "dynamic_subject_gate_version": 2
 }
