@@ -1,0 +1,68 @@
+name: "Ops — Verify Twitch Lofi Hip Hop after switch"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-twitch-lofi-post-switch-verify-20261011.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Verify same Twitch RTMP PID and track continuity without changing streams
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import urllib.request,ssl,json,os,datetime,time,pathlib
+          B="https://146.59.156.224:8443";ctx=ssl._create_unverified_context()
+          def q(route,token="",data=None):
+            h={"User-Agent":"Twitch-Lofi-ReadOnly-After-Swap","Cache-Control":"no-cache"}
+            if token:h["authorization"]="Bearer "+token
+            if data is not None:h["content-type"]="application/json"
+            req=urllib.request.Request(B+route,headers=h,data=json.dumps(data).encode() if data is not None else None,
+              method="POST" if data is not None else "GET")
+            with urllib.request.urlopen(req,timeout=25,context=ctx) as response:return json.load(response)
+          tok=q("/api/auth/login",data={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]}).get("token")
+          if not tok:raise RuntimeError("auth unavailable")
+          print("::add-mask::"+str(tok),flush=True)
+          frames=[]
+          for delay in [0,17]:
+            if delay:time.sleep(delay)
+            d=(q("/api/ovh/status",tok).get("agent") or {}).get("services") or {}
+            tw=d.get("twitch") or {}
+            frames.append({k:tw.get(k) for k in ("status","encoder_pid","playlist_key","playlist_track_count","now_playing","audio_status","visual_status","restarts","visual_revision","updated_at")})
+          a,b=frames
+          out={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"samples":frames,
+            "same_encoder":bool(a.get("encoder_pid")) and a.get("encoder_pid")==b.get("encoder_pid"),
+            "playlist_66_confirmed":all(x.get("playlist_key")=="lofi-hip-hop" and x.get("playlist_track_count")==66 for x in frames),
+            "lofi_track_confirmed":all(str((x.get("now_playing") or {}).get("track_id") or "").startswith("lofi-hip-hop-") for x in frames),
+            "live_continuity":all(x.get("status")=="live" for x in frames),
+            "video_streaming":all(x.get("visual_status")=="streaming" for x in frames),
+            "no_restart_in_sample":a.get("restarts")==b.get("restarts")}
+          path=pathlib.Path("control/twitch-lofi-hip-hop-verification-20261011.json")
+          path.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(out,ensure_ascii=False,indent=2))
+          if not all(out[k] for k in ("same_encoder","playlist_66_confirmed","lofi_track_confirmed","live_continuity","video_streaming","no_restart_in_sample")):
+            raise RuntimeError("Twitch playlist continuity failed verification")
+          PY
+      - name: Persist evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/twitch-lofi-hip-hop-verification-20261011.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/twitch-lofi-hip-hop-verification-20261011.json
+          git commit -m 'ops: verify Twitch Lofi playlist continuity without restart' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
