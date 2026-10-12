@@ -1,0 +1,150 @@
+name: "Ops — Switch only Twitch to Lofi Hip Hop"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-switch-twitch-lofi-hip-hop-20261011.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: twitch-lofi-hiphop-hot-swap-20261011
+  cancel-in-progress: false
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      MEDIAFORGE_ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      MEDIAFORGE_ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Preflight 66 approved Lofi tracks, sync local catalog, hot-swap Twitch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,json,os,pathlib,ssl,time,urllib.parse,urllib.request,urllib.error,uuid
+          BASE="https://146.59.156.224:8443"
+          SOURCE="https://raw.githubusercontent.com/thebusinessflowtv/theofficemusic/main/control/music-library.json"
+          ctx=ssl._create_unverified_context()
+          out={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+               "target":"twitch","requested_playlist_key":"lofi-hip-hop",
+               "other_slots_modified":False,"publisher_restart_requested":False}
+          path=pathlib.Path("control/twitch-lofi-hip-hop-switch-20261011.json")
+          def report():
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+            print(json.dumps(out,ensure_ascii=False,indent=2),flush=True)
+          def request(route,token="",payload=None,source=False):
+            url=route if source else BASE+route
+            data=json.dumps(payload).encode() if payload is not None else None
+            headers={"User-Agent":"PeterLofi-TwitchOnly-PlaylistHotSwap/20261011","Cache-Control":"no-cache"}
+            if token:headers["Authorization"]="Bearer "+token
+            if data is not None:headers["Content-Type"]="application/json"
+            req=urllib.request.Request(url,headers=headers,data=data,method="POST" if data is not None else "GET")
+            with urllib.request.urlopen(req,timeout=35,context=ctx) as r:return json.load(r)
+          def services(tok):
+            return (request("/api/ovh/status",tok).get("agent") or {}).get("services") or {}
+          try:
+            src=request(SOURCE,source=True)
+            p=next((v for v in src.get("playlists",[]) if v.get("key")=="lofi-hip-hop"),None)
+            tracks=p.get("tracks") if p else None
+            if not isinstance(tracks,list) or len(tracks)!=66:
+              raise RuntimeError("Approved source catalog does not contain exactly 66 Lofi tracks")
+            ids=set()
+            for track in tracks:
+              tid=str(track.get("id") or "")
+              if (tid in ids or not tid.startswith("lofi-hip-hop-20261008-")
+                  or not str(track.get("url") or "").startswith("https://github.com/thebusinessflowtv/theofficemusic/releases/download/")
+                  or int(track.get("duration_seconds") or 0)!=300
+                  or track.get("quality_gate")!="technical_and_45s_intro_diversity_passed"):
+                raise RuntimeError("Unapproved or duplicate catalog entry: "+tid)
+              ids.add(tid)
+            out["source_tracks_verified"]=len(tracks)
+            if not os.environ.get("MEDIAFORGE_ADMIN_EMAIL") or not os.environ.get("MEDIAFORGE_ADMIN_PASSWORD"):
+              raise RuntimeError("MediaForge admin credentials not configured in GitHub")
+            auth=request("/api/auth/login",payload={"email":os.environ["MEDIAFORGE_ADMIN_EMAIL"],"password":os.environ["MEDIAFORGE_ADMIN_PASSWORD"]})
+            token=str(auth.get("token") or "")
+            if not token:raise RuntimeError("MediaForge OVH authentication failed")
+            print("::add-mask::"+token,flush=True)
+            pre=services(token)
+            tw=pre.get("twitch") or {}
+            out["before"]={key:tw.get(key) for key in ("status","session_id","encoder_pid","playlist_key","playlist_track_count","now_playing","visual_revision","restarts","hot_swap")}
+            peers={k:v.get("encoder_pid") for k,v in pre.items() if k!="twitch" and v.get("status")=="live" and v.get("encoder_pid")}
+            out["peer_slot_count"]=len(peers)
+            if tw.get("status")!="live" or not tw.get("encoder_pid") or tw.get("hot_swap") is not True:
+              raise RuntimeError("Twitch publisher not confirmed LIVE/hot-swap; refuse risky playlist switch")
+            current=request("/api/music-library",token)
+            local=next((p for p in current.get("playlists",[]) if p.get("key")=="lofi-hip-hop"),None)
+            local_ids={str(t.get("id")) for t in (local or {}).get("tracks",[]) if isinstance(t,dict)}
+            out["local_catalog_before"]=len(local_ids)
+            if not ids.issubset(local_ids):
+              for offset in (0,36):
+                chunk={**p,"tracks":tracks[offset:offset+36]}
+                sync=request("/api/music-library/lofi-hip-hop-sync",token,{"playlist":chunk})
+                if not sync.get("ok"):raise RuntimeError("Local catalog import failed at batch "+str(offset))
+                out.setdefault("catalog_batches_synced",[]).append({"offset":offset,"count":len(chunk["tracks"]),"result_track_count":sync.get("track_count")})
+              current=request("/api/music-library",token)
+              local=next((p for p in current.get("playlists",[]) if p.get("key")=="lofi-hip-hop"),None)
+              local_ids={str(t.get("id")) for t in (local or {}).get("tracks",[]) if isinstance(t,dict)}
+            out["local_catalog_after"]=len(local_ids)
+            if not ids.issubset(local_ids):
+              raise RuntimeError("MediaForge local catalog still missing approved Lofi tracks; switch not sent")
+            out["before_peer_encoder_pids_recorded"]=True
+            response=request("/api/ovh/playlist",token,{"runtime_slot":"twitch","playlist_key":"lofi-hip-hop","session_id":str(tw.get("session_id") or ""),"shuffle":True})
+            cmd=response.get("command") or {}
+            cid=str(cmd.get("id") or "")
+            if not response.get("ok") or not cid:raise RuntimeError("Twitch playlist switch was not accepted")
+            out["switch_command_id"]=cid
+            out["playlist_response"]=response.get("playlist")
+            confirmed=False
+            for i in range(55):
+              c=(request("/api/ovh/control/"+urllib.parse.quote(cid),token).get("command") or {})
+              status=str(c.get("status") or "")
+              if status=="failed":raise RuntimeError("OVH playlist switch failed: "+str(c.get("error") or "unknown")[:240])
+              now=services(token)
+              tw2=now.get("twitch") or {}
+              if str(tw2.get("encoder_pid") or "")!=str(tw.get("encoder_pid")):
+                raise RuntimeError("Twitch encoder PID changed; cannot claim zero-drop playlist switch")
+              changed=[k for k,pid in peers.items() if str((now.get(k) or {}).get("encoder_pid") or "")!=str(pid)]
+              if changed:raise RuntimeError("Unrelated live publisher changed: "+",".join(changed))
+              if (status=="completed" and tw2.get("playlist_key")=="lofi-hip-hop"
+                   and int(tw2.get("playlist_track_count") or 0)==66
+                   and str((tw2.get("now_playing") or {}).get("track_id") or "").startswith("lofi-hip-hop-")):
+                confirmed=True
+                out["command_status"]=status
+                out["after"]={k:tw2.get(k) for k in ("status","session_id","encoder_pid","playlist_key","playlist_track_count","now_playing","visual_revision","restarts","audio_status","visual_status","updated_at")}
+                out["peer_encoders_preserved"]=True
+                out["twitch_encoder_pid_preserved"]=True
+                break
+              if i%8==0:print("WAIT",i,"command",status,"playlist",tw2.get("playlist_key"),"track",((tw2.get("now_playing") or {}).get("track_id")),flush=True)
+              time.sleep(2)
+            if not confirmed:
+              out["command_status"]="unconfirmed_timeout"
+              out["last_status"]={k:(tw2 or {}).get(k) for k in ("status","playlist_key","playlist_track_count","now_playing","audio_status")}
+              raise RuntimeError("Command queued but Lofi playback was not fully confirmed on Twitch")
+            report()
+          except Exception as exc:
+            out["error"]=type(exc).__name__+": "+str(exc)[:700]
+            report()
+            raise
+          PY
+      - name: Persist sanitized zero-drop proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/twitch-lofi-hip-hop-switch-20261011.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/twitch-lofi-hip-hop-switch-20261011.json
+          git commit -m 'ops: record Twitch-only Lofi Hip Hop playlist switch' || exit 0
+          for I in 1 2 3 4; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep 2
+          done
+          exit 1
