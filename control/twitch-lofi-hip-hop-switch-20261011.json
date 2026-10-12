@@ -1,0 +1,99 @@
+{
+  "checked_at": "2026-10-12T02:46:42.460649+00:00",
+  "target": "twitch",
+  "requested_playlist_key": "lofi-hip-hop",
+  "other_slots_modified": false,
+  "publisher_restart_requested": false,
+  "source_tracks_verified": 66,
+  "before": {
+    "status": "live",
+    "session_id": "b43d8f63-6e1a-4c47-a4c5-10fd2e4a5c8f",
+    "encoder_pid": 34019,
+    "playlist_key": "twitch-dj-mixed",
+    "playlist_track_count": 165,
+    "now_playing": {
+      "platform": "twitch",
+      "state": "playing",
+      "track_id": "twitch-dj-8611f36cad89",
+      "title": "Electric (R3hab Remix)",
+      "artists": "Alina Baraz, Khalid, R3HAB",
+      "source": "twitch_dj_catalog_licensed_copy",
+      "url": "file:///home/ubuntu/theofficemusic/ovh-streaming/state/twitch-dj-audio/8611f36cad89f4ddb42cfa466473df424121a0503298dc3addcb99deb6197345.mp3",
+      "started_at": "2026-10-12T02:45:45.633232Z",
+      "history": [
+        "gaming-twitch-dj-20261004-19",
+        "twitch-dj-c6f9227242c9",
+        "gaming-twitch-dj-20261004-01",
+        "twitch-dj-38e94e3263bf",
+        "gaming-twitch-dj-20261004-02",
+        "twitch-dj-0205522426e3",
+        "gaming-twitch-dj-20261004-07",
+        "twitch-dj-284050b1988e",
+        "gaming-twitch-dj-20261004-29",
+        "twitch-dj-8611f36cad89"
+      ]
+    },
+    "visual_revision": 134,
+    "restarts": 10904,
+    "hot_swap": true
+  },
+  "peer_slot_count": 5,
+  "local_catalog_before": 36,
+  "catalog_batches_synced": [
+    {
+      "offset": 0,
+      "count": 36,
+      "result_track_count": 36
+    },
+    {
+      "offset": 36,
+      "count": 30,
+      "result_track_count": 66
+    }
+  ],
+  "local_catalog_after": 66,
+  "before_peer_encoder_pids_recorded": true,
+  "switch_command_id": "8ae605ba-3df4-4447-b4d6-df68d21df46a",
+  "playlist_response": {
+    "key": "lofi-hip-hop",
+    "name": "Lofi Hip Hop",
+    "track_count": 66
+  },
+  "command_status": "completed",
+  "after": {
+    "status": "live",
+    "session_id": "b43d8f63-6e1a-4c47-a4c5-10fd2e4a5c8f",
+    "encoder_pid": 34019,
+    "playlist_key": "lofi-hip-hop",
+    "playlist_track_count": 66,
+    "now_playing": {
+      "platform": "twitch",
+      "state": "playing",
+      "track_id": "lofi-hip-hop-20261008-01",
+      "title": "Window Seat",
+      "artists": "",
+      "source": "",
+      "url": "https://github.com/thebusinessflowtv/theofficemusic/releases/download/peter-lofi-lofi-hip-hop-001-37991966107/peter-lofi-lofi-hip-hop-001.mp3",
+      "started_at": "2026-10-12T02:46:49.935694Z",
+      "history": [
+        "twitch-dj-c6f9227242c9",
+        "gaming-twitch-dj-20261004-01",
+        "twitch-dj-38e94e3263bf",
+        "gaming-twitch-dj-20261004-02",
+        "twitch-dj-0205522426e3",
+        "gaming-twitch-dj-20261004-07",
+        "twitch-dj-284050b1988e",
+        "gaming-twitch-dj-20261004-29",
+        "twitch-dj-8611f36cad89",
+        "lofi-hip-hop-20261008-01"
+      ]
+    },
+    "visual_revision": 134,
+    "restarts": 10904,
+    "audio_status": "encoder_backpressure_buffering",
+    "visual_status": "streaming",
+    "updated_at": "2026-10-12T02:46:57.398805Z"
+  },
+  "peer_encoders_preserved": true,
+  "twitch_encoder_pid_preserved": true
+}
