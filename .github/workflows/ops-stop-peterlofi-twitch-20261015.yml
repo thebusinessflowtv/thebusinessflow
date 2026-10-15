@@ -1,0 +1,112 @@
+name: "Ops — Stop PeterLofi Twitch only 2026-10-15"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-stop-peterlofi-twitch-20261015.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: peterlofi-twitch-stop-20261015
+  cancel-in-progress: false
+jobs:
+  stop-twitch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Stop Twitch without changing Kick or YouTube
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,json,os,pathlib,ssl,time,urllib.parse,urllib.request
+          BASE="https://146.59.156.224:8443";CTX=ssl._create_unverified_context()
+          output=pathlib.Path("control/twitch-stop-20261015.json")
+          report={"operation":"stop","target":"twitch","requested_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                  "other_streams_stop_requested":False}
+          def save():
+            output.parent.mkdir(parents=True,exist_ok=True)
+            output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
+            print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
+          def call(path,token="",body=None):
+            headers={"User-Agent":"PeterLofi-TwitchOnly-Stop/20261015","Cache-Control":"no-cache"}
+            if token:headers["Authorization"]="Bearer "+token
+            if body is not None:headers["Content-Type"]="application/json"
+            req=urllib.request.Request(BASE+path,headers=headers,
+              data=json.dumps(body).encode() if body is not None else None,
+              method="POST" if body is not None else "GET")
+            with urllib.request.urlopen(req,timeout=25,context=CTX) as response:return json.load(response)
+          def getservices(token):
+            resp=call("/api/ovh/status",token)
+            return (resp.get("agent") or {}).get("services") or {}
+          try:
+            assert os.environ.get("ADMIN_EMAIL") and os.environ.get("ADMIN_PASSWORD"),"MediaForge credentials missing"
+            result=call("/api/auth/login",body={"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
+            token=result.get("token")
+            if not token:raise RuntimeError("OVH admin authentication failed")
+            print("::add-mask::"+str(token),flush=True)
+            pre=getservices(token)
+            twitch=pre.get("twitch") or {}
+            initialpid=twitch.get("encoder_pid")
+            report["before"]={k:twitch.get(k) for k in ("status","session_id","encoder_pid","playlist_key","updated_at")}
+            peers={k:v.get("encoder_pid") for k,v in pre.items() if k!="twitch" and v.get("status")=="live" and v.get("encoder_pid")}
+            report["other_active_publisher_count"]=len(peers)
+            if twitch.get("status")=="stopped" and not initialpid:
+              report["result"]="already_stopped"
+            else:
+              if not twitch.get("session_id"):raise RuntimeError("Twitch slot missing session id; refuse ambiguous stop")
+              command=call("/api/ovh/control",token,{"action":"stop","runtime_slot":"twitch","session_id":str(twitch["session_id"])})
+              cid=str((command.get("command") or {}).get("id") or "")
+              if not command.get("ok") or not cid:raise RuntimeError("Twitch stop command not accepted")
+              report["stop_command_id"]=cid
+              for i in range(50):
+                cmd=call("/api/ovh/control/"+urllib.parse.quote(cid),token).get("command") or {}
+                services=getservices(token)
+                t=services.get("twitch") or {}
+                if cmd.get("status")=="failed":
+                  raise RuntimeError("Twitch stop failed: "+str(cmd.get("error") or "")[:250])
+                if t.get("status")=="stopped" and not t.get("encoder_pid"):
+                  report["result"]="stopped_confirmed"
+                  report["stop_command_status"]=cmd.get("status")
+                  break
+                if i%6==0:print("stop_pending",i,cmd.get("status"),t.get("status"),"encoder_present",bool(t.get("encoder_pid")),flush=True)
+                time.sleep(2)
+              else:
+                raise RuntimeError("Twitch stop not confirmed: status="+str(t.get("status"))+" pid_present="+str(bool(t.get("encoder_pid"))))
+            after=getservices(token)
+            tw=after.get("twitch") or {}
+            report["after"]={k:tw.get(k) for k in ("status","session_id","encoder_pid","playlist_key","updated_at")}
+            changed=[s for s,pid in peers.items() if (after.get(s) or {}).get("encoder_pid")!=pid]
+            report["other_publishers_preserved"]=len(changed)==0
+            if changed:report["unexpected_peer_pid_changes"]=changed
+            report["confirmed_offline"]=tw.get("status")=="stopped" and not tw.get("encoder_pid")
+            if not report["confirmed_offline"]:raise RuntimeError("Twitch not fully stopped")
+            save()
+          except Exception as exc:
+            report["error"]=type(exc).__name__+": "+str(exc)[:600]
+            save()
+            raise
+          PY
+      - name: Record verified Twitch-only stop
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/twitch-stop-20261015.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/twitch-stop-20261015.json
+          git commit -m 'ops: record verified Twitch-only stop' || exit 0
+          for TRY in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep 2
+          done
+          exit 1
