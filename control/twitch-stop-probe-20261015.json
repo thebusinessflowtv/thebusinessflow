@@ -1,0 +1,66 @@
+{
+  "checked_at": "2026-10-15T13:48:15.105866+00:00",
+  "routes": {
+    "https://mediaforge-api.guilhermeodsgn.workers.dev": {
+      "base": "https://mediaforge-api.guilhermeodsgn.workers.dev",
+      "health_http": 200,
+      "health": {
+        "ok": true,
+        "service": "mediaforge-api",
+        "storage": "r2",
+        "database": "d1",
+        "supabase": false,
+        "youtube": true,
+        "kick": true,
+        "twitch": true,
+        "ovh": true,
+        "local_runtime": false
+      },
+      "twitch": {
+        "status": "live",
+        "encoder_pid": null,
+        "session_id": "b43d8f63-6e1a-4c47-a4c5-10fd2e4a5c8f",
+        "updated_at": "2026-10-03T18:22:25.477549Z",
+        "playlist_key": "twitch-dj-mixed"
+      },
+      "agent_reported_at": "2026-10-03T18:22:25.725543Z",
+      "peer_live_count": 3,
+      "recent_twitch_commands": [
+        {
+          "id": "ui-test-prev-20261003234333-20010",
+          "action": "previous",
+          "status": "completed",
+          "error": ""
+        },
+        {
+          "id": "ui-test-next-20261003234320-31047",
+          "action": "skip",
+          "status": "completed",
+          "error": ""
+        },
+        {
+          "id": "48ac602b-46c6-4c1e-8bbe-1e7a203b6b3a",
+          "action": "previous",
+          "status": "completed",
+          "error": ""
+        },
+        {
+          "id": "2b82aed7-8ae7-47ff-9dea-8d10521d7c8b",
+          "action": "previous",
+          "status": "completed",
+          "error": ""
+        }
+      ]
+    },
+    "https://peterlofi.odsgn.com.br": {
+      "base": "https://peterlofi.odsgn.com.br",
+      "health_error": "TimeoutError: The read operation timed out",
+      "auth_error": "TimeoutError: The read operation timed out"
+    },
+    "https://146.59.156.224:8443": {
+      "base": "https://146.59.156.224:8443",
+      "health_error": "TimeoutError: The read operation timed out",
+      "auth_error": "TimeoutError: The read operation timed out"
+    }
+  }
+}
