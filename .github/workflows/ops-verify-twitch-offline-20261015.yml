@@ -1,0 +1,63 @@
+name: "Ops — Verify Twitch PeterLofi offline 2026-10-15"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-verify-twitch-offline-20261015.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Check Twitch public stream live status read-only
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,datetime,time,urllib.request,pathlib,urllib.error
+          rep={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"channel":"peterlofi","sources":{}}
+          def probe():
+            info={}
+            try:
+              body=json.dumps({"query":"query { user(login: \"peterlofi\") { login stream { id createdAt viewersCount } } }"}).encode()
+              request=urllib.request.Request("https://gql.twitch.tv/gql",data=body,
+                headers={"Content-Type":"application/json","Client-Id":"kimne78kx3ncx6brgo4mv6wki5h1ko","User-Agent":"Mozilla/5.0"})
+              with urllib.request.urlopen(request,timeout=15) as r:
+                obj=json.load(r)
+              user=(obj.get("data") or {}).get("user")
+              info["twitch_graphql"]={"user_found":bool(user),"live":bool(user and user.get("stream")),
+                                      "stream_id":(user or {}).get("stream",{}).get("id") if user and user.get("stream") else None,
+                                      "errors":[str(z.get("message"))[:150] for z in obj.get("errors",[])]}
+            except Exception as exc:info["twitch_graphql"]={"error":type(exc).__name__+": "+str(exc)[:140]}
+            try:
+              req=urllib.request.Request("https://decapi.me/twitch/uptime/peterlofi",headers={"User-Agent":"Mozilla/5.0"})
+              with urllib.request.urlopen(req,timeout=10) as r:s=r.read(300).decode("utf-8","replace")
+              info["third_party_uptime"]={"text":s.strip()[:200]}
+            except Exception as exc:info["third_party_uptime"]={"error":type(exc).__name__+": "+str(exc)[:140]}
+            return info
+          rep["first"]=probe()
+          time.sleep(10)
+          rep["second"]=probe()
+          g1=rep["first"]["twitch_graphql"];g2=rep["second"]["twitch_graphql"]
+          rep["offline_confirmed_by_twitch"]=all(z.get("user_found") is True and z.get("live") is False and not z.get("errors") for z in (g1,g2))
+          path=pathlib.Path("control/twitch-stop-public-verify-20261015.json")
+          path.parent.mkdir(parents=True,exist_ok=True)
+          path.write_text(json.dumps(rep,indent=2,ensure_ascii=False)+"\n")
+          print(json.dumps(rep,indent=2,ensure_ascii=False))
+          PY
+      - name: Save public verification
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/twitch-stop-public-verify-20261015.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/twitch-stop-public-verify-20261015.json
+          git commit -m 'ops: verify Twitch external status after stop' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
