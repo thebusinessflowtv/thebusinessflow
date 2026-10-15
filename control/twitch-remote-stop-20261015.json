@@ -1,0 +1,16 @@
+{
+  "target": "twitch",
+  "action": "stop",
+  "queued_at": "2026-10-15T13:50:21.318585+00:00",
+  "other_slots_modified": false,
+  "remote_state_timestamp": "2026-10-03T18:22:25.725543Z",
+  "stale_agent_mirror": true,
+  "remote_twitch_status_before": "live",
+  "command_id": "4a9ebfe0-76ba-428e-aa2c-e17f227dcc22",
+  "queued": true,
+  "command_status": "completed",
+  "remote_twitch_status_after": "live",
+  "remote_after_updated_at": "2026-10-03T18:22:25.477549Z",
+  "verified_stopped": false,
+  "pending_until_agent_reconnects": true
+}
