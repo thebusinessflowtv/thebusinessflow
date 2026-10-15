@@ -1,0 +1,89 @@
+name: "Ops — Persist Twitch only STOP in remote MediaForge 2026-10-15"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-persist-twitch-stop-remote-20261015.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Enqueue persistent Twitch-only stop in reachable remote control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import urllib.request,urllib.parse,urllib.error,json,datetime,os,pathlib,time
+          BASE="https://mediaforge-api.guilhermeodsgn.workers.dev"
+          out={"target":"twitch","action":"stop","queued_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"other_slots_modified":False}
+          p=pathlib.Path("control/twitch-remote-stop-20261015.json")
+          def save():
+            p.parent.mkdir(parents=True,exist_ok=True)
+            p.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n")
+            print(json.dumps(out,ensure_ascii=False,indent=2),flush=True)
+          def req(path,token="",data=None):
+            h={"User-Agent":"PeterLofi-Remote-TwitchOnly-Stop/20261015","Cache-Control":"no-cache"}
+            if token:h["authorization"]="Bearer "+token
+            if data is not None:h["content-type"]="application/json"
+            request=urllib.request.Request(BASE+path,data=json.dumps(data).encode() if data is not None else None,
+              headers=h,method="POST" if data is not None else "GET")
+            with urllib.request.urlopen(request,timeout=20) as response:return json.load(response)
+          try:
+            user=os.environ.get("ADMIN_EMAIL");pwd=os.environ.get("ADMIN_PASSWORD")
+            if not user or not pwd:raise RuntimeError("MediaForge secrets missing")
+            a=req("/api/auth/login",data={"email":user,"password":pwd})
+            token=str(a.get("token") or "")
+            if not token:raise RuntimeError("Remote control authentication failed")
+            print("::add-mask::"+token,flush=True)
+            status=req("/api/ovh/status",token)
+            tw=((status.get("agent") or {}).get("services") or {}).get("twitch") or {}
+            out["remote_state_timestamp"]=(status.get("agent") or {}).get("reported_at")
+            out["stale_agent_mirror"]=bool(out["remote_state_timestamp"] and (datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(out["remote_state_timestamp"].replace("Z","+00:00"))).total_seconds()>120)
+            out["remote_twitch_status_before"]=tw.get("status")
+            payload={"action":"stop","runtime_slot":"twitch","session_id":str(tw.get("session_id") or "b43d8f63-6e1a-4c47-a4c5-10fd2e4a5c8f")}
+            reply=req("/api/ovh/control",token,payload)
+            command=reply.get("command") or {}
+            cid=str(command.get("id") or "")
+            if not reply.get("ok") or not cid:raise RuntimeError("Remote stop command not queued")
+            out["command_id"]=cid
+            out["queued"]=True
+            for step in range(4):
+              time.sleep(2)
+              row=(req("/api/ovh/control/"+urllib.parse.quote(cid),token).get("command") or {})
+              out["command_status"]=row.get("status")
+              if row.get("status") in ["completed","failed"]:break
+            if out.get("command_status")=="failed":
+              raise RuntimeError("Remote agent stop command failed: "+str(row.get("error") or "")[:240])
+            latest=req("/api/ovh/status",token)
+            svc=((latest.get("agent") or {}).get("services") or {}).get("twitch") or {}
+            out["remote_twitch_status_after"]=svc.get("status")
+            out["remote_after_updated_at"]=svc.get("updated_at")
+            out["verified_stopped"]=out.get("command_status")=="completed" and svc.get("status")=="stopped" and not svc.get("encoder_pid")
+            out["pending_until_agent_reconnects"]=not out["verified_stopped"]
+            save()
+          except Exception as exc:
+            out["error"]=type(exc).__name__+": "+str(exc)[:400]
+            save()
+            raise
+          PY
+      - name: Persist command receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/twitch-remote-stop-20261015.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/twitch-remote-stop-20261015.json
+          git commit -m 'ops: record persistent Twitch-only stop request' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
