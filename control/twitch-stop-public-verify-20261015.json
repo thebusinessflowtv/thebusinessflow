@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-10-15T13:52:26.765991+00:00",
+  "channel": "peterlofi",
+  "sources": {},
+  "first": {
+    "twitch_graphql": {
+      "user_found": false,
+      "live": false,
+      "stream_id": null,
+      "errors": []
+    },
+    "third_party_uptime": {
+      "text": "peterlofi is offline"
+    }
+  },
+  "second": {
+    "twitch_graphql": {
+      "user_found": false,
+      "live": false,
+      "stream_id": null,
+      "errors": []
+    },
+    "third_party_uptime": {
+      "text": "peterlofi is offline"
+    }
+  },
+  "offline_confirmed_by_twitch": false
+}
