@@ -1,0 +1,73 @@
+name: "Ops — Probe Twitch stop alternative routes 2026-10-15"
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-probe-twitch-stop-20261015.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      ADMIN_EMAIL: ${{ secrets.MEDIAFORGE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.MEDIAFORGE_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Check remote and direct OVH and Twitch visibility
+        shell: bash
+        run: |
+          python - <<'PY'
+          import datetime,json,os,pathlib,ssl,urllib.error,urllib.request
+          urls=["https://mediaforge-api.guilhermeodsgn.workers.dev",
+                "https://peterlofi.odsgn.com.br",
+                "https://146.59.156.224:8443"]
+          ctx=ssl._create_unverified_context()
+          output={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"routes":{}}
+          def fetch(url,data=None,token=""):
+            h={"User-Agent":"PeterLofi-TwitchStop-Probe","Cache-Control":"no-cache"}
+            if data is not None:h["content-type"]="application/json"
+            if token:h["authorization"]="Bearer "+token
+            q=urllib.request.Request(url,data=json.dumps(data).encode() if data is not None else None,headers=h)
+            with urllib.request.urlopen(q,timeout=8,context=ctx) as response:
+              return response.status,json.load(response)
+          for base in urls:
+            status={"base":base}
+            try:
+              status["health_http"],status["health"]=fetch(base+"/api/health")
+            except Exception as exc:status["health_error"]=str(type(exc).__name__)+": "+str(exc)[:120]
+            if os.environ.get("ADMIN_EMAIL") and os.environ.get("ADMIN_PASSWORD"):
+              try:
+                code,auth=fetch(base+"/api/auth/login",{"email":os.environ["ADMIN_EMAIL"],"password":os.environ["ADMIN_PASSWORD"]})
+                token=str(auth.get("token") or "")
+                if token:
+                  print("::add-mask::"+token,flush=True)
+                  code,data=fetch(base+"/api/ovh/status",token=token)
+                  tw=((data.get("agent") or {}).get("services") or {}).get("twitch") or {}
+                  status["twitch"]={k:tw.get(k) for k in ("status","encoder_pid","session_id","updated_at","playlist_key")}
+                  status["agent_reported_at"]=(data.get("agent") or {}).get("reported_at")
+                  status["peer_live_count"]=sum(1 for k,v in ((data.get("agent") or {}).get("services") or {}).items() if k!="twitch" and v.get("status")=="live")
+                  status["recent_twitch_commands"]=[{k:c.get(k) for k in ("id","action","status","error")} for c in data.get("recent_commands",[]) if c.get("runtime_slot")=="twitch"][:4]
+                else:status["auth_failure"]="no_token"
+              except Exception as exc:status["auth_error"]=str(type(exc).__name__)+": "+str(exc)[:140]
+            output["routes"][base]=status
+            print(json.dumps(status,ensure_ascii=False),flush=True)
+          path=pathlib.Path("control/twitch-stop-probe-20261015.json")
+          path.parent.mkdir(parents=True,exist_ok=True)
+          path.write_text(json.dumps(output,ensure_ascii=False,indent=2)+"\n")
+          PY
+      - name: Save observations
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f control/twitch-stop-probe-20261015.json || exit 0
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add control/twitch-stop-probe-20261015.json
+          git commit -m 'ops: read-only Twitch stop diagnostic' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
